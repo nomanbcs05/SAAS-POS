@@ -13,7 +13,7 @@ type Role = "admin" | "cashier" | "cashier2";
 const Welcome = () => {
   const navigate = useNavigate();
   const { tenant } = useMultiTenant();
-  const [cashierName, setCashierName] = useState('Ali Hyder');
+  const [cashierName, setCashierName] = useState('CASHIER');
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState('');
 
