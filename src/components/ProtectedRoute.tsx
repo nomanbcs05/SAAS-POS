@@ -1,0 +1,61 @@
+
+import { useEffect, useState } from "react";
+import { Navigate, useLocation } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
+import { useMultiTenant } from "@/hooks/useMultiTenant";
+
+const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
+  const { session, profile, isLoading, isAdmin, ownedTenants } = useMultiTenant();
+  const location = useLocation();
+
+  console.log("ProtectedRoute State:", { 
+    path: location.pathname, 
+    isLoading, 
+    hasSession: !!session, 
+    hasProfile: !!profile, 
+    isAdmin,
+    restaurantId: profile?.tenant_id,
+    ownedTenantsCount: ownedTenants?.length
+  });
+
+  if (isLoading) {
+    console.log("ProtectedRoute: Loading session/profile...");
+    return (
+      <div className="h-screen w-full flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    console.log("ProtectedRoute: No session found, redirecting to /auth");
+    return <Navigate to="/auth" state={{ from: location }} replace />;
+  }
+
+  // Handle Multi-Tenant redirection logic
+  if (!profile?.tenant_id && !profile?.restaurant_id) {
+    // If user is already on one of the onboarding pages, don't redirect again
+    if (location.pathname === '/create-restaurant' || location.pathname === '/select-restaurant') {
+      return <>{children}</>;
+    }
+
+    // If they own restaurants but haven't selected one, go to selection
+    if (ownedTenants && ownedTenants.length > 0) {
+      console.log("ProtectedRoute: No tenant selected but owns restaurants, redirecting to /select-restaurant");
+      return <Navigate to="/select-restaurant" replace />;
+    }
+
+    // If they own nothing, go to creation
+    console.log("ProtectedRoute: No tenant found, redirecting to /create-restaurant");
+    return <Navigate to="/create-restaurant" replace />;
+  }
+
+  if (adminOnly && !isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+export default ProtectedRoute;
