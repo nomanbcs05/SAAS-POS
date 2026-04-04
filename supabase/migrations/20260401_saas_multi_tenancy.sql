@@ -205,7 +205,8 @@ RETURNS VOID AS $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = p_table_name) THEN
         EXECUTE format('DROP POLICY IF EXISTS "Tenant Isolation" ON public.%I', p_table_name);
-        EXECUTE format('CREATE POLICY "Tenant Isolation" ON public.%I FOR ALL USING (tenant_id = public.get_auth_tenant_id()) WITH CHECK (tenant_id = public.get_auth_tenant_id())', p_table_name);
+        -- Updated policy: Allow viewing records with NULL tenant_id so they can be "claimed" or restored
+        EXECUTE format('CREATE POLICY "Tenant Isolation" ON public.%I FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL)', p_table_name);
     END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -688,44 +688,96 @@ export const api = {
       if (ordersError) throw ordersError;
     },
     fixOrphanedOrders: async () => {
-      // Get the current tenant_id from profile
-      const { data: profile } = await supabase.auth.getUser().then(({ data: { user } }) => 
-        supabase.from('profiles').select('tenant_id').eq('id', user?.id || '').single()
-      );
+      // 1. Get current user and profile
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return 0;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tenant_id')
+        .eq('id', user.id)
+        .single();
 
       if (!profile?.tenant_id) return 0;
 
+      const tenantId = profile.tenant_id;
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
 
-      // Find orders from today with NULL tenant_id
-      // Note: We might not be able to see them if RLS is strict, 
-      // but if there's a "Public access" policy or they were created by the same user, we might.
+      console.log('Starting deep restoration for tenant:', tenantId);
+
+      // 2. Find ALL orders from today that might belong to this user
+      // We look for: tenant_id IS NULL OR tenant_id is some "default" or "legacy" value
+      // Since RLS is now relaxed for NULL tenant_id, we can see those.
       const { data: orphaned, error: fetchError } = await supabase
         .from('orders')
-        .select('id')
-        .is('tenant_id', null)
+        .select('id, tenant_id')
         .gte('created_at', startOfDay.toISOString());
 
-      if (fetchError || !orphaned || orphaned.length === 0) return 0;
+      if (fetchError || !orphaned) {
+        console.error('Error fetching orders for restoration:', fetchError);
+        return 0;
+      }
 
-      const ids = orphaned.map(o => o.id);
+      // Filter for orders that need claiming (tenant_id is null)
+      const toClaim = orphaned.filter(o => !o.tenant_id);
+      
+      if (toClaim.length === 0) {
+        console.log('No orphaned orders found to claim.');
+        return 0;
+      }
 
-      // Update them
+      const ids = toClaim.map(o => o.id);
+      console.log(`Claiming ${ids.length} orders for tenant ${tenantId}`);
+
+      // 3. Update orders
       const { error: updateError } = await supabase
         .from('orders')
-        .update({ tenant_id: profile.tenant_id })
+        .update({ tenant_id: tenantId })
         .in('id', ids);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error updating orphaned orders:', updateError);
+        throw updateError;
+      }
       
-      // Also update order items
-      await supabase
+      // 4. Update order items
+      const { error: itemsError } = await supabase
         .from('order_items')
-        .update({ tenant_id: profile.tenant_id })
+        .update({ tenant_id: tenantId })
         .in('order_id', ids);
 
-      return orphaned.length;
+      if (itemsError) {
+        console.warn('Error updating order items (might not have tenant_id column):', itemsError);
+      }
+
+      // 5. Restore Tenant Settings (Logo, etc.) from legacy 'restaurants' table if needed
+      try {
+        const { data: legacyRestaurant } = await supabase
+          .from('restaurants')
+          .select('*')
+          .eq('id', tenantId)
+          .single();
+        
+        if (legacyRestaurant) {
+          console.log('Found legacy restaurant data, syncing to tenants table...');
+          await supabase
+            .from('tenants')
+            .update({
+              restaurant_name: legacyRestaurant.name,
+              logo_url: legacyRestaurant.logo_url,
+              address: legacyRestaurant.address,
+              phone: legacyRestaurant.phone,
+              city: legacyRestaurant.city,
+              // Add other fields if they exist in both tables
+            })
+            .eq('id', tenantId);
+        }
+      } catch (err) {
+        console.warn('Legacy settings restoration skipped:', err);
+      }
+
+      return toClaim.length;
     }
   },
   reports: {

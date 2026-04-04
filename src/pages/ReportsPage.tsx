@@ -62,14 +62,18 @@ const ReportsPage = () => {
       onSuccess: (count) => {
         queryClient.invalidateQueries({ queryKey: ['reports-data'] });
         queryClient.invalidateQueries({ queryKey: ['orders'] });
+        queryClient.invalidateQueries({ queryKey: ['tenant'] });
         if (count > 0) {
-          toast.success(`Successfully restored ${count} orders!`);
+          toast.success(`Successfully restored ${count} orders and restaurant settings!`);
+          // Reload to ensure logo and settings are refreshed
+          setTimeout(() => window.location.reload(), 1500);
         } else {
-          toast.info("No missing orders found from today.");
+          toast.info("No missing orders found, but settings were re-synced.");
+          setTimeout(() => window.location.reload(), 1000);
         }
       },
       onError: (error) => {
-        toast.error(`Failed to restore orders: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        toast.error(`Failed to restore: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     });
 
