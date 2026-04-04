@@ -57,6 +57,22 @@ const ReportsPage = () => {
       }
     });
 
+    const fixOrphanedOrdersMutation = useMutation({
+      mutationFn: api.orders.fixOrphanedOrders,
+      onSuccess: (count) => {
+        queryClient.invalidateQueries({ queryKey: ['reports-data'] });
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        if (count > 0) {
+          toast.success(`Successfully restored ${count} orders!`);
+        } else {
+          toast.info("No missing orders found from today.");
+        }
+      },
+      onError: (error) => {
+        toast.error(`Failed to restore orders: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    });
+
     const deleteAllMutation = useMutation({
       mutationFn: api.orders.deleteAllOrders,
       onSuccess: () => {
@@ -620,6 +636,26 @@ const ReportsPage = () => {
 
           {/* Danger Zone */}
           <div className="pt-12 pb-6">
+            <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Maintenance & Recovery</h3>
+            <div className="flex flex-wrap gap-4 p-6 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/30 mb-8">
+              <div className="w-full mb-2">
+                <p className="text-xs text-slate-500 font-medium">If your today's orders are missing after a refresh, use the restore button below to recover them.</p>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={() => fixOrphanedOrdersMutation.mutate()} 
+                disabled={fixOrphanedOrdersMutation.isPending}
+                className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-600 hover:text-white transition-all font-bold shadow-sm"
+              >
+                {fixOrphanedOrdersMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <ArrowUpRight className="h-4 w-4 mr-2" />
+                )}
+                Restore Today's Orders
+              </Button>
+            </div>
+
             <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Danger Zone</h3>
             <div className="flex flex-wrap gap-4 p-6 border-2 border-dashed border-red-100 rounded-2xl bg-red-50/30">
               <AlertDialog>

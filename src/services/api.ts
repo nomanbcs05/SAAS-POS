@@ -349,6 +349,10 @@ export const api = {
       return count || 0;
     },
     create: async (order: any, items: OrderItemInsert[]) => {
+      // Get current user profile for tenant_id if not provided
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user?.id || '').single();
+      
       // Clean order data to match actual Supabase schema
       const safeOrder: any = {
         total_amount: Number(order.total_amount) || 0,
@@ -356,6 +360,14 @@ export const api = {
         payment_method: order.payment_method || 'cash',
         order_type: order.order_type || 'dine_in',
         register_id: order.register_id || null,
+        tenant_id: order.tenant_id || profile?.tenant_id || null,
+        customer_id: order.customer_id || null,
+        customer_address: order.customer_address || null,
+        server_name: order.server_name || null,
+        table_id: order.table_id || null,
+        discount_amount: order.discountAmount || 0,
+        service_charges_amount: order.serviceChargesAmount || 0,
+        delivery_fee: order.deliveryFee || 0,
       };
 
       if (order.server_name) {
@@ -674,6 +686,46 @@ export const api = {
         .neq('id', '00000000-0000-0000-0000-000000000000');
 
       if (ordersError) throw ordersError;
+    },
+    fixOrphanedOrders: async () => {
+      // Get the current tenant_id from profile
+      const { data: profile } = await supabase.auth.getUser().then(({ data: { user } }) => 
+        supabase.from('profiles').select('tenant_id').eq('id', user?.id || '').single()
+      );
+
+      if (!profile?.tenant_id) return 0;
+
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      // Find orders from today with NULL tenant_id
+      // Note: We might not be able to see them if RLS is strict, 
+      // but if there's a "Public access" policy or they were created by the same user, we might.
+      const { data: orphaned, error: fetchError } = await supabase
+        .from('orders')
+        .select('id')
+        .is('tenant_id', null)
+        .gte('created_at', startOfDay.toISOString());
+
+      if (fetchError || !orphaned || orphaned.length === 0) return 0;
+
+      const ids = orphaned.map(o => o.id);
+
+      // Update them
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ tenant_id: profile.tenant_id })
+        .in('id', ids);
+
+      if (updateError) throw updateError;
+      
+      // Also update order items
+      await supabase
+        .from('order_items')
+        .update({ tenant_id: profile.tenant_id })
+        .in('order_id', ids);
+
+      return orphaned.length;
     }
   },
   reports: {
