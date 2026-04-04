@@ -34,6 +34,7 @@ const CartPanel = () => {
     subtotal,
     taxAmount,
     discountAmount,
+    serviceChargesAmount,
     total,
     updateQuantity,
     removeItem,
@@ -44,6 +45,9 @@ const CartPanel = () => {
     discount,
     discountType,
     setDiscount,
+    serviceCharges,
+    serviceChargesType,
+    setServiceCharges,
     deliveryFee,
     tableId,
     setTableId,
@@ -58,6 +62,7 @@ const CartPanel = () => {
 
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'wallet'>('cash');
   const [discountInput, setDiscountInput] = useState('');
+  const [serviceChargesInput, setServiceChargesInput] = useState('');
   const [showTableModal, setShowTableModal] = useState(false);
   const [showRiderModal, setShowRiderModal] = useState(false);
   const [pendingAfterRider, setPendingAfterRider] = useState<'none' | 'bill' | 'complete'>('none');
@@ -255,6 +260,7 @@ const CartPanel = () => {
     discountAmount: number;
     deliveryFee: number;
     total: number;
+    serviceChargesAmount: number;
     paymentMethod: typeof paymentMethod;
     createdAt: Date;
     cashierName: typeof cashierName;
@@ -280,6 +286,7 @@ const CartPanel = () => {
       subtotal,
       taxAmount,
       discountAmount,
+      serviceChargesAmount,
       deliveryFee,
       total,
       paymentMethod,
@@ -642,6 +649,60 @@ const CartPanel = () => {
             </div>
             <span className={discountAmount > 0 ? "text-success font-medium" : ""}>
               {discountAmount > 0 ? `-Rs ${discountAmount.toLocaleString()}` : '-'}
+            </span>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2 text-slate-500 font-bold font-heading uppercase tracking-wider text-[10px]">
+              <span>Service Charges</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-5 w-5 rounded-full">
+                    <Wallet className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-4" align="start">
+                  <div className="space-y-4">
+                    <h4 className="font-medium leading-none">Set Service Charges</h4>
+                    <Tabs defaultValue={serviceChargesType} onValueChange={(v) => {
+                      setServiceCharges(0, v as 'percentage' | 'fixed');
+                      setServiceChargesInput('');
+                    }}>
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="percentage">% Percent</TabsTrigger>
+                        <TabsTrigger value="fixed">Rs Fixed</TabsTrigger>
+                      </TabsList>
+                      <div className="pt-4">
+                        <div className="flex gap-2">
+                          <Input
+                            type="number"
+                            placeholder={serviceChargesType === 'percentage' ? "Percentage (0-100)" : "Amount (Rs)"}
+                            value={serviceChargesInput}
+                            onChange={(e) => {
+                              setServiceChargesInput(e.target.value);
+                              setServiceCharges(Number(e.target.value), serviceChargesType);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </Tabs>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        setServiceCharges(0, 'percentage');
+                        setServiceChargesInput('');
+                      }}
+                    >
+                      Remove Charges
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <span className={serviceChargesAmount > 0 ? "text-blue-600 font-medium" : ""}>
+              {serviceChargesAmount > 0 ? `+Rs ${serviceChargesAmount.toLocaleString()}` : '-'}
             </span>
           </div>
 

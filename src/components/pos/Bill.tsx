@@ -11,6 +11,7 @@ interface Order {
   subtotal: number;
   taxAmount: number;
   discountAmount: number;
+  serviceChargesAmount?: number;
   deliveryFee?: number;
   total: number;
   paymentMethod?: 'cash' | 'card' | 'wallet';
@@ -184,6 +185,18 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
           <span>SubTotal :</span>
           <span>{Number(order.subtotal).toLocaleString()}</span>
         </div>
+        {order.discountAmount > 0 && (
+          <div className="flex justify-between">
+            <span>Discount :</span>
+            <span>-{Number(order.discountAmount).toLocaleString()}</span>
+          </div>
+        )}
+        {order.serviceChargesAmount && order.serviceChargesAmount > 0 && (
+          <div className="flex justify-between">
+            <span>Service Charges :</span>
+            <span>+{Number(order.serviceChargesAmount).toLocaleString()}</span>
+          </div>
+        )}
         {order.deliveryFee && order.deliveryFee > 0 && (
           <div className="flex justify-between">
             <span>Delivery Charges :</span>

@@ -39,6 +39,8 @@ interface CartState {
   orderType: 'dine_in' | 'take_away' | 'delivery';
   discount: number;
   discountType: 'percentage' | 'fixed';
+  serviceCharges: number;
+  serviceChargesType: 'percentage' | 'fixed';
   taxRate: number;
   
   editingOrderId: string | null; // Track if we're editing an existing order
@@ -47,6 +49,7 @@ interface CartState {
   subtotal: number;
   taxAmount: number;
   discountAmount: number;
+  serviceChargesAmount: number;
   deliveryFee: number;
   total: number;
   
@@ -61,6 +64,7 @@ interface CartState {
   setCustomerAddress: (address: string | null) => void; // Added setCustomerAddress
   setOrderType: (type: 'dine_in' | 'take_away' | 'delivery') => void;
   setDiscount: (discount: number, type: 'percentage' | 'fixed') => void;
+  setServiceCharges: (amount: number, type: 'percentage' | 'fixed') => void;
   clearCart: () => void;
   calculateTotals: () => void;
   loadOrder: (order: any) => void;
@@ -77,12 +81,15 @@ export const useCartStore = create<CartState>((set, get) => ({
   orderType: 'dine_in',
   discount: 0,
   discountType: 'percentage',
+  serviceCharges: 0,
+  serviceChargesType: 'percentage',
   taxRate: 0, // No tax
   editingOrderId: null,
   
   subtotal: 0,
   taxAmount: 0,
   discountAmount: 0,
+  serviceChargesAmount: 0,
   deliveryFee: 0,
   total: 0,
   
@@ -110,11 +117,14 @@ export const useCartStore = create<CartState>((set, get) => ({
       const discountAmount = state.discountType === 'percentage' 
         ? subtotal * (state.discount / 100) 
         : state.discount;
-      const taxAmount = (subtotal - discountAmount) * (state.taxRate / 100);
+      const serviceChargesAmount = state.serviceChargesType === 'percentage'
+        ? subtotal * (state.serviceCharges / 100)
+        : state.serviceCharges;
+      const taxAmount = (subtotal - discountAmount + serviceChargesAmount) * (state.taxRate / 100);
       const deliveryFee = state.orderType === 'delivery' ? 50 : 0;
-      const total = subtotal - discountAmount + taxAmount + deliveryFee;
+      const total = subtotal - discountAmount + serviceChargesAmount + taxAmount + deliveryFee;
       
-      return { items: newItems, subtotal, discountAmount, taxAmount, deliveryFee, total };
+      return { items: newItems, subtotal, discountAmount, serviceChargesAmount, taxAmount, deliveryFee, total };
     });
   },
   
@@ -125,11 +135,14 @@ export const useCartStore = create<CartState>((set, get) => ({
       const discountAmount = state.discountType === 'percentage' 
         ? subtotal * (state.discount / 100) 
         : state.discount;
-      const taxAmount = (subtotal - discountAmount) * (state.taxRate / 100);
+      const serviceChargesAmount = state.serviceChargesType === 'percentage'
+        ? subtotal * (state.serviceCharges / 100)
+        : state.serviceCharges;
+      const taxAmount = (subtotal - discountAmount + serviceChargesAmount) * (state.taxRate / 100);
       const deliveryFee = state.orderType === 'delivery' ? 50 : 0;
-      const total = subtotal - discountAmount + taxAmount + deliveryFee;
+      const total = subtotal - discountAmount + serviceChargesAmount + taxAmount + deliveryFee;
       
-      return { items: newItems, subtotal, discountAmount, taxAmount, deliveryFee, total };
+      return { items: newItems, subtotal, discountAmount, serviceChargesAmount, taxAmount, deliveryFee, total };
     });
   },
   
@@ -150,11 +163,14 @@ export const useCartStore = create<CartState>((set, get) => ({
       const discountAmount = state.discountType === 'percentage' 
         ? subtotal * (state.discount / 100) 
         : state.discount;
-      const taxAmount = (subtotal - discountAmount) * (state.taxRate / 100);
+      const serviceChargesAmount = state.serviceChargesType === 'percentage'
+        ? subtotal * (state.serviceCharges / 100)
+        : state.serviceCharges;
+      const taxAmount = (subtotal - discountAmount + serviceChargesAmount) * (state.taxRate / 100);
       const deliveryFee = state.orderType === 'delivery' ? 50 : 0;
-      const total = subtotal - discountAmount + taxAmount + deliveryFee;
+      const total = subtotal - discountAmount + serviceChargesAmount + taxAmount + deliveryFee;
       
-      return { items: newItems, subtotal, discountAmount, taxAmount, deliveryFee, total };
+      return { items: newItems, subtotal, discountAmount, serviceChargesAmount, taxAmount, deliveryFee, total };
     });
   },
   
@@ -166,7 +182,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   setOrderType: (orderType) => {
     set((state) => {
       const deliveryFee = orderType === 'delivery' ? 50 : 0;
-      const total = state.subtotal - state.discountAmount + state.taxAmount + deliveryFee;
+      const total = state.subtotal - state.discountAmount + state.serviceChargesAmount + state.taxAmount + deliveryFee;
       
       // Clear relevant fields when switching types
       return { 
@@ -185,11 +201,24 @@ export const useCartStore = create<CartState>((set, get) => ({
       const discountAmount = type === 'percentage' 
         ? state.subtotal * (discount / 100) 
         : discount;
-      const taxAmount = (state.subtotal - discountAmount) * (state.taxRate / 100);
+      const taxAmount = (state.subtotal - discountAmount + state.serviceChargesAmount) * (state.taxRate / 100);
       const deliveryFee = state.orderType === 'delivery' ? 50 : 0;
-      const total = state.subtotal - discountAmount + taxAmount + deliveryFee;
+      const total = state.subtotal - discountAmount + state.serviceChargesAmount + taxAmount + deliveryFee;
       
       return { discount, discountType: type, discountAmount, taxAmount, deliveryFee, total };
+    });
+  },
+
+  setServiceCharges: (amount, type) => {
+    set((state) => {
+      const serviceChargesAmount = type === 'percentage'
+        ? state.subtotal * (amount / 100)
+        : amount;
+      const taxAmount = (state.subtotal - state.discountAmount + serviceChargesAmount) * (state.taxRate / 100);
+      const deliveryFee = state.orderType === 'delivery' ? 50 : 0;
+      const total = state.subtotal - state.discountAmount + serviceChargesAmount + taxAmount + deliveryFee;
+      
+      return { serviceCharges: amount, serviceChargesType: type, serviceChargesAmount, taxAmount, deliveryFee, total };
     });
   },
   
@@ -201,9 +230,12 @@ export const useCartStore = create<CartState>((set, get) => ({
     customerAddress: null, // Clear customerAddress
     discount: 0,
     discountType: 'percentage',
+    serviceCharges: 0,
+    serviceChargesType: 'percentage',
     subtotal: 0,
     taxAmount: 0,
     discountAmount: 0,
+    serviceChargesAmount: 0,
     deliveryFee: 0,
     total: 0,
     editingOrderId: null,
@@ -255,11 +287,14 @@ export const useCartStore = create<CartState>((set, get) => ({
       const discountAmount = state.discountType === 'percentage' 
         ? subtotal * (state.discount / 100) 
         : state.discount;
-      const taxAmount = (subtotal - discountAmount) * (state.taxRate / 100);
+      const serviceChargesAmount = state.serviceChargesType === 'percentage'
+        ? subtotal * (state.serviceCharges / 100)
+        : state.serviceCharges;
+      const taxAmount = (subtotal - discountAmount + serviceChargesAmount) * (state.taxRate / 100);
       const deliveryFee = state.orderType === 'delivery' ? 30 : 0;
-      const total = subtotal - discountAmount + taxAmount + deliveryFee;
+      const total = subtotal - discountAmount + serviceChargesAmount + taxAmount + deliveryFee;
       
-      return { subtotal, discountAmount, taxAmount, deliveryFee, total };
+      return { subtotal, discountAmount, serviceChargesAmount, taxAmount, deliveryFee, total };
     });
   },
 }));

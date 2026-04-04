@@ -11,6 +11,7 @@ interface Order {
   subtotal: number;
   taxAmount: number;
   discountAmount: number;
+  serviceChargesAmount?: number;
   deliveryFee?: number;
   total: number;
   paymentMethod: 'cash' | 'card' | 'wallet';
@@ -190,6 +191,18 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
           <span>SubTotal :</span>
           <span>{order.subtotal.toFixed(3)}</span>
         </div>
+        {order.discountAmount > 0 && (
+          <div className="flex justify-between font-medium">
+            <span>Discount :</span>
+            <span>-{order.discountAmount.toFixed(3)}</span>
+          </div>
+        )}
+        {order.serviceChargesAmount && order.serviceChargesAmount > 0 && (
+          <div className="flex justify-between font-medium">
+            <span>Service Charges :</span>
+            <span>+{order.serviceChargesAmount.toFixed(3)}</span>
+          </div>
+        )}
         {order.deliveryFee && order.deliveryFee > 0 && (
           <div className="flex justify-between font-medium">
             <span>Delivery Charges :</span>
