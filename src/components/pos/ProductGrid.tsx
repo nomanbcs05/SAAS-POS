@@ -26,7 +26,7 @@ import DealsSelectionModal from './DealsSelectionModal';
 import FriesSelectionModal from './FriesSelectionModal';
 import BeveragesSelectionModal from './BeveragesSelectionModal';
 import AlaCartSelectionModal from './AlaCartSelectionModal';
-import IndusMenuModal from './IndusMenuModal';
+import IndusMenuModal, { DEFAULT_INDUS_DATA } from './IndusMenuModal';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 
 const ProductGrid = () => {
@@ -140,7 +140,15 @@ const ProductGrid = () => {
     const savedVisibility = localStorage.getItem('pos_card_visibility');
     const cardVisibility = savedVisibility ? JSON.parse(savedVisibility) : {};
     
-    const isCardVisible = (id: string) => cardVisibility[id] !== false;
+    const isIndus = tenant?.restaurant_name?.toLowerCase().includes('indus');
+    
+    const isCardVisible = (id: string) => {
+      // Specifically hide these for Cafe Indus
+      if (isIndus && ['pizza', 'burger', 'deals', 'alacart', 'sauce'].includes(id)) {
+        return false;
+      }
+      return cardVisibility[id] !== false;
+    };
 
     // Filter by selected category
     if (selectedCategory !== 'all') {
@@ -423,22 +431,25 @@ const ProductGrid = () => {
      }
 
      // Special logic for Cafe Indus Categories:
-     if (tenant?.restaurant_name?.toLowerCase().includes('indus')) {
+     if (isIndus) {
        const indusCategories = [
-         { name: 'DRY', id: 'indus_dry' },
-         { name: 'CHINESE GRAVY', id: 'indus_chinese' },
-         { name: 'RICE', id: 'indus_rice' },
-         { name: 'CHICKEN (Karahi)', id: 'indus_chicken_karahi' },
-         { name: 'HANDI (Chicken)', id: 'indus_handi' },
-         { name: 'MUTTON (Karahi)', id: 'indus_mutton_karahi' },
-         { name: 'MUTTON HANDI', id: 'indus_mutton_handi' }
+         { name: 'DRY', id: 'indus_dry', key: 'pos_menu_indus_dry' },
+         { name: 'CHINESE GRAVY', id: 'indus_chinese', key: 'pos_menu_indus_chinese_gravy' },
+         { name: 'RICE', id: 'indus_rice', key: 'pos_menu_indus_rice' },
+         { name: 'CHICKEN (Karahi)', id: 'indus_chicken_karahi', key: 'pos_menu_indus_chicken_karahi' },
+         { name: 'HANDI (Chicken)', id: 'indus_handi', key: 'pos_menu_indus_handi_chicken' },
+         { name: 'MUTTON (Karahi)', id: 'indus_mutton_karahi', key: 'pos_menu_indus_mutton_karahi' },
+         { name: 'MUTTON HANDI', id: 'indus_mutton_handi', key: 'pos_menu_indus_mutton_handi' }
        ];
 
        indusCategories.forEach(cat => {
-         const isCatVisible = (selectedCategory === 'all' || selectedCategory === cat.name) && isCardVisible(cat.id);
-         if (isCatVisible) {
-           const virtualIndus = {
-             id: `virtual-indus-${cat.name.toLowerCase().replace(/\s+/g, '-')}`,
+         const isCatSelected = selectedCategory === cat.name;
+         const isAllSelected = selectedCategory === 'all';
+         
+         if ((isAllSelected || isCatSelected) && isCardVisible(cat.id)) {
+           // 1. Add the Virtual Menu Card (only if it matches search or no search)
+           const virtualCard = {
+             id: `virtual-indus-card-${cat.name.toLowerCase().replace(/\s+/g, '-')}`,
              name: `${cat.name} Menu`,
              price: 0,
              category: cat.name,
@@ -448,8 +459,37 @@ const ProductGrid = () => {
              indusCategory: cat.name
            };
            
-           if (!searchQuery.trim() || virtualIndus.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-             products = [virtualIndus as any, ...products];
+           if (!searchQuery.trim() || virtualCard.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+             products = [virtualCard as any, ...products];
+           }
+
+           // 2. Add individual items from this category if it's explicitly selected
+           if (isCatSelected) {
+             const saved = localStorage.getItem(cat.key);
+             let items = [];
+             if (saved) {
+               items = JSON.parse(saved);
+             } else {
+               items = DEFAULT_INDUS_DATA.filter(item => item.category === cat.name);
+             }
+
+             items.forEach((item: any, idx: number) => {
+               const productItem = {
+                 id: `indus-item-${cat.name.toLowerCase()}-${idx}`,
+                 name: item.name,
+                 price: item.price || 0,
+                 category: cat.name,
+                 image: '🍲',
+                 isVirtual: true,
+                 modalType: item.sizes ? 'indus' : 'simple',
+                 indusCategory: cat.name,
+                 indusItem: item // Store the full item for size selection
+               };
+
+               if (!searchQuery.trim() || productItem.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+                 products.push(productItem as any);
+               }
+             });
            }
          }
        });
@@ -492,6 +532,9 @@ const ProductGrid = () => {
       } else if ((product as any).modalType === 'indus') {
         setSelectedIndusCategory((product as any).indusCategory);
         setShowIndusModal(true);
+      } else if ((product as any).modalType === 'simple') {
+        // Handle individual virtual items that don't need a modal
+        addItem(product);
       }
       return;
     }
@@ -763,13 +806,13 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product, onAdd }: ProductCardProps) => {
-  const isNoImageCategory = product.category === 'Arabic Broast' || product.category === 'ALA CART' || product.category === 'Snacks' || product.category === 'Beverages' || product.category === 'Pizzas' || product.category === 'Rolls' || product.category === 'Broast' || product.category === 'Burgers' || product.category === 'BAR BQ' || product.category === 'Sauces' || product.category === 'Toppings';
+  const isNoImageCategory = product.category === 'Arabic Broast' || product.category === 'ALA CART' || product.category === 'Snacks' || product.category === 'Beverages' || product.category === 'Pizzas' || product.category === 'Rolls' || product.category === 'Broast' || product.category === 'Burgers' || product.category === 'BAR BQ' || product.category === 'Sauces' || product.category === 'Toppings' || product.category === 'DRY' || product.category === 'CHINESE GRAVY' || product.category === 'RICE' || product.category === 'CHICKEN (Karahi)' || product.category === 'HANDI (Chicken)' || product.category === 'MUTTON (Karahi)' || product.category === 'MUTTON HANDI';
   const isVirtualSauce = (product as any).id === 'virtual-sauce-topping-menu';
   const isVirtualBarbq = (product as any).id === 'virtual-barbq-menu';
   const isVirtualBurger = (product as any).id === 'virtual-burger-menu';
   const isVirtualPizza = (product as any).id === 'virtual-pizza-menu';
   const isVirtualRoll = (product as any).id === 'virtual-roll-menu';
-  const isVirtualIndus = (product as any).id === 'virtual-indus-menu';
+  const isVirtualIndus = (product as any).id?.startsWith?.('virtual-indus-');
   const isVirtualSimpleBroast = (product as any).id === 'virtual-broast-menu';
   const isLoadedFries = (product as any).name?.toLowerCase?.().includes('loaded fries');
   const forceShowImage = isVirtualSauce || isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isLoadedFries;
