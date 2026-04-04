@@ -412,12 +412,22 @@ export const api = {
         .select()
         .maybeSingle();
 
-      // Fallback logic for missing columns (e.g. customer_address, server_name, table_id)
-      if (orderError && orderError.code === 'PGRST204') {
+      // Fallback logic for missing columns
+      if (orderError && (orderError.code === 'PGRST204' || orderError.message.includes('Could not find the'))) {
         console.warn("Retrying order creation without optional columns (schema mismatch):", orderError.message);
         
-        // Strip problematic columns
-        const { customer_address, server_name, table_id, register_id, ...minimalOrder } = safeOrder;
+        // Strip ALL potentially missing columns
+        const { 
+          customer_address, 
+          server_name, 
+          table_id, 
+          register_id, 
+          discount_amount, 
+          service_charges_amount, 
+          delivery_fee,
+          tenant_id,
+          ...minimalOrder 
+        } = safeOrder;
         
         const { data: retryData, error: retryError } = await supabase
           .from('orders')
@@ -514,9 +524,20 @@ export const api = {
         .update(safeOrder)
         .eq('id', orderId);
 
-      if (orderError && orderError.code === 'PGRST204') {
+      if (orderError && (orderError.code === 'PGRST204' || orderError.message.includes('Could not find the'))) {
         console.warn("Retrying order update without optional columns:", orderError.message);
-        const { customer_address, server_name, table_id, register_id, ...minimalOrder } = safeOrder;
+        const { 
+          customer_address, 
+          server_name, 
+          table_id, 
+          register_id, 
+          discount_amount, 
+          service_charges_amount, 
+          delivery_fee,
+          tenant_id,
+          ...minimalOrder 
+        } = safeOrder;
+        
         const { error: retryError } = await supabase
           .from('orders')
           .update(minimalOrder)

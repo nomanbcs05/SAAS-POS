@@ -231,8 +231,6 @@ const CartPanel = () => {
           toast.error('Failed to save order');
         }
       }
-
-      setShowBill(false);
     },
   });
 

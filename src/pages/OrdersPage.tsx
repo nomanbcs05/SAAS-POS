@@ -150,7 +150,6 @@ const OrdersPage = () => {
         }
       }
 
-      setShowBill(false);
       setBillOrder(null);
     },
   });
