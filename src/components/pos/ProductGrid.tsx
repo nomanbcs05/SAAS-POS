@@ -26,8 +26,11 @@ import DealsSelectionModal from './DealsSelectionModal';
 import FriesSelectionModal from './FriesSelectionModal';
 import BeveragesSelectionModal from './BeveragesSelectionModal';
 import AlaCartSelectionModal from './AlaCartSelectionModal';
+import IndusMenuModal from './IndusMenuModal';
+import { useMultiTenant } from '@/hooks/useMultiTenant';
 
 const ProductGrid = () => {
+  const { tenant } = useMultiTenant();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showTableModal, setShowTableModal] = useState(false);
@@ -44,6 +47,7 @@ const ProductGrid = () => {
   const [showFriesModal, setShowFriesModal] = useState(false);
   const [showBeveragesModal, setShowBeveragesModal] = useState(false);
   const [showAlaCartModal, setShowAlaCartModal] = useState(false);
+  const [showIndusModal, setShowIndusModal] = useState(false);
   
   const { data: openRegister } = useQuery({
     queryKey: ['open-register'],
@@ -101,10 +105,21 @@ const ProductGrid = () => {
   });
 
   // Combine default "All" category with fetched categories
-  const allCategories = useMemo(() => [
-    { id: 'all', name: 'All Category', icon: 'Grid3x3' },
-    ...categories.map(c => ({ id: c.name, name: c.name, icon: c.icon }))
-  ], [categories]);
+  const allCategories = useMemo(() => {
+    const baseCategories = [
+      { id: 'all', name: 'All Category', icon: 'Grid3x3' },
+      ...categories.map(c => ({ id: c.name, name: c.name, icon: c.icon }))
+    ];
+    
+    if (tenant?.restaurant_name?.toLowerCase().includes('indus')) {
+      // Check if it already exists to avoid duplicates
+      if (!baseCategories.some(c => c.id === 'Indus Menu')) {
+        baseCategories.push({ id: 'Indus Menu', name: 'Indus Menu', icon: 'Utensils' });
+      }
+    }
+    
+    return baseCategories;
+  }, [categories, tenant]);
 
   const fuse = useMemo(() => new Fuse(allProducts, {
     keys: ['name', 'sku', 'barcode'],
@@ -394,6 +409,26 @@ const ProductGrid = () => {
        }
      }
 
+     // Special logic for Cafe Indus:
+     const isIndusVisible = (selectedCategory === 'all' || selectedCategory === 'Indus Menu') && 
+                            tenant?.restaurant_name?.toLowerCase().includes('indus');
+     
+     if (isIndusVisible) {
+       const virtualIndus = {
+         id: 'virtual-indus-menu',
+         name: 'Cafe Indus Menu',
+         price: 0,
+         category: 'Indus Menu',
+         image: '🍲',
+         isVirtual: true,
+         modalType: 'indus'
+       };
+       
+       if (!searchQuery.trim() || virtualIndus.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+         products = [virtualIndus as any, ...products];
+       }
+     }
+
      // Then filter by search
     if (searchQuery.trim()) {
       const searchResults = fuse.search(searchQuery);
@@ -428,6 +463,8 @@ const ProductGrid = () => {
         setShowBeveragesModal(true);
       } else if ((product as any).modalType === 'alacart') {
         setShowAlaCartModal(true);
+      } else if ((product as any).modalType === 'indus') {
+        setShowIndusModal(true);
       }
       return;
     }
@@ -679,6 +716,12 @@ const ProductGrid = () => {
            onClose={() => setShowAlaCartModal(false)}
            onAdd={handleAddToCart}
          />
+
+         <IndusMenuModal
+           isOpen={showIndusModal}
+           onClose={() => setShowIndusModal(false)}
+           onAdd={handleAddToCart}
+         />
         </div>
     );
 };
@@ -695,9 +738,10 @@ const ProductCard = ({ product, onAdd }: ProductCardProps) => {
   const isVirtualBurger = (product as any).id === 'virtual-burger-menu';
   const isVirtualPizza = (product as any).id === 'virtual-pizza-menu';
   const isVirtualRoll = (product as any).id === 'virtual-roll-menu';
+  const isVirtualIndus = (product as any).id === 'virtual-indus-menu';
   const isVirtualSimpleBroast = (product as any).id === 'virtual-broast-menu';
   const isLoadedFries = (product as any).name?.toLowerCase?.().includes('loaded fries');
-  const forceShowImage = isVirtualSauce || isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isLoadedFries;
+  const forceShowImage = isVirtualSauce || isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isLoadedFries;
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [currentSrc, setCurrentSrc] = useState<string | undefined>((product.image as any) || (isLoadedFries ? '/LoadedFries.png' : undefined));
@@ -746,7 +790,7 @@ const ProductCard = ({ product, onAdd }: ProductCardProps) => {
                   }}
                   className={cn(
                     "h-full w-full p-0.5 transition-all duration-500",
-                    (isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast) ? "object-cover" : "object-contain",
+                    (isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus) ? "object-cover" : "object-contain",
                     imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95"
                   )}
                 />
