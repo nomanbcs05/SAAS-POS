@@ -70,6 +70,7 @@ const ProductsPage = () => {
     { id: 'fries', name: 'Fries', key: 'pos_menu_fries', icon: Package },
     { id: 'beverages', name: 'Beverages', key: 'pos_menu_beverages', icon: Package },
     { id: 'alacart', name: 'ALA CART', key: 'pos_menu_alacart', icon: Package },
+    { id: 'indus', name: 'Indus Menu', key: 'pos_menu_indus', icon: Utensils },
   ];
 
   const openVirtualMenuEditor = (category: any) => {
