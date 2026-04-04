@@ -109,8 +109,11 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
   }, [isOpen, initialCategory]);
 
   const saveMenu = (updatedItems: MenuItem[]) => {
+    const key = initialCategory 
+      ? `pos_menu_indus_${initialCategory.toLowerCase().replace(/\s+/g, '_').replace(/[()]/g, '')}`
+      : 'pos_menu_indus';
     setMenuItems(updatedItems);
-    localStorage.setItem('pos_menu_indus', JSON.stringify(updatedItems));
+    localStorage.setItem(key, JSON.stringify(updatedItems));
   };
 
   const categories = Array.from(new Set(menuItems.map(item => item.category)));
