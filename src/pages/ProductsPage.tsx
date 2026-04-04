@@ -57,8 +57,41 @@ const ProductsPage = () => {
 
   // Virtual Menu States
   const [isVirtualMenuModalOpen, setIsVirtualMenuModalOpen] = useState(false);
+  const [isVisibilityModalOpen, setIsVisibilityModalOpen] = useState(false);
   const [selectedVirtualCategory, setSelectedVirtualCategory] = useState<string | null>(null);
   const [virtualMenuItems, setVirtualMenuItems] = useState<any[]>([]);
+  const [cardVisibility, setCardVisibility] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const savedVisibility = localStorage.getItem('pos_card_visibility');
+    if (savedVisibility) {
+      setCardVisibility(JSON.parse(savedVisibility));
+    } else {
+      // Default all to true if not set
+      const initialVisibility: Record<string, boolean> = {};
+      virtualCategories.forEach(cat => {
+        initialVisibility[cat.id] = true;
+      });
+      setCardVisibility(initialVisibility);
+    }
+  }, []);
+
+  const toggleVisibility = (id: string) => {
+    const newVisibility = { ...cardVisibility, [id]: !cardVisibility[id] === false ? false : !cardVisibility[id] };
+    // If it was undefined, it should be true, so toggle to false
+    const currentVal = cardVisibility[id] === undefined ? true : cardVisibility[id];
+    const toggledVal = !currentVal;
+    
+    const updatedVisibility = { ...cardVisibility, [id]: toggledVal };
+    setCardVisibility(updatedVisibility);
+    localStorage.setItem('pos_card_visibility', JSON.stringify(updatedVisibility));
+    
+    const catName = virtualCategories.find(c => c.id === id)?.name || id;
+    uiToast({ 
+      title: "Dashboard Updated", 
+      description: `${catName} is now ${toggledVal ? 'visible' : 'hidden'} on dashboard` 
+    });
+  };
 
   const virtualCategories = [
     { id: 'barbq', name: 'BAR BQ', key: 'pos_menu_barbq', icon: ChefHat },
@@ -383,6 +416,52 @@ const ProductsPage = () => {
   return (
     <MainLayout>
       <div className="flex flex-col h-full">
+        {/* Dashboard Card Visibility Modal */}
+        <Dialog open={isVisibilityModalOpen} onOpenChange={setIsVisibilityModalOpen}>
+          <DialogContent className="max-w-md rounded-3xl p-0 overflow-hidden bg-white border-none flex flex-col">
+            <DialogHeader className="p-6 bg-slate-900 text-white shrink-0">
+              <DialogTitle className="text-2xl font-black font-heading uppercase tracking-tight">Dashboard Cards</DialogTitle>
+              <DialogDescription className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">
+                Toggle which virtual menu cards appear on POS dashboard
+              </DialogDescription>
+            </DialogHeader>
+            <div className="p-6 space-y-4">
+              <ScrollArea className="h-[400px] pr-4">
+                <div className="space-y-2">
+                  {virtualCategories.map((cat) => (
+                    <div key={cat.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-white rounded-lg shadow-sm">
+                          <cat.icon className="h-4 w-4 text-slate-600" />
+                        </div>
+                        <span className="font-bold text-sm text-slate-700">{cat.name}</span>
+                      </div>
+                      <Button
+                        variant={cardVisibility[cat.id] !== false ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleVisibility(cat.id)}
+                        className={cn(
+                          "rounded-xl px-4 h-9 font-bold transition-all",
+                          cardVisibility[cat.id] !== false 
+                            ? "bg-emerald-500 hover:bg-emerald-600 text-white" 
+                            : "bg-slate-200 text-slate-500 hover:bg-slate-300"
+                        )}
+                      >
+                        {cardVisibility[cat.id] !== false ? 'Visible' : 'Hidden'}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+            <DialogFooter className="p-6 bg-slate-50 border-t">
+              <Button onClick={() => setIsVisibilityModalOpen(false)} className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black uppercase tracking-widest py-6">
+                Done
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Virtual Menu Editor Dialog */}
         <Dialog open={isVirtualMenuModalOpen} onOpenChange={setIsVirtualMenuModalOpen}>
           <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden bg-white border-none flex flex-col max-h-[85vh]">
@@ -566,6 +645,11 @@ const ProductsPage = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
 
+              <Button variant="outline" onClick={() => setIsVisibilityModalOpen(true)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Manage Cards
+              </Button>
+
               <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={openAddDialog}>
@@ -702,6 +786,7 @@ const ProductsPage = () => {
               >
                 All
               </Button>
+              {/* Only show categories that have items in them or are from the DB */}
               {categories.map((category) => (
                 <Button
                   key={category.id}
@@ -712,7 +797,10 @@ const ProductsPage = () => {
                   {category.name}
                 </Button>
               ))}
-              {virtualCategories.map((vCat) => (
+              {/* Filter out virtual categories that match database category names to remove duplicates */}
+              {virtualCategories
+                .filter(vCat => !categories.some(dbCat => dbCat.name.toLowerCase() === vCat.name.toLowerCase()))
+                .map((vCat) => (
                 <Button
                   key={vCat.id}
                   variant={selectedCategory === vCat.name ? 'default' : 'outline'}

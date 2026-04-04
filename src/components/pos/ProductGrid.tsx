@@ -135,6 +135,12 @@ const ProductGrid = () => {
 
   const filteredProducts = useMemo(() => {
     let products = allProducts;
+    
+    // Load visibility settings
+    const savedVisibility = localStorage.getItem('pos_card_visibility');
+    const cardVisibility = savedVisibility ? JSON.parse(savedVisibility) : {};
+    
+    const isCardVisible = (id: string) => cardVisibility[id] !== false;
 
     // Filter by selected category
     if (selectedCategory !== 'all') {
@@ -147,7 +153,7 @@ const ProductGrid = () => {
       const isBroastItem = (p: any) => p.category === 'Arabic Broast';
       const broastProducts = allProducts.filter(isBroastItem);
       
-      if (broastProducts.length > 0) {
+      if (broastProducts.length > 0 && isCardVisible('broast')) {
         // Remove individual broast items from the current filtered list
         products = products.filter(p => !isBroastItem(p));
         
@@ -174,7 +180,7 @@ const ProductGrid = () => {
 
     // Special logic for Pizzas:
     // We want the Pizza Menu card to ALWAYS show up in 'all' category or 'Pizzas' category
-    const isPizzasVisible = selectedCategory === 'all' || selectedCategory === 'Pizzas';
+    const isPizzasVisible = (selectedCategory === 'all' || selectedCategory === 'Pizzas') && isCardVisible('pizza');
     
     if (isPizzasVisible) {
       const isPizzaItem = (p: any) => p.category === 'Pizzas';
@@ -203,7 +209,7 @@ const ProductGrid = () => {
      }
 
      // Special logic for Rolls:
-     const isRollsVisible = selectedCategory === 'all' || selectedCategory === 'Rolls';
+     const isRollsVisible = (selectedCategory === 'all' || selectedCategory === 'Rolls') && isCardVisible('roll');
      
      if (isRollsVisible) {
        const isRollItem = (p: any) => p.category === 'Rolls';
@@ -228,7 +234,7 @@ const ProductGrid = () => {
      }
 
      // Special logic for Simple Broast:
-     const isSimpleBroastVisible = selectedCategory === 'all' || selectedCategory === 'Broast';
+     const isSimpleBroastVisible = (selectedCategory === 'all' || selectedCategory === 'Broast') && isCardVisible('broast');
      
      if (isSimpleBroastVisible) {
        const isSimpleBroastItem = (p: any) => p.category === 'Broast';
@@ -253,7 +259,7 @@ const ProductGrid = () => {
      }
 
      // Special logic for Burgers:
-     const isBurgersVisible = selectedCategory === 'all' || selectedCategory === 'Burgers';
+     const isBurgersVisible = (selectedCategory === 'all' || selectedCategory === 'Burgers') && isCardVisible('burger');
      
      if (isBurgersVisible) {
        const isBurgerItem = (p: any) => p.category === 'Burgers';
@@ -278,7 +284,7 @@ const ProductGrid = () => {
      }
 
      // Special logic for BAR BQ:
-     const isBarBQVisible = selectedCategory === 'all' || selectedCategory === 'BAR BQ';
+     const isBarBQVisible = (selectedCategory === 'all' || selectedCategory === 'BAR BQ') && isCardVisible('barbq');
      
      if (isBarBQVisible) {
        const isBarBQItem = (p: any) => p.category === 'BAR BQ';
@@ -303,7 +309,7 @@ const ProductGrid = () => {
      }
 
      // Special logic for Sauces & Toppings:
-     const isSauceToppingVisible = selectedCategory === 'all' || selectedCategory === 'Sauces' || selectedCategory === 'Toppings' || selectedCategory === 'ALA CART';
+     const isSauceToppingVisible = (selectedCategory === 'all' || selectedCategory === 'Sauces' || selectedCategory === 'Toppings' || selectedCategory === 'ALA CART') && isCardVisible('sauce');
      
      if (isSauceToppingVisible) {
        const isSauceToppingItem = (p: any) => p.category === 'Sauces' || p.category === 'Toppings';
@@ -327,7 +333,7 @@ const ProductGrid = () => {
      }
 
      // Special logic for Deals:
-     const isDealsVisible = selectedCategory === 'all' || selectedCategory === 'Deals';
+     const isDealsVisible = (selectedCategory === 'all' || selectedCategory === 'Deals') && isCardVisible('deals');
      
      if (isDealsVisible) {
        const isDealItem = (p: any) => p.category === 'Deals';
@@ -351,7 +357,7 @@ const ProductGrid = () => {
      }
 
      // Special logic for Fries:
-     const isFriesVisible = selectedCategory === 'all' || selectedCategory === 'ALA CART';
+     const isFriesVisible = (selectedCategory === 'all' || selectedCategory === 'ALA CART') && isCardVisible('fries');
      
      if (isFriesVisible) {
        const isFriesItem = (p: any) => p.name?.toLowerCase?.().includes('fries') && p.category === 'ALA CART';
@@ -373,7 +379,7 @@ const ProductGrid = () => {
      }
 
      // Special logic for Beverages:
-     const isBeveragesVisible = selectedCategory === 'all' || selectedCategory === 'Beverages';
+     const isBeveragesVisible = (selectedCategory === 'all' || selectedCategory === 'Beverages') && isCardVisible('beverages');
      
      if (isBeveragesVisible) {
        products = products.filter(p => p.category !== 'Beverages');
@@ -394,7 +400,7 @@ const ProductGrid = () => {
      }
 
      // Special logic for ALA CART:
-     const isAlaCartVisible = selectedCategory === 'all' || selectedCategory === 'ALA CART';
+     const isAlaCartVisible = (selectedCategory === 'all' || selectedCategory === 'ALA CART') && isCardVisible('alacart');
      
      if (isAlaCartVisible) {
        // Filter out items that are part of the virtual ALA CART menu
@@ -419,22 +425,27 @@ const ProductGrid = () => {
      // Special logic for Cafe Indus Categories:
      if (tenant?.restaurant_name?.toLowerCase().includes('indus')) {
        const indusCategories = [
-         'DRY', 'CHINESE GRAVY', 'RICE', 'CHICKEN (Karahi)', 
-         'HANDI (Chicken)', 'MUTTON (Karahi)', 'MUTTON HANDI'
+         { name: 'DRY', id: 'indus_dry' },
+         { name: 'CHINESE GRAVY', id: 'indus_chinese' },
+         { name: 'RICE', id: 'indus_rice' },
+         { name: 'CHICKEN (Karahi)', id: 'indus_chicken_karahi' },
+         { name: 'HANDI (Chicken)', id: 'indus_handi' },
+         { name: 'MUTTON (Karahi)', id: 'indus_mutton_karahi' },
+         { name: 'MUTTON HANDI', id: 'indus_mutton_handi' }
        ];
 
        indusCategories.forEach(cat => {
-         const isCatVisible = selectedCategory === 'all' || selectedCategory === cat;
+         const isCatVisible = (selectedCategory === 'all' || selectedCategory === cat.name) && isCardVisible(cat.id);
          if (isCatVisible) {
            const virtualIndus = {
-             id: `virtual-indus-${cat.toLowerCase().replace(/\s+/g, '-')}`,
-             name: `${cat} Menu`,
+             id: `virtual-indus-${cat.name.toLowerCase().replace(/\s+/g, '-')}`,
+             name: `${cat.name} Menu`,
              price: 0,
-             category: cat,
+             category: cat.name,
              image: '🍲',
              isVirtual: true,
              modalType: 'indus',
-             indusCategory: cat
+             indusCategory: cat.name
            };
            
            if (!searchQuery.trim() || virtualIndus.name.toLowerCase().includes(searchQuery.toLowerCase())) {
