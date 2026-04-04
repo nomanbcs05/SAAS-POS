@@ -53,7 +53,10 @@ export const useMultiTenant = () => {
         .eq('id', session.user.id)
         .single();
 
-      if (error) return null;
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return null;
+      }
       return data as Profile;
     },
     enabled: !!session?.user?.id,
@@ -68,26 +71,54 @@ export const useMultiTenant = () => {
         .select('*')
         .eq('owner_id', session.user.id);
 
-      if (error) return [];
+      if (error) {
+        console.error('Error fetching owned tenants:', error);
+        return [];
+      }
       return data as Tenant[];
     },
     enabled: !!session?.user?.id,
   });
 
   const { data: tenant, isLoading: tenantLoading } = useQuery({
-    queryKey: ['tenant', profile?.tenant_id],
+    queryKey: ['tenant', profile?.tenant_id, ownedTenants],
     queryFn: async () => {
-      if (!profile?.tenant_id) return null;
-      const { data, error } = await supabase
-        .from('tenants')
-        .select('*')
-        .eq('id', profile.tenant_id)
-        .single();
+      // Priority 1: Use the tenant linked in the profile
+      if (profile?.tenant_id) {
+        const { data, error } = await supabase
+          .from('tenants')
+          .select('*')
+          .eq('id', profile.tenant_id)
+          .single();
 
-      if (error) return null;
-      return data as Tenant;
+        if (!error && data) return data as Tenant;
+      }
+
+      // Priority 2: Use the first owned tenant if profile link is missing
+      if (ownedTenants && ownedTenants.length > 0) {
+        const firstTenant = ownedTenants[0];
+        
+        // Repair: Update profile to link to this tenant automatically
+        if (session?.user?.id && !profile?.tenant_id) {
+          console.log('Repairing profile link to tenant:', firstTenant.id);
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ tenant_id: firstTenant.id })
+            .eq('id', session.user.id);
+          
+          if (!updateError) {
+            toast.success(`Restored settings for ${firstTenant.restaurant_name}`);
+            // Force a reload of the profile in the query cache
+            window.location.reload(); 
+          }
+        }
+        
+        return firstTenant as Tenant;
+      }
+
+      return null;
     },
-    enabled: !!profile?.tenant_id,
+    enabled: !!session?.user?.id && (!profileLoading || !!profile),
   });
 
   // Default fallback for single-tenant mode or when tenant data is loading

@@ -194,10 +194,10 @@ END $$;
 
 -- 7. Implement RLS Policies (Tenant Isolation)
 
--- Tenants Policy: Users can only see their own tenant
+-- Tenants Policy: Users can see their own tenant or if they are the owner
 DROP POLICY IF EXISTS "Users can view their own tenant" ON public.tenants;
 CREATE POLICY "Users can view their own tenant" ON public.tenants
-FOR SELECT USING (id = public.get_auth_tenant_id());
+FOR SELECT USING (id = public.get_auth_tenant_id() OR owner_id = auth.uid());
 
 -- Safe Policy Application Function
 CREATE OR REPLACE FUNCTION public.apply_tenant_policy(p_table_name TEXT)
