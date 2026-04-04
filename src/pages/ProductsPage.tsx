@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, Plus, Edit, Trash2, MoreHorizontal, Package, AlertTriangle, Loader2, Settings, ChefHat, Utensils, Tag, X, Save } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
@@ -33,6 +33,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { api, Category } from '@/services/api';
+import { DEFAULT_INDUS_DATA } from '@/components/pos/IndusMenuModal';
 
 const ProductsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,7 +71,13 @@ const ProductsPage = () => {
     { id: 'fries', name: 'Fries', key: 'pos_menu_fries', icon: Package },
     { id: 'beverages', name: 'Beverages', key: 'pos_menu_beverages', icon: Package },
     { id: 'alacart', name: 'ALA CART', key: 'pos_menu_alacart', icon: Package },
-    { id: 'indus', name: 'Indus Menu', key: 'pos_menu_indus', icon: Utensils },
+    { id: 'indus_dry', name: 'DRY', key: 'pos_menu_indus_dry', filter: 'DRY', icon: Utensils },
+    { id: 'indus_chinese', name: 'CHINESE GRAVY', key: 'pos_menu_indus_chinese_gravy', filter: 'CHINESE GRAVY', icon: Utensils },
+    { id: 'indus_rice', name: 'RICE', key: 'pos_menu_indus_rice', filter: 'RICE', icon: Utensils },
+    { id: 'indus_chicken_karahi', name: 'CHICKEN (Karahi)', key: 'pos_menu_indus_chicken_karahi', filter: 'CHICKEN (Karahi)', icon: Utensils },
+    { id: 'indus_handi', name: 'HANDI (Chicken)', key: 'pos_menu_indus_handi_chicken', filter: 'HANDI (Chicken)', icon: Utensils },
+    { id: 'indus_mutton_karahi', name: 'MUTTON (Karahi)', key: 'pos_menu_indus_mutton_karahi', filter: 'MUTTON (Karahi)', icon: Utensils },
+    { id: 'indus_mutton_handi', name: 'MUTTON HANDI', key: 'pos_menu_indus_mutton_handi', filter: 'MUTTON HANDI', icon: Utensils },
   ];
 
   const openVirtualMenuEditor = (category: any) => {
@@ -79,9 +86,15 @@ const ProductsPage = () => {
     if (saved) {
       setVirtualMenuItems(JSON.parse(saved));
     } else {
-      // Load defaults (same logic as in ManageProductsPage)
       let defaults: any[] = [];
-      // (Default values omitted for brevity, you can add them if needed)
+      if (category.key.startsWith('pos_menu_indus')) {
+        defaults = DEFAULT_INDUS_DATA
+          .filter(item => item.category === category.filter)
+          .map(item => ({
+            name: item.name,
+            price: item.price || (item.sizes ? item.sizes.Full : 0) // Defaulting to Full price if sizes exist
+          }));
+      }
       setVirtualMenuItems(defaults);
     }
     setIsVirtualMenuModalOpen(true);
@@ -324,12 +337,46 @@ const ProductsPage = () => {
     addCategoryMutation.mutate(newCategory);
   };
 
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          product.sku.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredProducts = useMemo(() => {
+    let allDisplayProducts = [...products];
+
+    // Add virtual products to the display list
+    virtualCategories.forEach(vCat => {
+      const saved = localStorage.getItem(vCat.key);
+      let items = [];
+      if (saved) {
+        items = JSON.parse(saved);
+      } else if (vCat.key.startsWith('pos_menu_indus')) {
+        items = DEFAULT_INDUS_DATA
+          .filter(item => item.category === vCat.filter)
+          .map(item => ({
+            name: item.name,
+            price: item.price || (item.sizes ? item.sizes.Full : 0)
+          }));
+      }
+
+      items.forEach((item: any, idx: number) => {
+        allDisplayProducts.push({
+          id: `virtual-${vCat.id}-${idx}`,
+          name: item.name,
+          sku: `VIRTUAL-${vCat.name.substring(0, 3).toUpperCase()}`,
+          category: vCat.name,
+          cost: 0,
+          price: item.price,
+          stock: 0,
+          image: '📦',
+          isVirtual: true
+        } as any);
+      });
+    });
+
+    return allDisplayProducts.filter(product => {
+      const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            product.sku.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, searchQuery, selectedCategory]);
 
   const lowStockCount = products.filter(p => p.stock <= 10).length;
 
@@ -647,7 +694,14 @@ const ProductsPage = () => {
               />
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant={selectedCategory === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedCategory('all')}
+              >
+                All
+              </Button>
               {categories.map((category) => (
                 <Button
                   key={category.id}
@@ -656,6 +710,16 @@ const ProductsPage = () => {
                   onClick={() => setSelectedCategory(category.id)}
                 >
                   {category.name}
+                </Button>
+              ))}
+              {virtualCategories.map((vCat) => (
+                <Button
+                  key={vCat.id}
+                  variant={selectedCategory === vCat.name ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedCategory(vCat.name)}
+                >
+                  {vCat.name}
                 </Button>
               ))}
             </div>
@@ -725,21 +789,30 @@ const ProductsPage = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEditDialog(product)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Package className="h-4 w-4 mr-2" />
-                              Adjust Stock
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="text-destructive"
-                              onClick={() => deleteProductMutation.mutate(product.id)}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
+                            {!product.isVirtual ? (
+                              <>
+                                <DropdownMenuItem onClick={() => openEditDialog(product)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  <Package className="h-4 w-4 mr-2" />
+                                  Adjust Stock
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="text-destructive"
+                                  onClick={() => deleteProductMutation.mutate(product.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
+                            ) : (
+                              <DropdownMenuItem disabled>
+                                <AlertTriangle className="h-4 w-4 mr-2" />
+                                Managed via Virtual Menu
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

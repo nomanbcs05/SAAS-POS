@@ -12,6 +12,7 @@ interface IndusMenuModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (product: any) => void;
+  category?: string; // Optional category filter
 }
 
 interface MenuItem {
@@ -24,7 +25,7 @@ interface MenuItem {
   };
 }
 
-const DEFAULT_INDUS_DATA: MenuItem[] = [
+export const DEFAULT_INDUS_DATA: MenuItem[] = [
   // DRY
   { name: "Mutton Brown", category: "DRY", price: 3450 },
   { name: "Chicken Brown", category: "DRY", price: 1950 },
@@ -81,21 +82,31 @@ const DEFAULT_INDUS_DATA: MenuItem[] = [
   { name: "Mughlai Handi", category: "MUTTON HANDI", sizes: { Half: 1750, Full: 3300 } },
 ];
 
-export default function IndusMenuModal({ isOpen, onClose, onAdd }: IndusMenuModalProps) {
+export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initialCategory }: IndusMenuModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string | 'all'>(initialCategory || 'all');
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const { isAdmin } = useMultiTenant();
 
   useEffect(() => {
-    const saved = localStorage.getItem('pos_menu_indus');
+    if (initialCategory) {
+      setSelectedCategory(initialCategory);
+    }
+  }, [initialCategory]);
+
+  useEffect(() => {
+    const key = initialCategory 
+      ? `pos_menu_indus_${initialCategory.toLowerCase().replace(/\s+/g, '_').replace(/[()]/g, '')}`
+      : 'pos_menu_indus';
+    
+    const saved = localStorage.getItem(key);
     if (saved) {
       setMenuItems(JSON.parse(saved));
     } else {
-      setMenuItems(DEFAULT_INDUS_DATA);
+      setMenuItems(DEFAULT_INDUS_DATA.filter(item => !initialCategory || item.category === initialCategory));
     }
-  }, [isOpen]);
+  }, [isOpen, initialCategory]);
 
   const saveMenu = (updatedItems: MenuItem[]) => {
     setMenuItems(updatedItems);
@@ -145,7 +156,9 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd }: IndusMenuModa
                 <Utensils className="h-7 w-7 text-blue-500" />
               </div>
               <div>
-                <DialogTitle className="text-2xl font-black font-heading uppercase tracking-tight">Cafe Indus Menu</DialogTitle>
+                <DialogTitle className="text-2xl font-black font-heading uppercase tracking-tight">
+                  {selectedCategory === 'all' ? 'Cafe Indus Menu' : `${selectedCategory} Menu`}
+                </DialogTitle>
                 <DialogDescription className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">
                   Exclusive Menu for Cafe Indus
                 </DialogDescription>
@@ -169,16 +182,18 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd }: IndusMenuModa
                 className="bg-white/10 border-none text-white placeholder:text-slate-500 pl-10 h-11 text-sm rounded-xl focus-visible:ring-1 focus-visible:ring-white/20 focus-visible:ring-offset-0"
               />
             </div>
-            <select 
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="bg-white/10 border-none text-white px-4 rounded-xl text-sm focus:ring-1 focus:ring-white/20 outline-none"
-            >
-              <option value="all" className="bg-slate-800">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat} className="bg-slate-800">{cat}</option>
-              ))}
-            </select>
+            {!initialCategory && (
+              <select 
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="bg-white/10 border-none text-white px-4 rounded-xl text-sm focus:ring-1 focus:ring-white/20 outline-none"
+              >
+                <option value="all" className="bg-slate-800">All Categories</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat} className="bg-slate-800">{cat}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 

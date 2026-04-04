@@ -48,6 +48,7 @@ const ProductGrid = () => {
   const [showBeveragesModal, setShowBeveragesModal] = useState(false);
   const [showAlaCartModal, setShowAlaCartModal] = useState(false);
   const [showIndusModal, setShowIndusModal] = useState(false);
+  const [selectedIndusCategory, setSelectedIndusCategory] = useState<string | undefined>(undefined);
   
   const { data: openRegister } = useQuery({
     queryKey: ['open-register'],
@@ -112,10 +113,16 @@ const ProductGrid = () => {
     ];
     
     if (tenant?.restaurant_name?.toLowerCase().includes('indus')) {
-      // Check if it already exists to avoid duplicates
-      if (!baseCategories.some(c => c.id === 'Indus Menu')) {
-        baseCategories.push({ id: 'Indus Menu', name: 'Indus Menu', icon: 'Utensils' });
-      }
+      const indusCategories = [
+        'DRY', 'CHINESE GRAVY', 'RICE', 'CHICKEN (Karahi)', 
+        'HANDI (Chicken)', 'MUTTON (Karahi)', 'MUTTON HANDI'
+      ];
+      
+      indusCategories.forEach(cat => {
+        if (!baseCategories.some(c => c.id === cat)) {
+          baseCategories.push({ id: cat, name: cat, icon: 'Utensils' });
+        }
+      });
     }
     
     return baseCategories;
@@ -409,24 +416,32 @@ const ProductGrid = () => {
        }
      }
 
-     // Special logic for Cafe Indus:
-     const isIndusVisible = (selectedCategory === 'all' || selectedCategory === 'Indus Menu') && 
-                            tenant?.restaurant_name?.toLowerCase().includes('indus');
-     
-     if (isIndusVisible) {
-       const virtualIndus = {
-         id: 'virtual-indus-menu',
-         name: 'Cafe Indus Menu',
-         price: 0,
-         category: 'Indus Menu',
-         image: '🍲',
-         isVirtual: true,
-         modalType: 'indus'
-       };
-       
-       if (!searchQuery.trim() || virtualIndus.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-         products = [virtualIndus as any, ...products];
-       }
+     // Special logic for Cafe Indus Categories:
+     if (tenant?.restaurant_name?.toLowerCase().includes('indus')) {
+       const indusCategories = [
+         'DRY', 'CHINESE GRAVY', 'RICE', 'CHICKEN (Karahi)', 
+         'HANDI (Chicken)', 'MUTTON (Karahi)', 'MUTTON HANDI'
+       ];
+
+       indusCategories.forEach(cat => {
+         const isCatVisible = selectedCategory === 'all' || selectedCategory === cat;
+         if (isCatVisible) {
+           const virtualIndus = {
+             id: `virtual-indus-${cat.toLowerCase().replace(/\s+/g, '-')}`,
+             name: `${cat} Menu`,
+             price: 0,
+             category: cat,
+             image: '🍲',
+             isVirtual: true,
+             modalType: 'indus',
+             indusCategory: cat
+           };
+           
+           if (!searchQuery.trim() || virtualIndus.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+             products = [virtualIndus as any, ...products];
+           }
+         }
+       });
      }
 
      // Then filter by search
@@ -464,6 +479,7 @@ const ProductGrid = () => {
       } else if ((product as any).modalType === 'alacart') {
         setShowAlaCartModal(true);
       } else if ((product as any).modalType === 'indus') {
+        setSelectedIndusCategory((product as any).indusCategory);
         setShowIndusModal(true);
       }
       return;
@@ -718,10 +734,14 @@ const ProductGrid = () => {
          />
 
          <IndusMenuModal
-           isOpen={showIndusModal}
-           onClose={() => setShowIndusModal(false)}
-           onAdd={handleAddToCart}
-         />
+            isOpen={showIndusModal}
+            onClose={() => {
+              setShowIndusModal(false);
+              setSelectedIndusCategory(undefined);
+            }}
+            onAdd={handleAddToCart}
+            category={selectedIndusCategory}
+          />
         </div>
     );
 };
