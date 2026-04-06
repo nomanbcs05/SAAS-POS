@@ -52,13 +52,18 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutGrid },
+    { name: 'SaaS Admin', href: '/saas-admin', icon: ShieldCheck, superAdminOnly: true },
     { name: 'Running Orders', href: '/ongoing-orders', icon: Clock },
     { name: 'Orders', href: '/orders', icon: ClipboardList },
     { name: 'Products', href: '/products', icon: Package, adminOnly: true },
     { name: 'Customers', href: '/customers', icon: Users, adminOnly: true },
     { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true },
     { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true },
-  ].filter(item => !item.adminOnly || isAdmin);
+  ].filter(item => {
+    if (item.superAdminOnly) return profile?.role === 'super-admin';
+    if (item.adminOnly) return isAdmin;
+    return true;
+  });
 
   const handleLogout = async () => {
     try {

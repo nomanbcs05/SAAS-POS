@@ -43,6 +43,11 @@ const App = () => (
                 <SelectRestaurantPage />
               </ProtectedRoute>
             } />
+            <Route path="/saas-admin" element={
+              <ProtectedRoute superAdminOnly={true}>
+                <SuperAdminDashboard />
+              </ProtectedRoute>
+            } />
 
             <Route path="/" element={
               <ProtectedRoute>

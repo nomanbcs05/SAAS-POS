@@ -5,9 +5,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { useMultiTenant } from "@/hooks/useMultiTenant";
 
-const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
+const ProtectedRoute = ({ 
+  children, 
+  adminOnly = false, 
+  superAdminOnly = false 
+}: { 
+  children: React.ReactNode, 
+  adminOnly?: boolean,
+  superAdminOnly?: boolean
+}) => {
   const { session, profile, isLoading, isAdmin, ownedTenants } = useMultiTenant();
   const location = useLocation();
+
+  const isSuperAdmin = profile?.role === 'super-admin';
 
   console.log("ProtectedRoute State:", { 
     path: location.pathname, 
@@ -15,6 +25,7 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children: React.React
     hasSession: !!session, 
     hasProfile: !!profile, 
     isAdmin,
+    isSuperAdmin,
     restaurantId: profile?.tenant_id,
     ownedTenantsCount: ownedTenants?.length
   });
@@ -33,6 +44,11 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children: React.React
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
+  // Super Admin bypasses restaurant selection/creation checks
+  if (isSuperAdmin) {
+    return <>{children}</>;
+  }
+
   // Handle Multi-Tenant redirection logic
   if (!profile?.tenant_id && !profile?.restaurant_id) {
     // If user is already on one of the onboarding pages, don't redirect again
@@ -49,6 +65,10 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children: React.React
     // If they own nothing, go to creation
     console.log("ProtectedRoute: No tenant found, redirecting to /create-restaurant");
     return <Navigate to="/create-restaurant" replace />;
+  }
+
+  if (superAdminOnly && !isSuperAdmin) {
+    return <Navigate to="/" replace />;
   }
 
   if (adminOnly && !isAdmin) {

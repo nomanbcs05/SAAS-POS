@@ -80,6 +80,17 @@ export const DEFAULT_INDUS_DATA: MenuItem[] = [
   { name: "White Handi", category: "MUTTON HANDI", sizes: { Half: 2150, Full: 3750 } },
   { name: "Zeera Handi", category: "MUTTON HANDI", sizes: { Half: 1950, Full: 3650 } },
   { name: "Mughlai Handi", category: "MUTTON HANDI", sizes: { Half: 1750, Full: 3300 } },
+
+  // CHAI
+  { name: "Chia Full", category: "CHAI", price: 100 },
+  { name: "Chia Half", category: "CHAI", price: 50 },
+  { name: "Badami Chai", category: "CHAI", price: 120 },
+  { name: "Kawa Chai", category: "CHAI", price: 50 },
+
+  // ROTI
+  { name: "Tandoori Roti", category: "ROTI", price: 25 },
+  { name: "Plain Naan", category: "ROTI", price: 30 },
+  { name: "Garlic Naan", category: "ROTI", price: 40 },
 ];
 
 export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initialCategory }: IndusMenuModalProps) {

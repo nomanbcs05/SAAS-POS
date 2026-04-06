@@ -115,7 +115,8 @@ const ProductGrid = () => {
     if (tenant?.restaurant_name?.toLowerCase().includes('indus')) {
       const indusCategories = [
         'DRY', 'CHINESE GRAVY', 'RICE', 'CHICKEN (Karahi)', 
-        'HANDI (Chicken)', 'MUTTON (Karahi)', 'MUTTON HANDI'
+        'HANDI (Chicken)', 'MUTTON (Karahi)', 'MUTTON HANDI',
+        'CHAI', 'ROTI'
       ];
       
       indusCategories.forEach(cat => {
@@ -439,7 +440,9 @@ const ProductGrid = () => {
          { name: 'CHICKEN (Karahi)', id: 'indus_chicken_karahi', key: 'pos_menu_indus_chicken_karahi' },
          { name: 'HANDI (Chicken)', id: 'indus_handi', key: 'pos_menu_indus_handi_chicken' },
          { name: 'MUTTON (Karahi)', id: 'indus_mutton_karahi', key: 'pos_menu_indus_mutton_karahi' },
-         { name: 'MUTTON HANDI', id: 'indus_mutton_handi', key: 'pos_menu_indus_mutton_handi' }
+         { name: 'MUTTON HANDI', id: 'indus_mutton_handi', key: 'pos_menu_indus_mutton_handi' },
+         { name: 'CHAI', id: 'indus_chai', key: 'pos_menu_indus_chai' },
+         { name: 'ROTI', id: 'indus_roti', key: 'pos_menu_indus_roti' }
        ];
 
        indusCategories.forEach(cat => {
@@ -459,7 +462,9 @@ const ProductGrid = () => {
              indusCategory: cat.name
            };
            
-           if (!searchQuery.trim() || virtualCard.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+           // Per user request: Chai and Roti don't show directly on dashboard (All view)
+           const isChaiOrRoti = cat.name === 'CHAI' || cat.name === 'ROTI';
+           if ((!searchQuery.trim() || virtualCard.name.toLowerCase().includes(searchQuery.toLowerCase())) && !(isAllSelected && isChaiOrRoti)) {
              products = [virtualCard as any, ...products];
            }
 

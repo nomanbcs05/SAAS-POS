@@ -111,6 +111,8 @@ const ProductsPage = () => {
     { id: 'indus_handi', name: 'HANDI (Chicken)', key: 'pos_menu_indus_handi_chicken', filter: 'HANDI (Chicken)', icon: Utensils },
     { id: 'indus_mutton_karahi', name: 'MUTTON (Karahi)', key: 'pos_menu_indus_mutton_karahi', filter: 'MUTTON (Karahi)', icon: Utensils },
     { id: 'indus_mutton_handi', name: 'MUTTON HANDI', key: 'pos_menu_indus_mutton_handi', filter: 'MUTTON HANDI', icon: Utensils },
+    { id: 'indus_chai', name: 'CHAI', key: 'pos_menu_indus_chai', filter: 'CHAI', icon: Utensils },
+    { id: 'indus_roti', name: 'ROTI', key: 'pos_menu_indus_roti', filter: 'ROTI', icon: Utensils },
   ];
 
   const openVirtualMenuEditor = (category: any) => {
