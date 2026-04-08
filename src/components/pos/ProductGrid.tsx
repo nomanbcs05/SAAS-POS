@@ -145,7 +145,7 @@ const ProductGrid = () => {
     
     const isCardVisible = (id: string) => {
       // Specifically hide these for Cafe Indus
-      if (isIndus && ['pizza', 'burger', 'deals', 'alacart', 'sauce', 'roll', 'broast'].includes(id)) {
+      if (isIndus && ['pizza', 'burger', 'alacart', 'sauce', 'roll', 'broast'].includes(id)) {
         return false;
       }
       return cardVisibility[id] !== false;
