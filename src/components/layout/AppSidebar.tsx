@@ -17,7 +17,8 @@ import {
   ChevronRight,
   Menu,
   ShieldCheck,
-  Building2
+  Building2,
+  Download
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,7 +34,31 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
   const { profile, tenant, isAdmin } = useMultiTenant();
   const [showStartSessionModal, setShowStartSessionModal] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBtn, setShowInstallBtn] = useState(false);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBtn(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowInstallBtn(false);
+    }
+    setDeferredPrompt(null);
+  };
 
   useEffect(() => {
     const updateDisplayName = () => {
@@ -222,6 +247,33 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
               <Lock className="h-3.5 w-3.5 shrink-0" />
               <span className="animate-in fade-in slide-in-from-left-2 duration-300">Lock Terminal</span>
             </button>
+          )}
+
+          {/* Install App Button */}
+          {showInstallBtn && (
+            isCollapsed ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleInstallClick}
+                    className="w-full mb-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold font-heading uppercase tracking-widest text-sidebar-primary hover:bg-sidebar-primary/10 transition-all min-w-max"
+                  >
+                    <Download className="h-3.5 w-3.5 shrink-0" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="font-bold font-heading uppercase text-[10px] tracking-widest">
+                  Install App
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <button
+                onClick={handleInstallClick}
+                className="w-full mb-1 flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold font-heading uppercase tracking-widest text-sidebar-primary hover:bg-sidebar-primary/10 transition-all min-w-max"
+              >
+                <Download className="h-3.5 w-3.5 shrink-0" />
+                <span className="animate-in fade-in slide-in-from-left-2 duration-300">Install App</span>
+              </button>
+            )
           )}
 
           {isCollapsed ? (
