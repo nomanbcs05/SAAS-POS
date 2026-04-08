@@ -35,7 +35,9 @@ const ManageProductsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'addons'>('products');
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [editingCategory, setEditingCategory] = useState<any>(null);
   const [isVirtualMenuModalOpen, setIsVirtualMenuModalOpen] = useState(false);
   const [selectedVirtualCategory, setSelectedVirtualCategory] = useState<string | null>(null);
   const [virtualMenuItems, setVirtualMenuItems] = useState<any[]>([]);
@@ -166,6 +168,11 @@ const ManageProductsPage = () => {
     selectedAddons: [] as string[],
   });
 
+  const [categoryForm, setCategoryForm] = useState({
+    name: '',
+    icon: 'Package',
+  });
+
   // Variant State
   const [options, setOptions] = useState<any[]>([]);
   const [newOptionName, setNewOptionName] = useState('');
@@ -262,6 +269,37 @@ const ManageProductsPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products-with-details'] });
       toast({ title: "Success", description: "Product deleted successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const saveCategoryMutation = useMutation({
+     mutationFn: async (data: any) => {
+       if (editingCategory) {
+         return api.categories.update(editingCategory.id, data);
+       } else {
+         return api.categories.create(data);
+       }
+     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      toast({ title: "Success", description: `Category ${editingCategory ? 'updated' : 'created'} successfully` });
+      setIsCategoryModalOpen(false);
+      setCategoryForm({ name: '', icon: 'Package' });
+      setEditingCategory(null);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: api.categories.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      toast({ title: "Success", description: "Category deleted successfully" });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -443,6 +481,81 @@ const ManageProductsPage = () => {
                 ))}
               </div>
             </div>
+          ) : activeTab === 'categories' ? (
+            <>
+              <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-black text-slate-900">Manage Categories</h1>
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={() => { 
+                      setEditingCategory(null);
+                      setCategoryForm({ name: '', icon: 'Package' });
+                      setIsCategoryModalOpen(true); 
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl px-6"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add New Category
+                  </Button>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex-1 flex flex-col shadow-sm">
+                <Table>
+                  <TableHeader className="bg-emerald-400 hover:bg-emerald-400">
+                    <TableRow className="border-none hover:bg-emerald-400">
+                      <TableHead className="text-white font-black uppercase text-[11px] tracking-wider py-4">Name</TableHead>
+                      <TableHead className="text-white font-black uppercase text-[11px] tracking-wider py-4">Icon</TableHead>
+                      <TableHead className="text-white font-black uppercase text-[11px] tracking-wider py-4 text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {categories.map((category: any) => (
+                      <TableRow key={category.id} className="hover:bg-slate-50/50 border-slate-100">
+                        <TableCell className="font-bold text-slate-700 py-4">{category.name}</TableCell>
+                        <TableCell className="text-slate-500 py-4">{category.icon}</TableCell>
+                        <TableCell className="py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button 
+                              onClick={() => {
+                                setEditingCategory(category);
+                                setCategoryForm({ name: category.name, icon: category.icon });
+                                setIsCategoryModalOpen(true);
+                              }}
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-slate-400 hover:text-indigo-600"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              onClick={() => {
+                                if (window.confirm('Are you sure you want to delete this category?')) {
+                                  deleteCategoryMutation.mutate(category.id);
+                                }
+                              }}
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-slate-400 hover:text-red-500"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          ) : activeTab === 'addons' ? (
+            <>
+              <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-black text-slate-900">Manage Add-ons</h1>
+                <p className="text-slate-500">Add-ons management is coming soon.</p>
+              </div>
+            </>
           ) : (
             <>
               <div className="flex items-center justify-between">
@@ -638,6 +751,45 @@ const ManageProductsPage = () => {
                 </Button>
               </div>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add/Edit Category Modal */}
+        <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
+          <DialogContent className="max-w-md bg-white rounded-3xl p-8">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black text-indigo-600">
+                {editingCategory ? 'Edit Category' : 'Add New Category'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-black text-slate-900">Category Name</Label>
+                <Input 
+                  value={categoryForm.name}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                  className="h-12 bg-slate-50 border-none rounded-xl" 
+                  placeholder="e.g. Desserts" 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-black text-slate-900">Icon Name (Lucide)</Label>
+                <Input 
+                  value={categoryForm.icon}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, icon: e.target.value })}
+                  className="h-12 bg-slate-50 border-none rounded-xl" 
+                  placeholder="e.g. Package, Utensils, Coffee" 
+                />
+              </div>
+              <Button 
+                onClick={() => saveCategoryMutation.mutate(categoryForm)}
+                disabled={saveCategoryMutation.isPending}
+                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl"
+              >
+                {saveCategoryMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {editingCategory ? 'Update Category' : 'Save Category'}
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
 

@@ -128,6 +128,16 @@ export const api = {
       if (error) throw error;
       return data as unknown as Category;
     },
+    update: async (id: string, category: Partial<Category>) => {
+      const { data, error } = await supabase
+        .from('categories')
+        .update(category as any)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as Category;
+    },
     delete: async (id: string) => {
       const { error } = await supabase
         .from('categories')

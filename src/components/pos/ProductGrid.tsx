@@ -153,13 +153,13 @@ const ProductGrid = () => {
 
     // Filter by selected category
     if (selectedCategory !== 'all') {
-      products = products.filter(p => p.category === selectedCategory);
+      products = products.filter(p => p.category?.toLowerCase() === selectedCategory?.toLowerCase());
     }
 
     // Special logic for Arabic Broast: 
     // If NOT in the "Arabic Broast" category, hide individual items and only show the main "Injected Broast" card
-    if (selectedCategory !== 'Arabic Broast') {
-      const isBroastItem = (p: any) => p.category === 'Arabic Broast';
+    if (selectedCategory?.toLowerCase() !== 'arabic broast') {
+      const isBroastItem = (p: any) => p.category?.toLowerCase() === 'arabic broast';
       const broastProducts = allProducts.filter(isBroastItem);
       
       if (broastProducts.length > 0 && isCardVisible('broast')) {
@@ -182,21 +182,13 @@ const ProductGrid = () => {
           products = [...products, virtualBroast as any];
         }
       }
-    } else {
-      // If we ARE in the "Arabic Broast" category, don't show the virtual card
-      products = products.filter(p => !(p as any).isVirtual);
     }
 
     // Special logic for Pizzas:
     // We want the Pizza Menu card to ALWAYS show up in 'all' category or 'Pizzas' category
-    const isPizzasVisible = (selectedCategory === 'all' || selectedCategory === 'Pizzas') && isCardVisible('pizza');
+    const isPizzasVisible = (selectedCategory === 'all' || selectedCategory?.toLowerCase() === 'pizzas') && isCardVisible('pizza');
     
     if (isPizzasVisible) {
-      const isPizzaItem = (p: any) => p.category === 'Pizzas';
-      
-      // Remove any individual pizza items that might be in the database
-      products = products.filter(p => !isPizzaItem(p));
-      
       const virtualPizza = {
         id: 'virtual-pizza-menu',
         name: 'Pizzas Menu',
@@ -212,18 +204,12 @@ const ProductGrid = () => {
       if (!searchQuery.trim() || virtualPizza.name.toLowerCase().includes(searchQuery.toLowerCase())) {
         products = [virtualPizza as any, ...products];
       }
-    } else {
-       // If we are in another category, hide any pizza items
-       products = products.filter(p => p.category !== 'Pizzas' && !(p as any).isVirtual);
-     }
+    }
 
      // Special logic for Rolls:
-     const isRollsVisible = (selectedCategory === 'all' || selectedCategory === 'Rolls') && isCardVisible('roll');
+     const isRollsVisible = (selectedCategory === 'all' || selectedCategory?.toLowerCase() === 'rolls') && isCardVisible('roll');
      
      if (isRollsVisible) {
-       const isRollItem = (p: any) => p.category === 'Rolls';
-       products = products.filter(p => !isRollItem(p));
-       
        const virtualRoll = {
          id: 'virtual-roll-menu',
          name: 'Rolls Menu',
@@ -238,17 +224,12 @@ const ProductGrid = () => {
        if (!searchQuery.trim() || virtualRoll.name.toLowerCase().includes(searchQuery.toLowerCase())) {
          products = [virtualRoll as any, ...products];
        }
-     } else {
-       products = products.filter(p => p.category !== 'Rolls' && !(p as any).isVirtual);
      }
 
      // Special logic for Simple Broast:
-     const isSimpleBroastVisible = (selectedCategory === 'all' || selectedCategory === 'Broast') && isCardVisible('broast');
+     const isSimpleBroastVisible = (selectedCategory === 'all' || selectedCategory?.toLowerCase() === 'broast') && isCardVisible('broast');
      
      if (isSimpleBroastVisible) {
-       const isSimpleBroastItem = (p: any) => p.category === 'Broast';
-       products = products.filter(p => !isSimpleBroastItem(p));
-       
        const virtualBroast = {
          id: 'virtual-broast-menu',
          name: 'Broast Menu',
@@ -263,17 +244,12 @@ const ProductGrid = () => {
        if (!searchQuery.trim() || virtualBroast.name.toLowerCase().includes(searchQuery.toLowerCase())) {
          products = [virtualBroast as any, ...products];
        }
-     } else {
-       products = products.filter(p => p.category !== 'Broast' && !(p as any).isVirtual);
      }
 
      // Special logic for Burgers:
-     const isBurgersVisible = (selectedCategory === 'all' || selectedCategory === 'Burgers') && isCardVisible('burger');
+     const isBurgersVisible = (selectedCategory === 'all' || selectedCategory?.toLowerCase() === 'burgers') && isCardVisible('burger');
      
      if (isBurgersVisible) {
-       const isBurgerItem = (p: any) => p.category === 'Burgers';
-       products = products.filter(p => !isBurgerItem(p));
-       
       const virtualBurger = {
          id: 'virtual-burger-menu',
          name: 'Burgers Menu',
@@ -288,17 +264,12 @@ const ProductGrid = () => {
        if (!searchQuery.trim() || virtualBurger.name.toLowerCase().includes(searchQuery.toLowerCase())) {
          products = [virtualBurger as any, ...products];
        }
-     } else {
-       products = products.filter(p => p.category !== 'Burgers' && !(p as any).isVirtual);
      }
 
      // Special logic for BAR BQ:
-     const isBarBQVisible = (selectedCategory === 'all' || selectedCategory === 'BAR BQ') && isCardVisible('barbq');
+     const isBarBQVisible = (selectedCategory === 'all' || selectedCategory?.toLowerCase() === 'bar bq') && isCardVisible('barbq');
      
      if (isBarBQVisible) {
-       const isBarBQItem = (p: any) => p.category === 'BAR BQ';
-       products = products.filter(p => !isBarBQItem(p));
-       
       const virtualBarBQ = {
          id: 'virtual-barbq-menu',
          name: 'BAR BQ Menu',
@@ -313,18 +284,13 @@ const ProductGrid = () => {
        if (!searchQuery.trim() || virtualBarBQ.name.toLowerCase().includes(searchQuery.toLowerCase())) {
          products = [virtualBarBQ as any, ...products];
        }
-     } else {
-       products = products.filter(p => p.category !== 'BAR BQ' && !(p as any).isVirtual);
      }
 
      // Special logic for Sauces & Toppings:
-     const isSauceToppingVisible = (selectedCategory === 'all' || selectedCategory === 'Sauces' || selectedCategory === 'Toppings' || selectedCategory === 'ALA CART') && isCardVisible('sauce');
+     const isSauceToppingVisible = (selectedCategory === 'all' || selectedCategory?.toLowerCase() === 'sauces' || selectedCategory?.toLowerCase() === 'toppings' || selectedCategory?.toLowerCase() === 'ala cart') && isCardVisible('sauce');
      
      if (isSauceToppingVisible) {
-       const isSauceToppingItem = (p: any) => p.category === 'Sauces' || p.category === 'Toppings';
-       products = products.filter(p => !isSauceToppingItem(p));
-       
-      const virtualSauceTopping = {
+       const virtualSauceTopping = {
          id: 'virtual-sauce-topping-menu',
          name: 'Sauces & Toppings',
          price: 0,
@@ -337,17 +303,12 @@ const ProductGrid = () => {
        if (!searchQuery.trim() || virtualSauceTopping.name.toLowerCase().includes(searchQuery.toLowerCase())) {
          products = [virtualSauceTopping as any, ...products];
        }
-     } else {
-       products = products.filter(p => p.category !== 'Sauces' && p.category !== 'Toppings' && !(p as any).isVirtual);
      }
 
      // Special logic for Deals:
-     const isDealsVisible = (selectedCategory === 'all' || selectedCategory === 'Deals') && isCardVisible('deals');
+     const isDealsVisible = (selectedCategory === 'all' || selectedCategory?.toLowerCase() === 'deals') && isCardVisible('deals');
      
      if (isDealsVisible) {
-       const isDealItem = (p: any) => p.category === 'Deals';
-       products = products.filter(p => !isDealItem(p));
-       
        const virtualDeals = {
          id: 'virtual-deals-menu',
          name: 'Virtual Deals Menu',
@@ -361,17 +322,12 @@ const ProductGrid = () => {
        if (!searchQuery.trim() || virtualDeals.name.toLowerCase().includes(searchQuery.toLowerCase())) {
          products = [virtualDeals as any, ...products];
        }
-     } else {
-       products = products.filter(p => p.category !== 'Deals' && !(p as any).isVirtual);
      }
 
      // Special logic for Fries:
-     const isFriesVisible = (selectedCategory === 'all' || selectedCategory === 'ALA CART') && isCardVisible('fries');
+     const isFriesVisible = (selectedCategory === 'all' || selectedCategory?.toLowerCase() === 'ala cart') && isCardVisible('fries');
      
      if (isFriesVisible) {
-       const isFriesItem = (p: any) => p.name?.toLowerCase?.().includes('fries') && p.category === 'ALA CART';
-       products = products.filter(p => !isFriesItem(p));
-       
        const virtualFries = {
          id: 'virtual-fries-menu',
          name: 'Fries Menu',
@@ -388,11 +344,9 @@ const ProductGrid = () => {
      }
 
      // Special logic for Beverages:
-     const isBeveragesVisible = (selectedCategory === 'all' || selectedCategory === 'Beverages') && isCardVisible('beverages');
+     const isBeveragesVisible = (selectedCategory === 'all' || selectedCategory?.toLowerCase() === 'beverages') && isCardVisible('beverages');
      
      if (isBeveragesVisible) {
-       products = products.filter(p => p.category !== 'Beverages');
-       
        const virtualBeverages = {
          id: 'virtual-beverages-menu',
          name: 'Beverages Menu',
@@ -409,13 +363,9 @@ const ProductGrid = () => {
      }
 
      // Special logic for ALA CART:
-     const isAlaCartVisible = (selectedCategory === 'all' || selectedCategory === 'ALA CART') && isCardVisible('alacart');
+     const isAlaCartVisible = (selectedCategory === 'all' || selectedCategory?.toLowerCase() === 'ala cart') && isCardVisible('alacart');
      
      if (isAlaCartVisible) {
-       // Filter out items that are part of the virtual ALA CART menu
-       const isAlaCartItem = (p: any) => p.category === 'ALA CART' && !p.isVirtual && !p.name.toLowerCase().includes('fries');
-       products = products.filter(p => !isAlaCartItem(p));
-       
        const virtualAlaCart = {
          id: 'virtual-alacart-menu',
          name: 'ALA CART Menu',
