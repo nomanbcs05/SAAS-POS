@@ -412,14 +412,12 @@ const ProductGrid = () => {
              indusCategory: cat.name
            };
            
-           // Per user request: Chai and Roti don't show directly on dashboard (All view)
-           const isChaiOrRoti = cat.name === 'CHAI' || cat.name === 'ROTI';
-           if ((!searchQuery.trim() || virtualCard.name.toLowerCase().includes(searchQuery.toLowerCase())) && !(isAllSelected && isChaiOrRoti)) {
+          if (!searchQuery.trim() || virtualCard.name.toLowerCase().includes(searchQuery.toLowerCase())) {
              products = [virtualCard as any, ...products];
            }
 
            // 2. Add individual items from this category if it's explicitly selected
-           if (isCatSelected) {
+          if (isCatSelected && !(cat.name === 'CHAI' || cat.name === 'ROTI')) {
              const saved = localStorage.getItem(cat.key);
              let items = [];
              if (saved) {
@@ -761,7 +759,7 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product, onAdd }: ProductCardProps) => {
-  const isNoImageCategory = product.category === 'Arabic Broast' || product.category === 'ALA CART' || product.category === 'Snacks' || product.category === 'Beverages' || product.category === 'Pizzas' || product.category === 'Rolls' || product.category === 'Broast' || product.category === 'Burgers' || product.category === 'BAR BQ' || product.category === 'Sauces' || product.category === 'Toppings' || product.category === 'DRY' || product.category === 'CHINESE GRAVY' || product.category === 'RICE' || product.category === 'CHICKEN (Karahi)' || product.category === 'HANDI (Chicken)' || product.category === 'MUTTON (Karahi)' || product.category === 'MUTTON HANDI';
+  const isNoImageCategory = product.category === 'Arabic Broast' || product.category === 'ALA CART' || product.category === 'Snacks' || product.category === 'Beverages' || product.category === 'Pizzas' || product.category === 'Rolls' || product.category === 'Broast' || product.category === 'Burgers' || product.category === 'BAR BQ' || product.category === 'Sauces' || product.category === 'Toppings' || product.category === 'DRY' || product.category === 'CHINESE GRAVY' || product.category === 'RICE' || product.category === 'CHICKEN (Karahi)' || product.category === 'HANDI (Chicken)' || product.category === 'MUTTON (Karahi)' || product.category === 'MUTTON HANDI' || product.category === 'CHAI' || product.category === 'ROTI';
   const isVirtualSauce = (product as any).id === 'virtual-sauce-topping-menu';
   const isVirtualBarbq = (product as any).id === 'virtual-barbq-menu';
   const isVirtualBurger = (product as any).id === 'virtual-burger-menu';
