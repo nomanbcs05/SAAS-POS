@@ -311,7 +311,7 @@ const ProductGrid = () => {
      if (isDealsVisible) {
        const virtualDeals = {
          id: 'virtual-deals-menu',
-         name: 'Virtual Deals Menu',
+         name: 'Deals Menu',
          price: 0,
          category: 'Deals',
          image: '/gx.png', // Fallback icon
@@ -768,7 +768,8 @@ const ProductCard = ({ product, onAdd }: ProductCardProps) => {
   const isVirtualIndus = (product as any).id?.startsWith?.('virtual-indus-');
   const isVirtualSimpleBroast = (product as any).id === 'virtual-broast-menu';
   const isLoadedFries = (product as any).name?.toLowerCase?.().includes('loaded fries');
-  const forceShowImage = isVirtualSauce || isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isLoadedFries;
+  const isVirtualDeals = (product as any).id === 'virtual-deals-menu';
+  const forceShowImage = isVirtualSauce || isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isLoadedFries || isVirtualDeals;
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [currentSrc, setCurrentSrc] = useState<string | undefined>((product.image as any) || (isLoadedFries ? '/LoadedFries.png' : undefined));
@@ -817,7 +818,7 @@ const ProductCard = ({ product, onAdd }: ProductCardProps) => {
                   }}
                   className={cn(
                     "h-full w-full p-0.5 transition-all duration-500",
-                    (isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus) ? "object-cover" : "object-contain",
+                    (isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isVirtualDeals) ? "object-cover" : "object-contain",
                     imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95"
                   )}
                 />
