@@ -364,6 +364,8 @@ export const api = {
       const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user?.id || '').single();
       
       // Clean order data to match actual Supabase schema
+      // Note: discount_amount, service_charges_amount, delivery_fee columns
+      // do not exist in the orders table — do NOT include them
       const safeOrder: any = {
         total_amount: Number(order.total_amount) || 0,
         status: order.status || 'completed',
@@ -375,9 +377,6 @@ export const api = {
         customer_address: order.customer_address || null,
         server_name: order.server_name || null,
         table_id: order.table_id || null,
-        discount_amount: order.discountAmount || 0,
-        service_charges_amount: order.serviceChargesAmount || 0,
-        // Note: delivery_fee column does not exist in the orders table schema
       };
 
       if (order.server_name) {
@@ -432,8 +431,6 @@ export const api = {
           server_name, 
           table_id, 
           register_id, 
-          discount_amount, 
-          service_charges_amount, 
           tenant_id,
           ...minimalOrder 
         } = safeOrder;
@@ -540,8 +537,6 @@ export const api = {
           server_name, 
           table_id, 
           register_id, 
-          discount_amount, 
-          service_charges_amount, 
           tenant_id,
           ...minimalOrder 
         } = safeOrder;
