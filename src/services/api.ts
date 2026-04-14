@@ -377,7 +377,7 @@ export const api = {
         table_id: order.table_id || null,
         discount_amount: order.discountAmount || 0,
         service_charges_amount: order.serviceChargesAmount || 0,
-        delivery_fee: order.deliveryFee || 0,
+        // Note: delivery_fee column does not exist in the orders table schema
       };
 
       if (order.server_name) {
@@ -434,7 +434,6 @@ export const api = {
           register_id, 
           discount_amount, 
           service_charges_amount, 
-          delivery_fee,
           tenant_id,
           ...minimalOrder 
         } = safeOrder;
@@ -543,7 +542,6 @@ export const api = {
           register_id, 
           discount_amount, 
           service_charges_amount, 
-          delivery_fee,
           tenant_id,
           ...minimalOrder 
         } = safeOrder;

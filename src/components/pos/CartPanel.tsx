@@ -163,7 +163,6 @@ const CartPanel = () => {
     documentTitle: `Receipt-${lastOrder?.orderNumber}`,
     onAfterPrint: () => {
       toast.success('Receipt printed successfully');
-      setShowReceipt(false);
       clearCart();
       navigate('/ongoing-orders');
     },
@@ -174,7 +173,6 @@ const CartPanel = () => {
     documentTitle: `KOT-${Date.now()}`,
     onAfterPrint: () => {
       toast.success('KOT printed successfully');
-      setShowKOT(false);
       clearCart();
       navigate('/ongoing-orders');
     },
