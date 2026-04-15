@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import * as offline from '@/services/offlineStore';
 
 export interface Profile {
   id: string;
@@ -31,11 +32,24 @@ export const useMultiTenant = () => {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
-      setSession(session);
+      if (session) {
+        offline.cacheSession(session);
+        setSession(session);
+      } else if (!offline.isOnline()) {
+        // Offline fallback: use cached session
+        const cached = offline.getCachedSession();
+        if (cached) {
+          console.warn('[Offline] Using cached session');
+          setSession(cached);
+        }
+      }
       setSessionLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        offline.cacheSession(session);
+      }
       setSession(session);
       setSessionLoading(false);
     });
@@ -47,17 +61,24 @@ export const useMultiTenant = () => {
     queryKey: ['profile', session?.user?.id],
     queryFn: async () => {
       if (!session?.user?.id) return null;
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
 
-      if (error) {
-        console.error('Error fetching profile:', error);
+        if (error) throw error;
+        offline.cacheProfile(data);
+        return data as Profile;
+      } catch (err) {
+        if (!offline.isOnline()) {
+          console.warn('[Offline] Using cached profile');
+          return offline.getCachedProfile() as Profile | null;
+        }
+        console.error('Error fetching profile:', err);
         return null;
       }
-      return data as Profile;
     },
     enabled: !!session?.user?.id,
   });
@@ -83,40 +104,51 @@ export const useMultiTenant = () => {
   const { data: tenant, isLoading: tenantLoading } = useQuery({
     queryKey: ['tenant', profile?.tenant_id, ownedTenants],
     queryFn: async () => {
-      // Priority 1: Use the tenant linked in the profile
-      if (profile?.tenant_id) {
-        const { data, error } = await supabase
-          .from('tenants')
-          .select('*')
-          .eq('id', profile.tenant_id)
-          .single();
+      try {
+        // Priority 1: Use the tenant linked in the profile
+        if (profile?.tenant_id) {
+          const { data, error } = await supabase
+            .from('tenants')
+            .select('*')
+            .eq('id', profile.tenant_id)
+            .single();
 
-        if (!error && data) return data as Tenant;
-      }
-
-      // Priority 2: Use the first owned tenant if profile link is missing
-      if (ownedTenants && ownedTenants.length > 0) {
-        const firstTenant = ownedTenants[0];
-        
-        // Repair: Update profile to link to this tenant automatically
-        if (session?.user?.id && !profile?.tenant_id) {
-          console.log('Repairing profile link to tenant:', firstTenant.id);
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ tenant_id: firstTenant.id })
-            .eq('id', session.user.id);
-          
-          if (!updateError) {
-            toast.success(`Restored settings for ${firstTenant.restaurant_name}`);
-            // Force a reload of the profile in the query cache
-            window.location.reload(); 
+          if (!error && data) {
+            offline.cacheTenant(data);
+            return data as Tenant;
           }
         }
-        
-        return firstTenant as Tenant;
-      }
 
-      return null;
+        // Priority 2: Use the first owned tenant if profile link is missing
+        if (ownedTenants && ownedTenants.length > 0) {
+          const firstTenant = ownedTenants[0];
+          
+          // Repair: Update profile to link to this tenant automatically
+          if (session?.user?.id && !profile?.tenant_id) {
+            console.log('Repairing profile link to tenant:', firstTenant.id);
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ tenant_id: firstTenant.id })
+              .eq('id', session.user.id);
+            
+            if (!updateError) {
+              toast.success(`Restored settings for ${firstTenant.restaurant_name}`);
+              window.location.reload(); 
+            }
+          }
+          
+          offline.cacheTenant(firstTenant);
+          return firstTenant as Tenant;
+        }
+
+        return null;
+      } catch (err) {
+        if (!offline.isOnline()) {
+          console.warn('[Offline] Using cached tenant');
+          return offline.getCachedTenant() as Tenant | null;
+        }
+        throw err;
+      }
     },
     enabled: !!session?.user?.id && (!profileLoading || !!profile),
   });

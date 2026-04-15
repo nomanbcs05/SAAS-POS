@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { supabaseSignup } from '@/integrations/supabase/supabaseAdmin';
 import { Database } from '@/integrations/supabase/types';
+import * as offline from './offlineStore';
 
 type Product = Database['public']['Tables']['products']['Row'];
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
@@ -70,14 +71,23 @@ export interface DailyRegister {
 export const api = {
   registers: {
     getOpen: async () => {
-      const { data, error } = await supabase
-        .from('daily_registers' as any)
-        .select('*')
-        .eq('status', 'open')
-        .maybeSingle();
+      try {
+        const { data, error } = await supabase
+          .from('daily_registers' as any)
+          .select('*')
+          .eq('status', 'open')
+          .maybeSingle();
 
-      if (error) throw error;
-      return data as DailyRegister | null;
+        if (error) throw error;
+        if (data) offline.cacheRegister(data);
+        return data as DailyRegister | null;
+      } catch (err) {
+        if (!offline.isOnline()) {
+          console.warn('[Offline] Using cached register');
+          return offline.getCachedRegister() as DailyRegister | null;
+        }
+        throw err;
+      }
     },
     start: async (startingAmount: number, openedAt?: string) => {
       const { data, error } = await supabase
@@ -112,12 +122,21 @@ export const api = {
   },
   categories: {
     getAll: async () => {
-      const { data, error } = await supabase
-        .from('categories' as any)
-        .select('*')
-        .order('name');
-      if (error) throw error;
-      return data as Category[];
+      try {
+        const { data, error } = await supabase
+          .from('categories' as any)
+          .select('*')
+          .order('name');
+        if (error) throw error;
+        offline.cacheCategories(data as Category[]);
+        return data as Category[];
+      } catch (err) {
+        if (!offline.isOnline()) {
+          console.warn('[Offline] Using cached categories');
+          return offline.getCachedCategories() as Category[];
+        }
+        throw err;
+      }
     },
     create: async (category: Omit<Category, 'id'>) => {
       const { data, error } = await supabase
@@ -158,12 +177,21 @@ export const api = {
       return true;
     },
     getAll: async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('name');
-      if (error) throw error;
-      return data as any[];
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('name');
+        if (error) throw error;
+        offline.cacheProducts(data as any[]);
+        return data as any[];
+      } catch (err) {
+        if (!offline.isOnline()) {
+          console.warn('[Offline] Using cached products');
+          return offline.getCachedProducts();
+        }
+        throw err;
+      }
     },
     create: async (product: ProductInsert) => {
       const { data, error } = await supabase
@@ -243,12 +271,21 @@ export const api = {
   },
   customers: {
     getAll: async () => {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .order('name');
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('*')
+          .order('name');
+        if (error) throw error;
+        offline.cacheCustomers(data);
+        return data;
+      } catch (err) {
+        if (!offline.isOnline()) {
+          console.warn('[Offline] Using cached customers');
+          return offline.getCachedCustomers();
+        }
+        throw err;
+      }
     },
     create: async (customer: CustomerInsert) => {
       const { data, error } = await supabase
@@ -359,6 +396,13 @@ export const api = {
       return count || 0;
     },
     create: async (order: any, items: OrderItemInsert[]) => {
+      // If offline, queue the order locally and return a placeholder
+      if (!offline.isOnline()) {
+        console.warn('[Offline] Queuing order locally for later sync');
+        const queued = offline.queueOrder(order, items as any[]);
+        return { id: queued.id, _offline: true, created_at: queued.createdAt };
+      }
+
       // Get current user profile for tenant_id if not provided
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user?.id || '').single();
