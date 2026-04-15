@@ -210,8 +210,7 @@ const CartPanel = () => {
 
           const toastId = toast.loading('Saving order after bill print...');
 
-            await api.orders.create({ ...orderInsert, tenant_id: tenant?.id }, orderItemsInsert);
-          }
+          await api.orders.create({ ...orderInsert, tenant_id: tenant?.id }, orderItemsInsert);
 
           queryClient.invalidateQueries({ queryKey: ['orders'] });
           queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
