@@ -1,5 +1,6 @@
 
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { useMultiTenant } from "@/hooks/useMultiTenant";
 
 const SelectRestaurantPage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { session, ownedTenants, isLoading } = useMultiTenant();
 
   const handleSelect = async (tenantId: string) => {
@@ -26,7 +28,13 @@ const SelectRestaurantPage = () => {
 
       if (error) throw error;
       toast.success("Restaurant selected!");
+      
+      // Invalidate queries to ensure context is updated
+      await queryClient.invalidateQueries({ queryKey: ['profile'] });
+      
       navigate("/");
+      // Force reload to ensure fresh state across all hooks
+      window.location.reload();
     } catch (error: any) {
       toast.error(error.message || "Failed to select restaurant");
     }

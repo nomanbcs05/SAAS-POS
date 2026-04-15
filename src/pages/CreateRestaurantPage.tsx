@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { useMultiTenant } from "@/hooks/useMultiTenant";
 
 const CreateRestaurantPage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { session, profile, isLoading } = useMultiTenant();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -97,9 +99,15 @@ const CreateRestaurantPage = () => {
 
       toast.success("Restaurant created successfully! Welcome aboard.");
       
+      // Invalidate profile query to ensure useMultiTenant gets the new tenant_id
+      await queryClient.invalidateQueries({ queryKey: ['profile'] });
+      await queryClient.invalidateQueries({ queryKey: ['owned-tenants'] });
+      
       // Small delay to ensure DB propagation before redirect
       setTimeout(() => {
         navigate("/");
+        // Also force a reload to be absolutely sure context is fresh for all components
+        window.location.reload();
       }, 500);
     } catch (error: any) {
       console.error("Creation process failed:", error);
