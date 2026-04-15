@@ -36,6 +36,9 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBtn, setShowInstallBtn] = useState(false);
+  const [hideManagement, setHideManagement] = useState(() => {
+    return localStorage.getItem('pos_hide_management') === 'true';
+  });
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -72,7 +75,16 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
 
     updateDisplayName();
     window.addEventListener('active-staff-name-changed', updateDisplayName);
-    return () => window.removeEventListener('active-staff-name-changed', updateDisplayName);
+    
+    const handleVisibilityChange = () => {
+      setHideManagement(localStorage.getItem('pos_hide_management') === 'true');
+    };
+    window.addEventListener('pos-navigation-visibility-change', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('active-staff-name-changed', updateDisplayName);
+      window.removeEventListener('pos-navigation-visibility-change', handleVisibilityChange);
+    };
   }, [profile]);
 
   const navigation = [
@@ -80,19 +92,24 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
     { name: 'SaaS Admin', href: '/saas-admin', icon: ShieldCheck, superAdminOnly: true },
     { name: 'Running Orders', href: '/ongoing-orders', icon: Clock },
     { name: 'Orders', href: '/orders', icon: ClipboardList },
-    { name: 'Products', href: '/products', icon: Package, adminOnly: true },
+    { name: 'Products', href: '/products', icon: Package, adminOnly: true, management: true },
     { name: 'Customers', href: '/customers', icon: Users, adminOnly: true },
-    { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true },
-    { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true },
+    { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true, management: true },
+    { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true, management: true },
   ].filter(item => {
     if (item.superAdminOnly) return profile?.role === 'super-admin';
-    if (item.adminOnly) return isAdmin;
+    if (item.adminOnly) {
+      if (!isAdmin) return false;
+      if (hideManagement && item.management) return false;
+      return true;
+    }
     return true;
   });
 
   const handleLogout = async () => {
     try {
       localStorage.removeItem("pos_local_user"); // Clear local dev session
+      localStorage.removeItem("pos_hide_management"); // Reset hide state on logout
       await supabase.auth.signOut(); 
       toast.success("Logged out successfully");
       navigate("/auth");

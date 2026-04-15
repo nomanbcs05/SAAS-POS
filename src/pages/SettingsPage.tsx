@@ -23,6 +23,9 @@ const SettingsPage = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [lockPassword, setLockPassword] = useState('');
+  const [hideManagement, setHideManagement] = useState(() => {
+    return localStorage.getItem('pos_hide_management') === 'true';
+  });
 
   const [businessName, setBusinessName] = useState(tenant?.restaurant_name || '');
   const [phone, setPhone] = useState(tenant?.phone || '');
@@ -340,6 +343,17 @@ const SettingsPage = () => {
   const handleSaveLockPassword = () => {
     localStorage.setItem('pos_lock_password', lockPassword);
     toast.success('POS Lock password updated successfully');
+  };
+
+  const handleToggleHideManagement = (checked: boolean) => {
+    setHideManagement(checked);
+    localStorage.setItem('pos_hide_management', checked.toString());
+    window.dispatchEvent(new Event('pos-navigation-visibility-change'));
+    if (checked) {
+      toast.success('Management links hidden from sidebar');
+    } else {
+      toast.success('Management links visible');
+    }
   };
 
   return (
@@ -940,6 +954,24 @@ const SettingsPage = () => {
                         />
                         <Button onClick={handleSaveLockPassword}>Save PIN</Button>
                       </div>
+                    </div>
+                  </div>
+
+                  <Separator className="my-6" />
+
+                  <div className="space-y-4 pt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-5 w-5 text-amber-500" />
+                        <div>
+                          <h3 className="text-lg font-bold">Safe Mode (Hide Management)</h3>
+                          <p className="text-sm text-muted-foreground">Immediately hide Products, Reports, and Settings from the sidebar. Re-appears on next login.</p>
+                        </div>
+                      </div>
+                      <Switch 
+                        checked={hideManagement} 
+                        onCheckedChange={handleToggleHideManagement}
+                      />
                     </div>
                   </div>
                 </CardContent>
