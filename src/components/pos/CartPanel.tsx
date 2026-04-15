@@ -147,7 +147,7 @@ const CartPanel = () => {
       setTimeout(() => {
         handlePrint();
         toast.success(editingOrderId ? `Order updated!` : `Order completed!`);
-      }, 300);
+      }, 100);
     },
     onError: (error: any) => {
       console.error('Order creation failed:', error);
@@ -210,10 +210,7 @@ const CartPanel = () => {
 
           const toastId = toast.loading('Saving order after bill print...');
 
-          if (editingOrderId) {
-            await api.orders.update(editingOrderId, orderInsert, orderItemsInsert);
-          } else {
-            await api.orders.create(orderInsert, orderItemsInsert);
+            await api.orders.create({ ...orderInsert, tenant_id: tenant?.id }, orderItemsInsert);
           }
 
           queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -238,7 +235,7 @@ const CartPanel = () => {
     // Print Bill after a short delay to allow state update
     setTimeout(() => {
       handlePrintBill();
-    }, 300);
+    }, 100);
   };
 
   const prepareOrderData = async (): Promise<{
@@ -314,7 +311,7 @@ const CartPanel = () => {
       // Print KOT after a short delay to allow state update
       setTimeout(() => {
         handlePrintKOT();
-      }, 500);
+      }, 100);
     },
     onError: (error: any) => {
       console.error('Order creation failed:', error);
@@ -341,6 +338,7 @@ const CartPanel = () => {
       server_name: getServerNameWithRole(),
       customer_address: customerAddress || null,
       register_id: openRegister?.id || null,
+      tenant_id: tenant?.id || null,
     };
 
     const orderItemsInsert = items.map(item => ({
@@ -352,6 +350,10 @@ const CartPanel = () => {
     }));
 
     const toastId = toast.loading('Saving order...');
+    
+    // Begin preparing print data in parallel with the save if possible
+    // but for now, we wait for mutation to trigger it in onSuccess
+    
     createKOTOrderMutation.mutate({ order: orderInsert, items: orderItemsInsert }, {
       onSettled: () => {
         toast.dismiss(toastId);
@@ -383,6 +385,7 @@ const CartPanel = () => {
       server_name: getServerNameWithRole(),
       customer_address: customerAddress || null,
       register_id: openRegister?.id || null,
+      tenant_id: tenant?.id || null,
     };
 
     const orderItemsInsert = items.map(item => ({
@@ -393,10 +396,11 @@ const CartPanel = () => {
       price: item.product.price
     }));
 
+    const toastId = toast.loading('Preparing order data...');
     const localOrder = await prepareOrderData();
     setLastOrder(localOrder);
 
-    const toastId = toast.loading('Processing order...');
+    toast.loading('Processing order...', { id: toastId });
     createOrderMutation.mutate({ order: orderInsert, items: orderItemsInsert }, {
       onSettled: () => {
         toast.dismiss(toastId);

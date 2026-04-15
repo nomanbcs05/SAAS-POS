@@ -68,6 +68,10 @@ export interface DailyRegister {
   notes: string | null;
 }
 
+// In-memory cache for daily order count to speed up receipt generation
+let cachedDailyCount: { count: number; timestamp: number; registerId?: string } | null = null;
+const COUNT_CACHE_TTL = 30000; // 30 seconds cache for daily count
+
 export const api = {
   registers: {
     getOpen: async () => {
@@ -403,9 +407,14 @@ export const api = {
         return { id: queued.id, _offline: true, created_at: queued.createdAt };
       }
 
-      // Get current user profile for tenant_id if not provided
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user?.id || '').single();
+      // Use provided tenant_id or fetch it if missing
+      let tenantId = order.tenant_id;
+      
+      if (!tenantId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user?.id || '').single();
+        tenantId = profile?.tenant_id;
+      }
       
       // Clean order data to match actual Supabase schema
       // Note: discount_amount, service_charges_amount, delivery_fee columns
@@ -416,7 +425,7 @@ export const api = {
         payment_method: order.payment_method || 'cash',
         order_type: order.order_type || 'dine_in',
         register_id: order.register_id || null,
-        tenant_id: order.tenant_id || profile?.tenant_id || null,
+        tenant_id: tenantId || null,
         customer_id: order.customer_id || null,
         customer_address: order.customer_address || null,
         server_name: order.server_name || null,
@@ -534,6 +543,12 @@ export const api = {
           throw fallbackError;
         }
       }
+
+      // Increment cached count if present
+      if (cachedDailyCount && cachedDailyCount.registerId === safeOrder.register_id) {
+        cachedDailyCount.count++;
+      }
+
       return newOrder;
     },
     update: async (orderId: string, order: any, items: OrderItemInsert[]) => {
