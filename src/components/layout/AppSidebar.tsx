@@ -24,7 +24,6 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from "sonner";
 import { useQueryClient } from '@tanstack/react-query';
-import StartDayModal from '@/components/pos/StartDayModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 
@@ -32,7 +31,6 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, tenant, isAdmin } = useMultiTenant();
-  const [showStartSessionModal, setShowStartSessionModal] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBtn, setShowInstallBtn] = useState(false);
@@ -121,11 +119,6 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
   const handleLock = () => {
     localStorage.setItem('pos_is_locked', 'true');
     window.dispatchEvent(new Event('pos-lock-state-change'));
-  };
-
-  const handleStartSessionSuccess = () => {
-    setShowStartSessionModal(false);
-    queryClient.invalidateQueries({ queryKey: ['registers'] }); // Refresh registers data
   };
 
   return (
@@ -322,12 +315,6 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
             </button>
           )}
         </div>
-
-        <StartDayModal
-          isOpen={showStartSessionModal}
-          onClose={() => setShowStartSessionModal(false)}
-          onSuccess={handleStartSessionSuccess}
-        />
       </aside>
     </TooltipProvider>
   );

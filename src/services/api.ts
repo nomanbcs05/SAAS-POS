@@ -75,58 +75,25 @@ const COUNT_CACHE_TTL = 30000; // 30 seconds cache for daily count
 export const api = {
   registers: {
     getOpen: async () => {
-      try {
-        const { data, error } = await supabase
-          .from('daily_registers' as any)
-          .select('*')
-          .eq('status', 'open')
-          .maybeSingle();
-
-        if (error) throw error;
-        if (data) offline.cacheRegister(data);
-        return data as DailyRegister | null;
-      } catch (err) {
-        if (!offline.isOnline()) {
-          console.warn('[Offline] Using cached register');
-          return offline.getCachedRegister() as DailyRegister | null;
-        }
-        throw err;
-      }
+      // Return a stable placeholder to bypass the shift management system entirely
+      return {
+        id: 'automatic-session',
+        status: 'open',
+        opened_at: new Date().toISOString(),
+        starting_amount: 0,
+      } as DailyRegister;
     },
     start: async (startingAmount: number, openedAt?: string) => {
-      // Fetch current user for tenant_id
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user?.id || '').single();
-
-      const { data, error } = await supabase
-        .from('daily_registers' as any)
-        .insert({
-          starting_amount: startingAmount,
-          status: 'open',
-          opened_at: openedAt || new Date().toISOString(),
-          tenant_id: profile?.tenant_id
-        } as any)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as DailyRegister;
+      // Mock success for any start calls (though they should be gone from UI)
+      return {
+        id: 'automatic-session',
+        status: 'open',
+        opened_at: openedAt || new Date().toISOString(),
+        starting_amount: startingAmount
+      } as DailyRegister;
     },
     close: async (id: string, endingAmount: number, notes?: string) => {
-      const { data, error } = await supabase
-        .from('daily_registers' as any)
-        .update({
-          status: 'closed',
-          closed_at: new Date().toISOString(),
-          ending_amount: endingAmount,
-          notes: notes
-        } as any)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as DailyRegister;
+      return { id, status: 'closed' } as any;
     }
   },
   categories: {
