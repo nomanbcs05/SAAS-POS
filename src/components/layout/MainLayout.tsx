@@ -28,14 +28,16 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
+  const [manualDismiss, setManualDismiss] = useState(false);
+
   useEffect(() => {
     // If not loading and no open register found, show the modal
-    if (!isLoading && openRegister === null) {
+    if (!isLoading && openRegister === null && !manualDismiss) {
       setShowStartDayModal(true);
     } else {
       setShowStartDayModal(false);
     }
-  }, [openRegister, isLoading]);
+  }, [openRegister, isLoading, manualDismiss]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
@@ -47,6 +49,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       <StartDayModal 
         isOpen={showStartDayModal} 
         onSuccess={() => setShowStartDayModal(false)} 
+        onClose={() => setManualDismiss(true)}
       />
 
       <LockScreen />

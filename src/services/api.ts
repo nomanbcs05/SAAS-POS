@@ -94,12 +94,17 @@ export const api = {
       }
     },
     start: async (startingAmount: number, openedAt?: string) => {
+      // Fetch current user for tenant_id
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user?.id || '').single();
+
       const { data, error } = await supabase
         .from('daily_registers' as any)
         .insert({
           starting_amount: startingAmount,
           status: 'open',
-          opened_at: openedAt || new Date().toISOString()
+          opened_at: openedAt || new Date().toISOString(),
+          tenant_id: profile?.tenant_id
         } as any)
         .select()
         .single();
