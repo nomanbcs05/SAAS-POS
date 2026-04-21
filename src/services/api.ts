@@ -345,8 +345,8 @@ export const api = {
       return data;
     },
     getDailyCount: async (registerId?: string) => {
-      // If we have a registerId, count orders in that shift
-      if (registerId) {
+      // If we have a valid registerId UUID, count orders in that shift
+      if (registerId && isValidUUID(registerId)) {
         const { count, error } = await supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
