@@ -13,6 +13,13 @@ import { useQueryClient } from '@tanstack/react-query';
 // Shared flag so we never run two syncs concurrently
 let syncing = false;
 
+// Helper to validate UUID
+const isValidUUID = (uuid: string) => {
+  if (!uuid || typeof uuid !== 'string') return false;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+};
+
 async function syncPendingOrders() {
   if (syncing) return;
   const pending = offline.getPendingOrders();
@@ -40,12 +47,12 @@ async function syncPendingOrders() {
         status: order.status || 'completed',
         payment_method: order.payment_method || 'cash',
         order_type: order.order_type || 'dine_in',
-        register_id: order.register_id || null,
+        register_id: isValidUUID(String(order.register_id)) ? String(order.register_id) : null,
         tenant_id: order.tenant_id || profile?.tenant_id || null,
-        customer_id: order.customer_id || null,
+        customer_id: isValidUUID(String(order.customer_id)) ? String(order.customer_id) : null,
         customer_address: order.customer_address || null,
         server_name: order.server_name || null,
-        table_id: order.table_id || null,
+        table_id: isValidUUID(String(order.table_id)) ? String(order.table_id) : null,
       };
 
       const { data: newOrder, error: orderError } = await supabase
