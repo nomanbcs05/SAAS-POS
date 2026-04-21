@@ -1,172 +1,158 @@
-/**
- * Offline Storage & Sync Queue
- * 
- * Caches data locally so the POS works without internet.
- * Queues orders created offline and syncs them when connectivity returns.
- */
-
-const KEYS = {
-  PRODUCTS: 'offline_cache_products',
-  CATEGORIES: 'offline_cache_categories',
-  CUSTOMERS: 'offline_cache_customers',
-  TENANT: 'offline_cache_tenant',
-  PROFILE: 'offline_cache_profile',
-  SESSION: 'offline_cache_session',
-  ORDER_QUEUE: 'offline_order_queue',
-  REGISTER: 'offline_cache_register',
-  LAST_SYNC: 'offline_last_sync',
+const CACHE_KEYS = {
+  CATEGORIES: 'pos_offline_categories',
+  PRODUCTS: 'pos_offline_products',
+  CUSTOMERS: 'pos_offline_customers',
+  PENDING_ORDERS: 'pos_offline_orders',
+  LAST_SYNC: 'pos_last_sync',
+  SESSION: 'pos_offline_session',
+  PROFILE: 'pos_offline_profile',
+  TENANT: 'pos_offline_tenant'
 };
 
-export interface QueuedOrder {
-  id: string; // local UUID
+export const isOnline = () => navigator.onLine;
+
+// Categories
+export const cacheCategories = (categories: any[]) => {
+  localStorage.setItem(CACHE_KEYS.CATEGORIES, JSON.stringify(categories));
+};
+
+export const getCachedCategories = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEYS.CATEGORIES) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+// Products
+export const cacheProducts = (products: any[]) => {
+  localStorage.setItem(CACHE_KEYS.PRODUCTS, JSON.stringify(products));
+};
+
+export const getCachedProducts = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEYS.PRODUCTS) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+// Customers
+export const cacheCustomers = (customers: any[]) => {
+  localStorage.setItem(CACHE_KEYS.CUSTOMERS, JSON.stringify(customers));
+};
+
+export const getCachedCustomers = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEYS.CUSTOMERS) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+// Orders Queue
+export interface PendingOrder {
+  id: string;
   order: any;
   items: any[];
   createdAt: string;
   synced: boolean;
 }
 
-// ---------- Generic helpers ----------
-
-function getJSON<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function setJSON(key: string, value: any) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.warn('offlineStore: localStorage full or unavailable', e);
-  }
-}
-
-// ---------- Online detection ----------
-
-export function isOnline(): boolean {
-  return navigator.onLine;
-}
-
-// ---------- Products ----------
-
-export function cacheProducts(products: any[]) {
-  setJSON(KEYS.PRODUCTS, products);
-}
-
-export function getCachedProducts(): any[] {
-  return getJSON<any[]>(KEYS.PRODUCTS, []);
-}
-
-// ---------- Categories ----------
-
-export function cacheCategories(categories: any[]) {
-  setJSON(KEYS.CATEGORIES, categories);
-}
-
-export function getCachedCategories(): any[] {
-  return getJSON<any[]>(KEYS.CATEGORIES, []);
-}
-
-// ---------- Customers ----------
-
-export function cacheCustomers(customers: any[]) {
-  setJSON(KEYS.CUSTOMERS, customers);
-}
-
-export function getCachedCustomers(): any[] {
-  return getJSON<any[]>(KEYS.CUSTOMERS, []);
-}
-
-// ---------- Tenant / Profile / Session ----------
-
-export function cacheTenant(tenant: any) {
-  setJSON(KEYS.TENANT, tenant);
-}
-
-export function getCachedTenant(): any | null {
-  return getJSON<any>(KEYS.TENANT, null);
-}
-
-export function cacheProfile(profile: any) {
-  setJSON(KEYS.PROFILE, profile);
-}
-
-export function getCachedProfile(): any | null {
-  return getJSON<any>(KEYS.PROFILE, null);
-}
-
-export function cacheSession(session: any) {
-  // Only cache the pieces we need for ProtectedRoute (avoid storing tokens)
-  if (session) {
-    setJSON(KEYS.SESSION, {
-      user: { id: session.user?.id, email: session.user?.email },
-      _cached: true,
-    });
-  }
-}
-
-export function getCachedSession(): any | null {
-  return getJSON<any>(KEYS.SESSION, null);
-}
-
-// ---------- Register ----------
-
-export function cacheRegister(register: any) {
-  setJSON(KEYS.REGISTER, register);
-}
-
-export function getCachedRegister(): any | null {
-  return getJSON<any>(KEYS.REGISTER, null);
-}
-
-// ---------- Order Queue ----------
-
-function generateLocalId(): string {
-  return 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
-}
-
-export function queueOrder(order: any, items: any[]): QueuedOrder {
-  const queue = getJSON<QueuedOrder[]>(KEYS.ORDER_QUEUE, []);
-  const entry: QueuedOrder = {
-    id: generateLocalId(),
+export const queueOrder = (order: any, items: any[]) => {
+  const pending = getPendingOrders();
+  const newOrder: PendingOrder = {
+    id: crypto.randomUUID(),
     order,
     items,
     createdAt: new Date().toISOString(),
-    synced: false,
+    synced: false
   };
-  queue.push(entry);
-  setJSON(KEYS.ORDER_QUEUE, queue);
-  return entry;
-}
+  pending.push(newOrder);
+  localStorage.setItem(CACHE_KEYS.PENDING_ORDERS, JSON.stringify(pending));
+  return newOrder;
+};
 
-export function getPendingOrders(): QueuedOrder[] {
-  return getJSON<QueuedOrder[]>(KEYS.ORDER_QUEUE, []).filter(o => !o.synced);
-}
-
-export function markOrderSynced(localId: string) {
-  const queue = getJSON<QueuedOrder[]>(KEYS.ORDER_QUEUE, []);
-  const idx = queue.findIndex(o => o.id === localId);
-  if (idx !== -1) {
-    queue[idx].synced = true;
-    setJSON(KEYS.ORDER_QUEUE, queue);
+export const getPendingOrders = (): PendingOrder[] => {
+  try {
+    const data = localStorage.getItem(CACHE_KEYS.PENDING_ORDERS);
+    return data ? JSON.parse(data).filter((o: PendingOrder) => !o.synced) : [];
+  } catch {
+    return [];
   }
-}
+};
 
-export function clearSyncedOrders() {
-  const queue = getJSON<QueuedOrder[]>(KEYS.ORDER_QUEUE, []);
-  setJSON(KEYS.ORDER_QUEUE, queue.filter(o => !o.synced));
-}
+export const markOrderSynced = (id: string) => {
+  try {
+    let pending = JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_ORDERS) || '[]');
+    pending = pending.map((o: PendingOrder) => o.id === id ? { ...o, synced: true } : o);
+    localStorage.setItem(CACHE_KEYS.PENDING_ORDERS, JSON.stringify(pending));
+  } catch (err) {
+    console.error('Error marking order synced', err);
+  }
+};
 
-// ---------- Sync timestamp ----------
+export const clearSyncedOrders = () => {
+  try {
+    let pending = JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_ORDERS) || '[]');
+    pending = pending.filter((o: PendingOrder) => !o.synced);
+    localStorage.setItem(CACHE_KEYS.PENDING_ORDERS, JSON.stringify(pending));
+  } catch (err) {
+    console.error('Error clearing synced orders', err);
+  }
+};
 
-export function setLastSync() {
-  localStorage.setItem(KEYS.LAST_SYNC, new Date().toISOString());
-}
+export const setLastSync = () => {
+  localStorage.setItem(CACHE_KEYS.LAST_SYNC, new Date().toISOString());
+};
 
-export function getLastSync(): string | null {
-  return localStorage.getItem(KEYS.LAST_SYNC);
-}
+// Session
+export const cacheSession = (session: any) => {
+  if (session) {
+    localStorage.setItem(CACHE_KEYS.SESSION, JSON.stringify(session));
+  } else {
+    localStorage.removeItem(CACHE_KEYS.SESSION);
+  }
+};
+
+export const getCachedSession = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEYS.SESSION) || 'null');
+  } catch {
+    return null;
+  }
+};
+
+// Profile
+export const cacheProfile = (profile: any) => {
+  if (profile) {
+    localStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(profile));
+  } else {
+    localStorage.removeItem(CACHE_KEYS.PROFILE);
+  }
+};
+
+export const getCachedProfile = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEYS.PROFILE) || 'null');
+  } catch {
+    return null;
+  }
+};
+
+// Tenant
+export const cacheTenant = (tenant: any) => {
+  if (tenant) {
+    localStorage.setItem(CACHE_KEYS.TENANT, JSON.stringify(tenant));
+  } else {
+    localStorage.removeItem(CACHE_KEYS.TENANT);
+  }
+};
+
+export const getCachedTenant = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEYS.TENANT) || 'null');
+  } catch {
+    return null;
+  }
+};

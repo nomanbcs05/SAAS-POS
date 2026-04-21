@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import StartDayModal from '@/components/pos/StartDayModal';
 
 type Role = "admin" | "cashier" | "cashier2";
 
@@ -23,7 +22,6 @@ const LoginPage = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [fullName, setFullName] = useState("");
   const [savedUsers, setSavedUsers] = useState<Record<string, string>>({});
-  const [showStartSessionModal, setShowStartSessionModal] = useState(false);
   const [staffDisplayName, setStaffDisplayName] = useState("");
 
   useEffect(() => {
@@ -124,7 +122,7 @@ const LoginPage = () => {
             navigate("/");
           } else if (profile) {
             toast.success(`Welcome back, ${profile.full_name || staffDisplayName}!`);
-            setShowStartSessionModal(true);
+            navigate("/");
           } else {
             // New user with no profile yet
             navigate("/");
@@ -155,10 +153,6 @@ const LoginPage = () => {
     }
   };
 
-  const handleStartSessionSuccess = () => {
-    setShowStartSessionModal(false);
-    navigate("/");
-  };
 
   const getRoleIcon = () => {
     switch (role) {
@@ -267,10 +261,6 @@ const LoginPage = () => {
           </CardContent>
         </Card>
       </motion.div>
-      <StartDayModal
-        isOpen={showStartSessionModal}
-        onSuccess={handleStartSessionSuccess}
-      />
     </div>
   );
 };

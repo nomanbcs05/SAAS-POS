@@ -15,5 +15,6 @@ export const supabaseSignup = createClient<Database>(SUPABASE_URL, SUPABASE_KEY,
     persistSession: false,
     autoRefreshToken: false,
     detectSessionInUrl: false,
+    storageKey: 'signup-client-auth-token',
   },
 });
