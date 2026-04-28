@@ -89,7 +89,6 @@ const ProductSalesSummary = forwardRef<HTMLDivElement, ProductSalesSummaryProps>
       list.push(r);
       categoriesMap.set(r.category, list);
     }
-    console.log('ProductSalesSummary categories count:', categoriesMap.size, 'Total items:', allItems.length);
 
     const totalQty = rows.reduce((s, r) => s + r.quantity, 0);
     const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);

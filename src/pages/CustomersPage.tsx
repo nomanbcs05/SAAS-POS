@@ -268,7 +268,7 @@ const CustomersPage = () => {
                           <span className="text-sm font-medium">{customer.loyalty_points} pts</span>
                         </div>
                         <Badge variant="secondary">
-                          ${Number(customer.total_spent).toFixed(0)} spent
+                          ${Number(customer.total_spent || 0).toFixed(0)} spent
                         </Badge>
                       </div>
                     </CardContent>

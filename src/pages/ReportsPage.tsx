@@ -332,7 +332,7 @@ const ReportsPage = () => {
     const categoryColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
     const categoryData = Array.from(categoryMap.entries()).map(([name, value], index) => ({
       name,
-      value: Number(value.toFixed(2)),
+      value: Number((value || 0).toFixed(2)),
       color: categoryColors[index % categoryColors.length],
     }));
 
@@ -473,7 +473,7 @@ const ReportsPage = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Revenue</p>
-                    <p className="text-2xl font-bold">Rs {stats?.revenue.toLocaleString()}</p>
+                    <p className="text-2xl font-bold">Rs {(stats?.revenue || 0).toLocaleString()}</p>
                     <div className={`flex items-center gap-1 text-sm ${stats?.revenueGrowth && stats.revenueGrowth >= 0 ? 'text-success' : 'text-destructive'}`}>
                       {stats?.revenueGrowth && stats.revenueGrowth >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
                       <span>{Math.abs(stats?.revenueGrowth || 0).toFixed(1)}% vs last period</span>
@@ -491,7 +491,7 @@ const ReportsPage = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Orders</p>
-                    <p className="text-2xl font-bold">{stats?.orders}</p>
+                    <p className="text-2xl font-bold">{stats?.orders || 0}</p>
                     <div className={`flex items-center gap-1 text-sm ${stats?.ordersGrowth && stats.ordersGrowth >= 0 ? 'text-success' : 'text-destructive'}`}>
                       {stats?.ordersGrowth && stats.ordersGrowth >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
                       <span>{Math.abs(stats?.ordersGrowth || 0).toFixed(1)}% vs last period</span>
@@ -509,7 +509,7 @@ const ReportsPage = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Avg Order Value</p>
-                    <p className="text-2xl font-bold">Rs {stats?.avgOrderValue.toLocaleString()}</p>
+                    <p className="text-2xl font-bold">Rs {(stats?.avgOrderValue || 0).toLocaleString()}</p>
                     <div className={`flex items-center gap-1 text-sm ${stats?.avgOrderValueGrowth && stats.avgOrderValueGrowth >= 0 ? 'text-success' : 'text-destructive'}`}>
                       {stats?.avgOrderValueGrowth && stats.avgOrderValueGrowth >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
                       <span>{Math.abs(stats?.avgOrderValueGrowth || 0).toFixed(1)}% vs last period</span>
@@ -527,7 +527,7 @@ const ReportsPage = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">New Customers</p>
-                    <p className="text-2xl font-bold">{stats?.newCustomers}</p>
+                    <p className="text-2xl font-bold">{stats?.newCustomers || 0}</p>
                     <div className={`flex items-center gap-1 text-sm ${stats?.customersGrowth && stats.customersGrowth >= 0 ? 'text-success' : 'text-destructive'}`}>
                       {stats?.customersGrowth && stats.customersGrowth >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
                       <span>{Math.abs(stats?.customersGrowth || 0).toFixed(1)}% vs last period</span>

@@ -19,19 +19,7 @@ const ProtectedRoute = ({
 
   const isSuperAdmin = profile?.role === 'super-admin';
 
-  console.log("ProtectedRoute State:", { 
-    path: location.pathname, 
-    isLoading, 
-    hasSession: !!session, 
-    hasProfile: !!profile, 
-    isAdmin,
-    isSuperAdmin,
-    restaurantId: profile?.tenant_id,
-    ownedTenantsCount: ownedTenants?.length
-  });
-
   if (isLoading) {
-    console.log("ProtectedRoute: Loading session/profile...");
     return (
       <div className="h-screen w-full flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -40,7 +28,6 @@ const ProtectedRoute = ({
   }
 
   if (!session) {
-    console.log("ProtectedRoute: No session found, redirecting to /auth");
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
@@ -58,12 +45,10 @@ const ProtectedRoute = ({
 
     // If they own restaurants but haven't selected one, go to selection
     if (ownedTenants && ownedTenants.length > 0) {
-      console.log("ProtectedRoute: No tenant selected but owns restaurants, redirecting to /select-restaurant");
       return <Navigate to="/select-restaurant" replace />;
     }
 
     // If they own nothing, go to creation
-    console.log("ProtectedRoute: No tenant found, redirecting to /create-restaurant");
     return <Navigate to="/create-restaurant" replace />;
   }
 

@@ -857,10 +857,10 @@ const ProductsPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        ${product.cost.toFixed(2)}
+                        ${(product.cost || 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right font-semibold">
-                        ${product.price.toFixed(2)}
+                        ${(product.price || 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right">
                         {product.stock <= 10 ? (

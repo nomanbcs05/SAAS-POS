@@ -178,7 +178,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
                   {item.product.name}
                 </td>
                 <td className="text-right py-1 align-top font-medium text-[11px]">{item.product.price}</td>
-                <td className="text-right py-1 pr-1 align-top font-bold text-[11px]">{item.lineTotal.toFixed(3)}</td>
+                <td className="text-right py-1 pr-1 align-top font-bold text-[11px]">{(item.lineTotal || 0).toFixed(3)}</td>
               </tr>
             ))}
           </tbody>
@@ -189,18 +189,18 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
       <div className="border-x border-b border-black p-1 text-[11px]">
         <div className="flex justify-between font-medium">
           <span>SubTotal :</span>
-          <span>{order.subtotal.toFixed(3)}</span>
+          <span>{(order.subtotal || 0).toFixed(3)}</span>
         </div>
         {order.discountAmount > 0 && (
           <div className="flex justify-between font-medium">
             <span>Discount :</span>
-            <span>-{order.discountAmount.toFixed(3)}</span>
+            <span>-{(order.discountAmount || 0).toFixed(3)}</span>
           </div>
         )}
         {order.serviceChargesAmount && order.serviceChargesAmount > 0 && (
           <div className="flex justify-between font-medium">
             <span>Service Charges :</span>
-            <span>+{order.serviceChargesAmount.toFixed(3)}</span>
+            <span>+{(order.serviceChargesAmount || 0).toFixed(3)}</span>
           </div>
         )}
         {order.deliveryFee && order.deliveryFee > 0 && (
@@ -211,7 +211,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
         )}
         <div className="flex justify-between font-bold text-base mt-1 bg-gray-100 p-1 border border-black/10">
           <span>Net Bill :</span>
-          <span>{order.total.toFixed(0)}</span>
+          <span>{(order.total || 0).toFixed(0)}</span>
         </div>
       </div>
       
