@@ -303,5 +303,3 @@ const ArabicBroastModal = ({ isOpen, onClose, products, onAdd }: ArabicBroastMod
 };
 
 export default ArabicBroastModal;
-
-export default ArabicBroastModal;
