@@ -135,6 +135,41 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
     return matchesSearch && matchesCategory;
   });
 
+  const handleUpdateItem = (index: number, field: string, value: any) => {
+    const updated = [...menuItems];
+    if (field === 'price') {
+      updated[index] = { ...updated[index], price: Number(value) };
+    } else if (field === 'Half' || field === 'Full') {
+      updated[index] = { 
+        ...updated[index], 
+        sizes: { 
+          ...(updated[index].sizes || { Half: 0, Full: 0 }), 
+          [field]: Number(value) 
+        } 
+      };
+    } else {
+      updated[index] = { ...updated[index], [field]: value };
+    }
+    saveMenu(updated);
+  };
+
+  const handleAddNewItem = () => {
+    const newItem: MenuItem = {
+      name: "New Item",
+      category: selectedCategory === 'all' ? (categories[0] || 'GENERAL') : selectedCategory,
+      price: 0
+    };
+    const updated = [...menuItems, newItem];
+    saveMenu(updated);
+    toast.success('New item added');
+  };
+
+  const handleRemoveItem = (index: number) => {
+    const updated = menuItems.filter((_, i) => i !== index);
+    saveMenu(updated);
+    toast.success('Item removed');
+  };
+
   const handleAddItem = (item: MenuItem, size?: 'Half' | 'Full') => {
     if (isEditingMode) return;
 
@@ -170,11 +205,26 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
                 <Utensils className="h-7 w-7 text-blue-500" />
               </div>
               <div>
-                <DialogTitle className="text-2xl font-black font-heading uppercase tracking-tight">
-                  {selectedCategory === 'all' ? 'Cafe Indus Menu' : `${selectedCategory} Menu`}
-                </DialogTitle>
+                <div className="flex items-center gap-2">
+                  <DialogTitle className="text-2xl font-black font-heading uppercase tracking-tight">
+                    {selectedCategory === 'all' ? 'Cafe Indus Menu' : `${selectedCategory} Menu`}
+                  </DialogTitle>
+                  {isAdmin && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className={cn(
+                        "h-8 w-8 rounded-full",
+                        isEditingMode ? "bg-blue-500 text-white hover:bg-blue-600" : "bg-white/10 text-white hover:bg-white/20"
+                      )}
+                      onClick={() => setIsEditingMode(!isEditingMode)}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
                 <DialogDescription className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">
-                  Exclusive Menu for Cafe Indus
+                  {isEditingMode ? "ADMIN MODE: EDITING ITEMS" : "Exclusive Menu for Cafe Indus"}
                 </DialogDescription>
               </div>
             </div>
@@ -214,56 +264,135 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
         {/* Content */}
         <div className="flex-1 overflow-y-auto bg-slate-50/30 p-6 custom-scrollbar">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredItems.map((item, index) => (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                key={`${item.category}-${item.name}`}
-                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                      {item.category}
-                    </span>
-                    {!item.sizes && (
-                      <span className="text-sm font-black text-slate-900">
-                        Rs. {item.price}
+            {filteredItems.map((item, index) => {
+              // Find the original index in menuItems to update correctly
+              const originalIndex = menuItems.findIndex(mi => mi.name === item.name && mi.category === item.category);
+              
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.1 }}
+                  key={`${item.category}-${item.name}-${index}`}
+                  className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                        {item.category}
                       </span>
+                      {!isEditingMode && !item.sizes && (
+                        <span className="text-sm font-black text-slate-900">
+                          Rs. {item.price}
+                        </span>
+                      )}
+                      {isEditingMode && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50"
+                          onClick={() => handleRemoveItem(originalIndex)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    {isEditingMode ? (
+                      <Input 
+                        value={item.name} 
+                        onChange={(e) => handleUpdateItem(originalIndex, 'name', e.target.value)}
+                        className="h-9 text-sm font-bold mb-4"
+                        placeholder="Item Name"
+                      />
+                    ) : (
+                      <h3 className="text-base font-bold text-slate-900 mb-4">{item.name}</h3>
                     )}
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 mb-4">{item.name}</h3>
-                </div>
 
-                <div className="flex gap-2">
-                  {item.sizes ? (
-                    <>
+                  <div className="flex gap-2">
+                    {isEditingMode ? (
+                      <div className="w-full space-y-2">
+                        {item.sizes ? (
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">Half</label>
+                              <Input 
+                                type="number"
+                                value={item.sizes.Half} 
+                                onChange={(e) => handleUpdateItem(originalIndex, 'Half', e.target.value)}
+                                className="h-9 text-xs font-black"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">Full</label>
+                              <Input 
+                                type="number"
+                                value={item.sizes.Full} 
+                                onChange={(e) => handleUpdateItem(originalIndex, 'Full', e.target.value)}
+                                className="h-9 text-xs font-black"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">Price</label>
+                            <Input 
+                              type="number"
+                              value={item.price} 
+                              onChange={(e) => handleUpdateItem(originalIndex, 'price', e.target.value)}
+                              className="h-9 text-xs font-black"
+                            />
+                          </div>
+                        )}
+                        <select 
+                          value={item.category}
+                          onChange={(e) => handleUpdateItem(originalIndex, 'category', e.target.value)}
+                          className="w-full h-9 bg-slate-50 border border-slate-200 rounded-md text-[10px] font-bold uppercase px-2"
+                        >
+                          {categories.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : item.sizes ? (
+                      <>
+                        <Button 
+                          onClick={() => handleAddItem(item, 'Half')}
+                          className="flex-1 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-900 border-none rounded-xl h-10 font-bold transition-all"
+                        >
+                          Half (Rs. {item.sizes.Half})
+                        </Button>
+                        <Button 
+                          onClick={() => handleAddItem(item, 'Full')}
+                          className="flex-1 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-900 border-none rounded-xl h-10 font-bold transition-all"
+                        >
+                          Full (Rs. {item.sizes.Full})
+                        </Button>
+                      </>
+                    ) : (
                       <Button 
-                        onClick={() => handleAddItem(item, 'Half')}
-                        className="flex-1 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-900 border-none rounded-xl h-10 font-bold transition-all"
+                        onClick={() => handleAddItem(item)}
+                        className="w-full bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-900 border-none rounded-xl h-10 font-bold transition-all"
                       >
-                        Half (Rs. {item.sizes.Half})
+                        Add to Cart
                       </Button>
-                      <Button 
-                        onClick={() => handleAddItem(item, 'Full')}
-                        className="flex-1 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-900 border-none rounded-xl h-10 font-bold transition-all"
-                      >
-                        Full (Rs. {item.sizes.Full})
-                      </Button>
-                    </>
-                  ) : (
-                    <Button 
-                      onClick={() => handleAddItem(item)}
-                      className="w-full bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-900 border-none rounded-xl h-10 font-bold transition-all"
-                    >
-                      Add to Cart
-                    </Button>
-                  )}
-                </div>
-              </motion.div>
-            ))}
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
+
+          {isEditingMode && (
+            <Button 
+              variant="outline" 
+              className="w-full mt-6 border-dashed border-2 h-14 rounded-2xl text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
+              onClick={handleAddNewItem}
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Add New Item to Menu
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

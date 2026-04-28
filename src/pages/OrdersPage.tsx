@@ -299,7 +299,8 @@ const OrdersPage = () => {
   };
 
   const todayOrders = useMemo(() => {
-    return orders.filter((order: any) => isToday(new Date(order.created_at)));
+    if (!Array.isArray(orders)) return [];
+    return orders.filter((order: any) => order && order.created_at && isToday(new Date(order.created_at)));
   }, [orders]);
 
 
@@ -318,6 +319,8 @@ const OrdersPage = () => {
 
   // Calculate daily IDs for today's orders
   const ordersWithDailyId = useMemo(() => {
+    if (!Array.isArray(orders)) return [];
+    
     // 1. Group orders by register_id
     const ordersByRegister: Record<string, any[]> = {};
     
@@ -325,6 +328,7 @@ const OrdersPage = () => {
     const ordersWithoutRegister: any[] = [];
 
     orders.forEach((order: any) => {
+      if (!order) return;
       if (order.register_id) {
         if (!ordersByRegister[order.register_id]) {
           ordersByRegister[order.register_id] = [];
@@ -358,10 +362,13 @@ const OrdersPage = () => {
     });
 
     // 4. Return orders with IDs attached
-    return orders.map((order: any) => ({
-      ...order,
-      dailyId: dailyIdMap.get(order.id)
-    }));
+    return orders.map((order: any) => {
+      if (!order) return null;
+      return {
+        ...order,
+        dailyId: dailyIdMap.get(order.id)
+      };
+    }).filter(Boolean);
   }, [orders]);
 
   const filteredOrders = ordersWithDailyId.filter((order: any) => {
@@ -510,11 +517,21 @@ const OrdersPage = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    return status === 'completed' ? (
-      <Badge className="bg-green-500 hover:bg-green-600 text-white">Completed</Badge>
-    ) : (
-      <Badge variant="destructive">Refunded</Badge>
-    );
+    switch (status) {
+      case 'completed':
+        return <Badge className="bg-green-500 hover:bg-green-600 text-white font-bold uppercase text-[10px]">Completed</Badge>;
+      case 'pending':
+        return <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200 font-bold uppercase text-[10px]">Pending</Badge>;
+      case 'preparing':
+        return <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 font-bold uppercase text-[10px]">Preparing</Badge>;
+      case 'ready':
+        return <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-200 font-bold uppercase text-[10px]">Ready</Badge>;
+      case 'cancelled':
+      case 'refunded':
+        return <Badge variant="destructive" className="font-bold uppercase text-[10px]">Refunded</Badge>;
+      default:
+        return <Badge variant="secondary" className="font-bold uppercase text-[10px]">{status}</Badge>;
+    }
   };
 
   return (

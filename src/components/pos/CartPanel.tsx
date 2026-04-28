@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCartStore, Customer } from '@/stores/cartStore';
+import PrintPreviewModal from './PrintPreviewModal';
 import Receipt from './Receipt';
 import KOT from './KOT';
 import Bill from './Bill';
@@ -67,6 +68,7 @@ const CartPanel = () => {
   const [showRiderModal, setShowRiderModal] = useState(false);
   const [pendingAfterRider, setPendingAfterRider] = useState<'none' | 'bill' | 'complete'>('none');
   const [lastOrder, setLastOrder] = useState<any>(null);
+  const [previewActive, setPreviewActive] = useState<'none' | 'receipt' | 'kot' | 'bill'>('none');
   const [cashierName, setCashierName] = useState(hookCashierName || 'Anas');
   const receiptRef = useRef<HTMLDivElement>(null);
   const kotRef = useRef<HTMLDivElement>(null);
@@ -132,6 +134,7 @@ const CartPanel = () => {
       return api.orders.create(orderData.order, orderData.items);
     },
     onSuccess: (newOrder) => {
+      toast.dismiss(); // Dismiss any loading toast
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
 
@@ -143,13 +146,14 @@ const CartPanel = () => {
         setLastOrder((prev: any) => ({ ...prev, id: newOrder.id }));
       }
 
-      // Small delay to allow state to update, then print directly
+      // Small delay to allow state to update, then print directly (Silent)
       setTimeout(() => {
         handlePrint();
         toast.success(editingOrderId ? `Order updated!` : `Order completed!`);
       }, 100);
     },
     onError: (error: any) => {
+      toast.dismiss(); // Dismiss any loading toast
       console.error('Order creation failed:', error);
       // Supabase errors are objects with a message property, not necessarily Error instances
       const errorMessage = error?.message || (typeof error === 'string' ? error : JSON.stringify(error));
@@ -231,7 +235,7 @@ const CartPanel = () => {
   const performShowBill = async () => {
     const orderData = await prepareOrderData();
     setLastOrder(orderData);
-    // Print Bill after a short delay to allow state update
+    // Print Bill directly (Silent)
     setTimeout(() => {
       handlePrintBill();
     }, 100);
@@ -307,7 +311,7 @@ const CartPanel = () => {
       }
       setLastOrder(orderData);
 
-      // Print KOT after a short delay to allow state update
+      // Print KOT directly (Silent)
       setTimeout(() => {
         handlePrintKOT();
       }, 100);
@@ -744,7 +748,7 @@ const CartPanel = () => {
         </div>
       </div>
 
-      {/* Hidden Print Container */}
+      {/* Hidden Print Container - Only used for actual react-to-print transmission */}
       <div className="hidden">
         {lastOrder && (
           <>
@@ -754,6 +758,21 @@ const CartPanel = () => {
           </>
         )}
       </div>
+
+      <PrintPreviewModal 
+        isOpen={previewActive !== 'none' && !!lastOrder} 
+        onClose={() => setPreviewActive('none')}
+        onPrint={() => {
+          if (previewActive === 'receipt') handlePrint();
+          if (previewActive === 'kot') handlePrintKOT();
+          if (previewActive === 'bill') handlePrintBill();
+        }}
+        title={`Print Preview - ${previewActive.toUpperCase()}`}
+      >
+        {lastOrder && previewActive === 'receipt' && <Receipt order={lastOrder} />}
+        {lastOrder && previewActive === 'kot' && <KOT order={lastOrder} />}
+        {lastOrder && previewActive === 'bill' && <Bill order={lastOrder} />}
+      </PrintPreviewModal>
 
       <RiderSelectionModal
         isOpen={showRiderModal}

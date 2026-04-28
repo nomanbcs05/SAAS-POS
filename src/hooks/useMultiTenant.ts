@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import * as offline from '@/services/offlineStore';
+import { isDesktop } from '@/lib/env';
 
 export interface Profile {
   id: string;
@@ -31,6 +32,17 @@ export const useMultiTenant = () => {
   const [sessionLoading, setSessionLoading] = useState(true);
 
   useEffect(() => {
+    // Immediate bypass for desktop app
+    if (isDesktop()) {
+      const cached = offline.getCachedSession();
+      if (cached) {
+        console.log('[Desktop] Using cached session');
+        setSession(cached);
+        setSessionLoading(false);
+        return;
+      }
+    }
+
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (session) {
         offline.cacheSession(session);
@@ -61,6 +73,12 @@ export const useMultiTenant = () => {
     queryKey: ['profile', session?.user?.id],
     queryFn: async () => {
       if (!session?.user?.id) return null;
+      
+      // Force offline for desktop
+      if (isDesktop()) {
+        return offline.getCachedProfile() as Profile | null;
+      }
+
       try {
         const { data, error } = await supabase
           .from('profiles')
@@ -104,6 +122,11 @@ export const useMultiTenant = () => {
   const { data: tenant, isLoading: tenantLoading } = useQuery({
     queryKey: ['tenant', profile?.tenant_id, ownedTenants],
     queryFn: async () => {
+      // Force offline for desktop
+      if (isDesktop()) {
+        return offline.getCachedTenant() as Tenant | null;
+      }
+
       try {
         // Priority 1: Use the tenant linked in the profile
         if (profile?.tenant_id) {
@@ -131,7 +154,7 @@ export const useMultiTenant = () => {
               .update({ tenant_id: firstTenant.id })
               .eq('id', session.user.id);
             
-            if (!updateError) {
+          if (!updateError) {
               toast.success(`Restored settings for ${firstTenant.restaurant_name}`);
               window.location.reload(); 
             }

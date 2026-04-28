@@ -124,44 +124,7 @@ const OngoingOrdersPage = () => {
   // Update order items mutation
   const updateOrderItemsMutation = useMutation({
     mutationFn: async ({ orderId, items }: { orderId: string; items: any[] }) => {
-      // Delete existing items
-      const { error: deleteError } = await supabase
-        .from('order_items')
-        .delete()
-        .eq('order_id', orderId);
-
-      if (deleteError) throw deleteError;
-
-      // Insert new items
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const itemsToInsert = items.map(item => {
-        const row: any = {
-          order_id: orderId,
-          quantity: item.quantity,
-          price: item.price,
-          product_name: item.product_name ?? item.products?.name ?? null,
-          product_category: item.product_category ?? item.products?.category ?? null,
-        };
-        if (typeof item.product_id === 'string' && uuidRegex.test(item.product_id)) {
-          row.product_id = item.product_id;
-        }
-        return row;
-      });
-
-      const { error: insertError } = await supabase
-        .from('order_items')
-        .insert(itemsToInsert);
-
-      if (insertError) throw insertError;
-
-      // Update order total
-      const newTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({ total_amount: newTotal })
-        .eq('id', orderId);
-
-      if (updateError) throw updateError;
+      return api.orders.updateItems(orderId, items);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
@@ -321,6 +284,7 @@ const OngoingOrdersPage = () => {
   };
 
   const filteredOrders = useMemo(() => {
+    if (!Array.isArray(orders)) return [];
     let result = orders;
 
     // Filter by type tab
@@ -353,9 +317,10 @@ const OngoingOrdersPage = () => {
     return result;
   }, [orders, activeTab, searchQuery]);
 
-  const selectedOrder = useMemo(() =>
-    orders.find(o => o.id === selectedOrderId),
-    [orders, selectedOrderId]);
+  const selectedOrder = useMemo(() => {
+    if (!Array.isArray(orders)) return null;
+    return orders.find(o => o.id === selectedOrderId);
+  }, [orders, selectedOrderId]);
 
   const getStatusColor = (status: string) => {
     switch (status) {

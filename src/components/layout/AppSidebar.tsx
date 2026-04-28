@@ -18,7 +18,8 @@ import {
   Menu,
   ShieldCheck,
   Building2,
-  Download
+  Download,
+  CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,6 +27,8 @@ import { toast } from "sonner";
 import { useQueryClient } from '@tanstack/react-query';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMultiTenant } from '@/hooks/useMultiTenant';
+import { isDesktop } from '@/lib/env';
+import { Globe, WifiOff } from 'lucide-react';
 
 const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
   const location = useLocation();
@@ -34,12 +37,19 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBtn, setShowInstallBtn] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [hideManagement, setHideManagement] = useState(() => {
     return localStorage.getItem('pos_hide_management') === 'true';
   });
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -48,7 +58,11 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, []);
 
   const handleInstallClick = async () => {
@@ -89,6 +103,7 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
     { name: 'Dashboard', href: '/', icon: LayoutGrid },
     { name: 'SaaS Admin', href: '/saas-admin', icon: ShieldCheck, superAdminOnly: true },
     { name: 'Running Orders', href: '/ongoing-orders', icon: Clock },
+    { name: 'Completed Orders', href: '/completed-orders', icon: CheckCircle2 },
     { name: 'Orders', href: '/orders', icon: ClipboardList },
     { name: 'Products', href: '/products', icon: Package, adminOnly: true, management: true },
     { name: 'Customers', href: '/customers', icon: Users, adminOnly: true },
@@ -156,6 +171,18 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
             )}
           </div>
         </div>
+
+        {isDesktop() && (
+          <div className={cn(
+            "px-4 py-2 bg-emerald-500/10 border-b border-sidebar-border",
+            isCollapsed ? "flex justify-center" : ""
+          )}>
+            <div className="flex items-center gap-2 text-emerald-500">
+              <WifiOff className="h-3 w-3" />
+              {!isCollapsed && <span className="text-[9px] font-black uppercase tracking-widest font-heading">Offline Mode</span>}
+            </div>
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-hide">

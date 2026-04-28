@@ -6,10 +6,14 @@ const CACHE_KEYS = {
   LAST_SYNC: 'pos_last_sync',
   SESSION: 'pos_offline_session',
   PROFILE: 'pos_offline_profile',
-  TENANT: 'pos_offline_tenant'
+  TENANT: 'pos_offline_tenant',
+  DAILY_COUNTER: 'pos_daily_counter'
 };
 
-export const isOnline = () => navigator.onLine;
+export const isOnline = () => {
+  if (typeof navigator === 'undefined') return false;
+  return navigator.onLine;
+};
 
 // Categories
 export const cacheCategories = (categories: any[]) => {
@@ -61,9 +65,10 @@ export interface PendingOrder {
 
 export const queueOrder = (order: any, items: any[]) => {
   const pending = getPendingOrders();
+  const nextCount = incrementDailyCounter();
   const newOrder: PendingOrder = {
     id: crypto.randomUUID(),
-    order,
+    order: { ...order, daily_id: nextCount }, // Attach daily ID for printing
     items,
     createdAt: new Date().toISOString(),
     synced: false
@@ -89,6 +94,30 @@ export const markOrderSynced = (id: string) => {
     localStorage.setItem(CACHE_KEYS.PENDING_ORDERS, JSON.stringify(pending));
   } catch (err) {
     console.error('Error marking order synced', err);
+  }
+};
+
+export const updateOrderStatus = (id: string, status: string) => {
+  try {
+    let pending = JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_ORDERS) || '[]');
+    pending = pending.map((o: PendingOrder) => o.id === id ? { ...o, order: { ...o.order, status } } : o);
+    localStorage.setItem(CACHE_KEYS.PENDING_ORDERS, JSON.stringify(pending));
+    return true;
+  } catch (err) {
+    console.error('Error updating order status', err);
+    return false;
+  }
+};
+
+export const deleteOrder = (id: string) => {
+  try {
+    let pending = JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_ORDERS) || '[]');
+    pending = pending.filter((o: PendingOrder) => o.id !== id);
+    localStorage.setItem(CACHE_KEYS.PENDING_ORDERS, JSON.stringify(pending));
+    return true;
+  } catch (err) {
+    console.error('Error deleting order', err);
+    return false;
   }
 };
 
@@ -155,4 +184,23 @@ export const getCachedTenant = () => {
   } catch {
     return null;
   }
+};
+
+// Daily Counter
+export const getDailyCounter = () => {
+  const today = new Date().toISOString().split('T')[0];
+  const stored = localStorage.getItem(CACHE_KEYS.DAILY_COUNTER);
+  if (stored) {
+    const { date, count } = JSON.parse(stored);
+    if (date === today) return count;
+  }
+  return 0;
+};
+
+export const incrementDailyCounter = () => {
+  const today = new Date().toISOString().split('T')[0];
+  const current = getDailyCounter();
+  const next = current + 1;
+  localStorage.setItem(CACHE_KEYS.DAILY_COUNTER, JSON.stringify({ date: today, count: next }));
+  return next;
 };

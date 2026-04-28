@@ -2,6 +2,25 @@ import { supabase } from '@/integrations/supabase/client';
 import { supabaseSignup } from '@/integrations/supabase/supabaseAdmin';
 import { Database } from '@/integrations/supabase/types';
 import * as offline from './offlineStore';
+import { isDesktop } from '@/lib/env';
+
+declare global {
+  interface Window {
+    electronAPI?: {
+      saveOrder: (order: any, items: any[]) => Promise<any>;
+      getUnsyncedOrders: () => Promise<any[]>;
+      markAsSynced: (id: string) => Promise<any>;
+      updateStatus: (id: string, status: string) => Promise<any>;
+      updateItems: (id: string, items: any[], total: number) => Promise<any>;
+      getAllOrders: () => Promise<any[]>;
+      getOrderById: (id: string) => Promise<any>;
+      deleteOrder: (id: string) => Promise<any>;
+      cacheProducts: (products: any[]) => Promise<any>;
+      getCachedProducts: () => Promise<any[]>;
+      isDesktop: boolean;
+    };
+  }
+}
 
 type Product = Database['public']['Tables']['products']['Row'];
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
@@ -98,6 +117,12 @@ export const api = {
   },
   categories: {
     getAll: async () => {
+      // Force offline for desktop app to avoid any internet waiting
+      if (isDesktop()) {
+        console.log('[Desktop] Using offline categories');
+        return offline.getCachedCategories() as Category[];
+      }
+
       try {
         const { data, error } = await supabase
           .from('categories' as any)
@@ -153,17 +178,30 @@ export const api = {
       return true;
     },
     getAll: async () => {
+      // Force SQLite for desktop app
+      if (isDesktop() && window.electronAPI) {
+        console.log('[SQLite] Fetching products');
+        return await window.electronAPI.getCachedProducts();
+      }
+
       try {
         const { data, error } = await supabase
           .from('products')
           .select('*')
           .order('name');
         if (error) throw error;
-        offline.cacheProducts(data as any[]);
+        
+        if (isDesktop() && window.electronAPI) {
+          window.electronAPI.cacheProducts(data as any[]);
+        } else {
+          offline.cacheProducts(data as any[]);
+        }
         return data as any[];
       } catch (err) {
+        if (isDesktop() && window.electronAPI) {
+          return await window.electronAPI.getCachedProducts();
+        }
         if (!offline.isOnline()) {
-          console.warn('[Offline] Using cached products');
           return offline.getCachedProducts();
         }
         throw err;
@@ -213,6 +251,11 @@ export const api = {
       return data.publicUrl;
     },
     getWithDetails: async () => {
+      // Force offline for desktop
+      if (isDesktop()) {
+        return offline.getCachedProducts();
+      }
+
       // Missing tables fix: Only fetch products, ignore variants/addons
       const { data, error } = await supabase
         .from('products')
@@ -247,6 +290,12 @@ export const api = {
   },
   customers: {
     getAll: async () => {
+      // Force offline for desktop app
+      if (isDesktop()) {
+        console.log('[Desktop] Using offline customers');
+        return offline.getCachedCustomers();
+      }
+
       try {
         const { data, error } = await supabase
           .from('customers')
@@ -292,6 +341,11 @@ export const api = {
   },
   tables: {
     getAll: async () => {
+      // Force offline for desktop
+      if (isDesktop()) {
+        return [];
+      }
+
       const { data, error } = await supabase
         .from('restaurant_tables')
         .select('*')
@@ -319,6 +373,35 @@ export const api = {
   },
   orders: {
     getAll: async () => {
+      // Force SQLite for desktop
+      if (isDesktop() && window.electronAPI) {
+        try {
+          const records = await window.electronAPI.getAllOrders();
+          if (!Array.isArray(records)) return [];
+          
+          return records.map(r => {
+            let data = {};
+            try { data = JSON.parse(r.data); } catch (e) { console.error('Parse error for order', r.id); }
+            
+            // Normalize created_at for Date constructor
+            let createdAt = r.created_at;
+            if (createdAt && typeof createdAt === 'string' && !createdAt.includes('T')) {
+              createdAt = createdAt.replace(' ', 'T');
+            }
+
+            return {
+              ...data,
+              id: r.id,
+              created_at: createdAt,
+              synced: r.synced === 1
+            };
+          });
+        } catch (err) {
+          console.error('[SQLite] Failed to fetch orders:', err);
+          return [];
+        }
+      }
+
       const { data, error } = await supabase
         .from('orders')
         .select('*, customers(name)')
@@ -327,6 +410,36 @@ export const api = {
       return data;
     },
     getByIdWithItems: async (id: string) => {
+      // Force SQLite for desktop
+      if (isDesktop() && window.electronAPI) {
+        const record = await window.electronAPI.getOrderById(id);
+        if (record) {
+          let data: any = {};
+          let items: any[] = [];
+          try { 
+            data = JSON.parse(record.data); 
+            items = JSON.parse(record.items);
+          } catch (e) { console.error('Parse error for order detail', id); }
+          
+          // Normalize created_at
+          let createdAt = record.created_at;
+          if (createdAt && typeof createdAt === 'string' && !createdAt.includes('T')) {
+            createdAt = createdAt.replace(' ', 'T');
+          }
+
+          return {
+            ...data,
+            id: record.id,
+            created_at: createdAt,
+            order_items: items.map(item => ({
+              ...item,
+              products: { name: item.product_name, image: null }
+            }))
+          };
+        }
+        throw new Error('Order not found in local database');
+      }
+
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -345,47 +458,114 @@ export const api = {
       return data;
     },
     getDailyCount: async (registerId?: string) => {
+      // Force SQLite for desktop app
+      if (isDesktop() && window.electronAPI) {
+        const all = await window.electronAPI.getAllOrders();
+        // Return count of orders created today
+        const today = new Date().toISOString().split('T')[0];
+        return all.filter(o => o.created_at.startsWith(today)).length;
+      }
+      
+      if (!offline.isOnline()) {
+        return offline.getPendingOrders().length;
+      }
+
       // If we have a valid registerId UUID, count orders in that shift
       if (registerId && isValidUUID(registerId)) {
-        const { count, error } = await supabase
+        // 1.5-second timeout for quick offline fallback
+        const fetchPromise = supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
           .eq('register_id', registerId);
+        
+        try {
+          const result = await Promise.race([
+            fetchPromise,
+            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+          ]);
 
-        if (!error) return count || 0;
-        // If error (e.g. column missing), fallback to daily count
+          if (result && !result.error) return result.count || 0;
+        } catch (err) {
+          console.warn('Timeout or error fetching daily count, falling back to offline count');
+          return offline.getPendingOrders().length;
+        }
       }
 
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
 
-      const { count, error } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', startOfDay.toISOString());
+      try {
+        const { count, error } = await Promise.race([
+          supabase
+            .from('orders')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', startOfDay.toISOString()),
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+        ]);
 
-      if (error) {
-        console.error('Error fetching daily order count:', error);
-        return 0;
+        if (error) {
+          console.error('Error fetching daily order count:', error);
+          return 0;
+        }
+
+        return count || 0;
+      } catch (err) {
+        console.warn('Timeout fetching fallback daily count');
+        return offline.getPendingOrders().length;
       }
-
-      return count || 0;
     },
     create: async (order: any, items: OrderItemInsert[]) => {
-      // If offline, queue the order locally and return a placeholder
-      if (!offline.isOnline()) {
+      // Helper function to queue order locally
+      const enqueueOffline = () => {
         console.warn('[Offline] Queuing order locally for later sync');
         const queued = offline.queueOrder(order, items as any[]);
         return { id: queued.id, _offline: true, created_at: queued.createdAt };
+      };
+
+      // Force SQLite for desktop app
+      if (isDesktop() && window.electronAPI) {
+        console.warn('[SQLite] Saving order locally');
+        // Ensure order has an ID and timestamp
+        const desktopOrder = {
+          ...order,
+          id: order.id || crypto.randomUUID(),
+          created_at: order.created_at || new Date().toISOString()
+        };
+        await window.electronAPI.saveOrder(desktopOrder, items);
+        return { id: desktopOrder.id, _offline: true, created_at: desktopOrder.created_at };
+      }
+
+      // If offline, queue the order locally and return a placeholder
+      if (!offline.isOnline()) {
+        return enqueueOffline();
       }
 
       // Use provided tenant_id or fetch it if missing
       let tenantId = order.tenant_id;
       
-      if (!tenantId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user?.id || '').single();
-        tenantId = profile?.tenant_id;
+      try {
+        if (!tenantId) {
+          // Check cache first
+          const cachedTenant = offline.getCachedTenant();
+          if (cachedTenant?.id) {
+            tenantId = cachedTenant.id;
+          } else {
+            // Timeout the getUser call
+            const userPromise = supabase.auth.getUser();
+            const authData = await Promise.race([
+              userPromise,
+              new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+            ]);
+            
+            if (authData.data?.user) {
+              const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', authData.data.user.id).single();
+              tenantId = profile?.tenant_id;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Network timeout during auth fetch, falling back to offline mode');
+        return enqueueOffline();
       }
       
       // Clean order data to match actual Supabase schema
@@ -440,12 +620,30 @@ export const api = {
       console.log("Attempting order insertion with safeOrder:", safeOrder);
 
       // Attempt to insert order into Supabase
-      let { data: newOrder, error: orderError } = await supabase
-        .from('orders')
-        .insert(safeOrder)
-        .select()
-        .maybeSingle();
-
+      let newOrder: any;
+      let orderError: any;
+      
+      try {
+        const insertPromise = supabase
+          .from('orders')
+          .insert(safeOrder)
+          .select()
+          .maybeSingle();
+          
+        const result = await Promise.race([
+          insertPromise,
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+        ]);
+        
+        newOrder = result.data;
+        orderError = result.error;
+      } catch (err: any) {
+        if (err.message === 'timeout' || err.message?.includes('Failed to fetch') || err.message?.includes('FetchError')) {
+          console.warn('Network error during insert, falling back to offline mode', err);
+          return enqueueOffline();
+        }
+        orderError = err;
+      }
       // Fallback logic for missing columns
       if (orderError && (orderError.code === 'PGRST204' || orderError.message.includes('Could not find the'))) {
         console.warn("Retrying order creation without optional columns (schema mismatch):", orderError.message);
@@ -555,11 +753,43 @@ export const api = {
         }
       }
 
+      // Helper function to queue offline
+      const enqueueOfflineUpdate = () => {
+        console.warn('[Offline] Queuing order UPDATE locally for later sync');
+        offline.queueOrder({ ...order, id: orderId }, items as any[]);
+        return true;
+      };
+
+      // Force offline for desktop app
+      if (isDesktop()) {
+        return enqueueOfflineUpdate();
+      }
+
+      if (!offline.isOnline()) {
+        return enqueueOfflineUpdate();
+      }
+
       // 1. Update order with fallback
-      let { error: orderError } = await supabase
-        .from('orders')
-        .update(safeOrder)
-        .eq('id', orderId);
+      let orderError: any;
+      try {
+        const updatePromise = supabase
+          .from('orders')
+          .update(safeOrder)
+          .eq('id', orderId);
+          
+        const result = await Promise.race([
+          updatePromise,
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+        ]);
+        
+        orderError = result.error;
+      } catch (err: any) {
+        if (err.message === 'timeout' || err.message?.includes('Failed to fetch') || err.message?.includes('FetchError')) {
+          console.warn('Network error during update, falling back to offline mode', err);
+          return enqueueOfflineUpdate();
+        }
+        orderError = err;
+      }
 
       if (orderError && (orderError.code === 'PGRST204' || orderError.message.includes('Could not find the'))) {
         console.warn("Retrying order update without optional columns:", orderError.message);
@@ -613,7 +843,91 @@ export const api = {
       if (itemsError) throw itemsError;
       return true;
     },
+    getCompleted: async () => {
+      // Force SQLite for desktop
+      if (isDesktop() && window.electronAPI) {
+        const records = await window.electronAPI.getAllOrders();
+        if (!Array.isArray(records)) return [];
+        
+        return records
+          .map(r => {
+            let data: any = {};
+            let items: any[] = [];
+            try { 
+              data = JSON.parse(r.data); 
+              items = JSON.parse(r.items);
+            } catch (e) { console.error('Parse error for completed order', r.id); }
+            
+            // Normalize created_at
+            let createdAt = r.created_at;
+            if (createdAt && typeof createdAt === 'string' && !createdAt.includes('T')) {
+              createdAt = createdAt.replace(' ', 'T');
+            }
+
+            return {
+              ...data,
+              id: r.id,
+              created_at: createdAt,
+              order_items: items.map(item => ({
+                ...item,
+                products: { name: item.product_name, image: null }
+              }))
+            };
+          })
+          .filter(o => o.status === 'completed');
+      }
+
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          customers(name, phone),
+          restaurant_tables(table_number),
+          order_items(
+            *,
+            products(name, image)
+          )
+        `)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
     getOngoing: async () => {
+      // Force SQLite for desktop
+      if (isDesktop() && window.electronAPI) {
+        const records = await window.electronAPI.getAllOrders();
+        if (!Array.isArray(records)) return [];
+        
+        return records
+          .map(r => {
+            let data: any = {};
+            let items: any[] = [];
+            try { 
+              data = JSON.parse(r.data); 
+              items = JSON.parse(r.items);
+            } catch (e) { console.error('Parse error for ongoing order', r.id); }
+            
+            // Normalize created_at
+            let createdAt = r.created_at;
+            if (createdAt && typeof createdAt === 'string' && !createdAt.includes('T')) {
+              createdAt = createdAt.replace(' ', 'T');
+            }
+
+            return {
+              ...data,
+              id: r.id,
+              created_at: createdAt,
+              order_items: items.map(item => ({
+                ...item,
+                products: { name: item.product_name, image: null }
+              }))
+            };
+          })
+          .filter(o => o.status === 'pending' || o.status === 'preparing' || o.status === 'ready');
+      }
+
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
 
@@ -634,7 +948,61 @@ export const api = {
       if (error) throw error;
       return data;
     },
+    updateItems: async (orderId: string, items: any[]) => {
+      // Force SQLite for desktop
+      if (isDesktop() && window.electronAPI) {
+        const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        await window.electronAPI.updateItems(orderId, items, total);
+        return true;
+      }
+
+      // Delete existing items
+      const { error: deleteError } = await supabase
+        .from('order_items')
+        .delete()
+        .eq('order_id', orderId);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new items
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const itemsToInsert = items.map(item => {
+        const row: any = {
+          order_id: orderId,
+          quantity: item.quantity,
+          price: item.price,
+          product_name: item.product_name ?? item.products?.name ?? null,
+          product_category: item.product_category ?? item.products?.category ?? null,
+        };
+        if (typeof item.product_id === 'string' && uuidRegex.test(item.product_id)) {
+          row.product_id = item.product_id;
+        }
+        return row;
+      });
+
+      const { error: insertError } = await supabase
+        .from('order_items')
+        .insert(itemsToInsert);
+
+      if (insertError) throw insertError;
+
+      // Update order total
+      const newTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ total_amount: newTotal })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+      return true;
+    },
     updateStatus: async (id: string, status: string) => {
+      // Force SQLite for desktop
+      if (isDesktop() && window.electronAPI) {
+        await window.electronAPI.updateStatus(id, status);
+        return { id, status };
+      }
+
       const { data, error } = await supabase
         .from('orders')
         .update({ status })
@@ -646,6 +1014,11 @@ export const api = {
       return data;
     },
     delete: async (id: string) => {
+      // Force SQLite for desktop
+      if (isDesktop() && window.electronAPI) {
+        return await window.electronAPI.deleteOrder(id);
+      }
+
       // 1. Delete associated order items first
       const { error: itemsError } = await supabase
         .from('order_items')
@@ -837,6 +1210,41 @@ export const api = {
   },
   reports: {
     getDashboardStats: async () => {
+      if (isDesktop() && window.electronAPI) {
+        const records = await window.electronAPI.getAllOrders();
+        const orders = records.map(r => {
+          let data: any = {};
+          let items: any[] = [];
+          try { 
+            data = JSON.parse(r.data); 
+            items = JSON.parse(r.items);
+          } catch (e) { console.error('Parse error for report order', r.id); }
+          
+          // Ensure created_at is ISO format (replace space with T if needed)
+          let createdAt = r.created_at;
+          if (createdAt && !createdAt.includes('T')) {
+            createdAt = createdAt.replace(' ', 'T');
+          }
+
+          return {
+            ...data,
+            id: r.id,
+            created_at: createdAt || new Date().toISOString(),
+            order_items: items.map(item => ({
+              ...item,
+              products: { name: item.product_name, category: item.product_category }
+            }))
+          };
+        });
+
+        const customers = await api.customers.getAll();
+
+        return {
+          orders: orders || [],
+          customers: customers || []
+        };
+      }
+
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
         .select('*, order_items(*, products(*))')

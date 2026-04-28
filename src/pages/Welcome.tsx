@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useMultiTenant } from "@/hooks/useMultiTenant";
 import { Input } from "@/components/ui/input";
+import { isDesktop } from "@/lib/env";
+import * as offline from "@/services/offlineStore";
 
 type Role = "admin" | "cashier" | "cashier2";
 
@@ -58,6 +60,29 @@ const Welcome = () => {
     e.stopPropagation();
     setNewName(cashierName);
     setIsEditing(true);
+  };
+
+  const handleWorkOffline = () => {
+    // Create a dummy session if none exists
+    const dummySession = {
+      user: {
+        id: 'offline-user',
+        email: 'offline@bakewise.pos',
+      },
+      expires_at: 9999999999,
+    };
+    
+    // Cache the dummy session and profile
+    offline.cacheSession(dummySession);
+    offline.cacheProfile({
+      id: 'offline-user',
+      full_name: cashierName || 'Offline Cashier',
+      role: 'cashier',
+      tenant_id: tenant?.id || 'offline-tenant'
+    });
+    
+    toast.success("Starting in Offline Mode");
+    navigate("/");
   };
 
   return (
@@ -147,6 +172,23 @@ const Welcome = () => {
             </div>
           </div>
         </div>
+
+        {isDesktop() && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex justify-center mt-8"
+          >
+            <Button 
+              variant="outline" 
+              className="bg-white/10 text-white border-white/20 hover:bg-white/20 rounded-full px-8 py-6 font-bold uppercase tracking-widest text-xs"
+              onClick={handleWorkOffline}
+            >
+              <Globe className="mr-2 h-4 w-4" />
+              Work Completely Offline
+            </Button>
+          </motion.div>
+        )}
       </div>
 
       <div className="absolute bottom-6 right-6 z-10 text-white/80 text-sm">
