@@ -91,6 +91,70 @@ export const DEFAULT_INDUS_DATA: MenuItem[] = [
   { name: "Tandoori Roti", category: "ROTI", price: 25 },
   { name: "Plain Naan", category: "ROTI", price: 30 },
   { name: "Garlic Naan", category: "ROTI", price: 40 },
+
+  // VEGETARIAN
+  { name: "Makhani Dal", category: "VEGETARIAN", price: 400 },
+  { name: "Special Sabzi", category: "VEGETARIAN", price: 350 },
+  { name: "Veg Handi", category: "VEGETARIAN", sizes: { Half: 600, Full: 1200 } },
+  { name: "Veg Karahi", category: "VEGETARIAN", sizes: { Half: 600, Full: 1200 } },
+  { name: "Veg Cutlets", category: "VEGETARIAN", sizes: { Half: 550, Full: 1000 } },
+  { name: "Veg Kofta", category: "VEGETARIAN", sizes: { Half: 600, Full: 1100 } },
+
+  // FRIED
+  { name: "Chicken Dhaka", category: "FRIED", sizes: { Half: 1050, Full: 2000 } },
+  { name: "Chicken Dry Chilli with Rice", category: "FRIED", sizes: { Half: 950, Full: 1800 } },
+  { name: "Chicken Spring", category: "FRIED", sizes: { Half: 850, Full: 1600 } },
+  { name: "Chicken Fingers", category: "FRIED", sizes: { Half: 500, Full: 1000 } },
+  { name: "Chicken Lemon", category: "FRIED", price: 1600 },
+  { name: "Chicken Jalfrezi with Rice", category: "FRIED", sizes: { Half: 800, Full: 1500 } },
+
+  // JOINTS
+  { name: "Mutton Joint Grill", category: "JOINTS", price: 1100 },
+  { name: "Fried Mutton Joint", category: "JOINTS", price: 1000 },
+  { name: "Mutton Masala Joint", category: "JOINTS", price: 1100 },
+  { name: "Mutton Namkin Joint", category: "JOINTS", price: 900 },
+
+  // RICE
+  { name: "Chicken Biryani", category: "RICE", sizes: { Half: 750, Full: 1600 } },
+  { name: "Mutton Kabuli Pulao", category: "RICE", sizes: { Half: 1300, Full: 2500 } },
+  { name: "Mutton Namkeen Pulao", category: "RICE", sizes: { Half: 1300, Full: 2500 } },
+  { name: "Veg Rice", category: "RICE", sizes: { Half: 750, Full: 1400 } },
+  { name: "Chicken Fried Rice", category: "RICE", sizes: { Half: 750, Full: 1600 } },
+  { name: "Egg Fried Rice", category: "RICE", sizes: { Half: 750, Full: 1400 } },
+  { name: "Steam Rice", category: "RICE", sizes: { Half: 650, Full: 1200 } },
+
+  // BBQ
+  { name: "BBQ Platter", category: "BBQ", sizes: { Half: 1800, Full: 3500 } },
+  { name: "Chicken Tikka", category: "BBQ", sizes: { Half: 350, Full: 400 } },
+  { name: "Chicken Boti", category: "BBQ", price: 700 },
+  { name: "Chicken Malai Boti", category: "BBQ", price: 800 },
+  { name: "Chicken Bihari Boti", category: "BBQ", price: 700 },
+  { name: "Chicken Kalmi Tikka", category: "BBQ", price: 800 },
+  { name: "Chicken Reshmi Kabab", category: "BBQ", price: 800 },
+  { name: "Chicken Gola Kabab", category: "BBQ", price: 800 },
+  { name: "Chicken Achari Boti", category: "BBQ", price: 700 },
+  { name: "Mutton Sajji Balochi BBQ", category: "BBQ", price: 4500 },
+
+  // NAAN_ROTI
+  { name: "Roghni", category: "NAAN_ROTI", price: 80 },
+  { name: "Garlic Naan", category: "NAAN_ROTI", price: 80 },
+  { name: "Kandahari Naan", category: "NAAN_ROTI", price: 70 },
+  { name: "Plain Naan", category: "NAAN_ROTI", price: 30 },
+  { name: "Tandoori Paratha", category: "NAAN_ROTI", price: 60 },
+  { name: "Chapati", category: "NAAN_ROTI", price: 20 },
+  { name: "Lal Roti", category: "NAAN_ROTI", price: 20 },
+
+  // SALADS
+  { name: "Green Salad", category: "SALADS", price: 50 },
+  { name: "Raita", category: "SALADS", price: 50 },
+  { name: "Russian Salad", category: "SALADS", sizes: { Half: 700, Full: 1500 } },
+  { name: "Special Salad", category: "SALADS", price: 100 },
+
+  // TEA
+  { name: "Milk Tea", category: "TEA", price: 100 },
+  { name: "Special Badam Tea", category: "TEA", price: 120 },
+  { name: "Kashmiri Tea", category: "TEA", price: 120 },
+  { name: "Green Tea", category: "TEA", price: 50 },
 ];
 
 export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initialCategory }: IndusMenuModalProps) {
