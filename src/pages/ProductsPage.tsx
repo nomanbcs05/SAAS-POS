@@ -104,15 +104,18 @@ const ProductsPage = () => {
     { id: 'fries', name: 'Fries', key: 'pos_menu_fries', icon: Package },
     { id: 'beverages', name: 'Beverages', key: 'pos_menu_beverages', icon: Package },
     { id: 'alacart', name: 'ALA CART', key: 'pos_menu_alacart', icon: Package },
-    { id: 'indus_dry', name: 'DRY', key: 'pos_menu_indus_dry', filter: 'DRY', icon: Utensils },
-    { id: 'indus_chinese', name: 'CHINESE GRAVY', key: 'pos_menu_indus_chinese_gravy', filter: 'CHINESE GRAVY', icon: Utensils },
     { id: 'indus_rice', name: 'RICE', key: 'pos_menu_indus_rice', filter: 'RICE', icon: Utensils },
     { id: 'indus_chicken_karahi', name: 'CHICKEN (Karahi)', key: 'pos_menu_indus_chicken_karahi', filter: 'CHICKEN (Karahi)', icon: Utensils },
     { id: 'indus_handi', name: 'HANDI (Chicken)', key: 'pos_menu_indus_handi_chicken', filter: 'HANDI (Chicken)', icon: Utensils },
     { id: 'indus_mutton_karahi', name: 'MUTTON (Karahi)', key: 'pos_menu_indus_mutton_karahi', filter: 'MUTTON (Karahi)', icon: Utensils },
     { id: 'indus_mutton_handi', name: 'MUTTON HANDI', key: 'pos_menu_indus_mutton_handi', filter: 'MUTTON HANDI', icon: Utensils },
-    { id: 'indus_chai', name: 'CHAI', key: 'pos_menu_indus_chai', filter: 'CHAI', icon: Utensils },
-    { id: 'indus_roti', name: 'ROTI', key: 'pos_menu_indus_roti', filter: 'ROTI', icon: Utensils },
+    { id: 'indus_veg', name: 'VEGETARIAN', key: 'pos_menu_indus_veg', filter: 'VEGETARIAN', icon: Utensils },
+    { id: 'indus_fried', name: 'FRIED', key: 'pos_menu_indus_fried', filter: 'FRIED', icon: Utensils },
+    { id: 'indus_joints', name: 'JOINTS', key: 'pos_menu_indus_joints', filter: 'JOINTS', icon: Utensils },
+    { id: 'indus_bbq', name: 'BBQ', key: 'pos_menu_indus_bbq', filter: 'BBQ', icon: ChefHat },
+    { id: 'indus_roti', name: 'NAAN_ROTI', key: 'pos_menu_indus_roti', filter: 'NAAN_ROTI', icon: Utensils },
+    { id: 'indus_salads', name: 'SALADS', key: 'pos_menu_indus_salads', filter: 'SALADS', icon: Utensils },
+    { id: 'indus_tea', name: 'TEA', key: 'pos_menu_indus_tea', filter: 'TEA', icon: Utensils },
   ];
 
   const openVirtualMenuEditor = (category: any) => {

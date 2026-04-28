@@ -26,85 +26,55 @@ interface MenuItem {
 }
 
 export const DEFAULT_INDUS_DATA: MenuItem[] = [
-  // DRY
-  { name: "Mutton Brown", category: "DRY", price: 3450 },
-  { name: "Chicken Brown", category: "DRY", price: 1950 },
-  { name: "Chicken Dhaka", category: "DRY", price: 950 },
-  { name: "Finger Chicken (8)", category: "DRY", price: 900 },
-  { name: "Dynamint Chicken (8)", category: "DRY", price: 750 },
-  
-  // CHINESE GRAVY
-  { name: "Indus Sp. Gravy", category: "CHINESE GRAVY", price: 1100 },
-  { name: "Chicken Manchurian", category: "CHINESE GRAVY", price: 1050 },
-  { name: "Chicken Shashlik", category: "CHINESE GRAVY", price: 1050 },
-  { name: "Chicken Chilli Gravy", category: "CHINESE GRAVY", price: 1050 },
-  
-  // RICE
-  { name: "Indus Sp. Rice", category: "RICE", price: 850 },
-  { name: "Chicken Fried Rice", category: "RICE", price: 700 },
-  { name: "Vegetable Rice", category: "RICE", price: 600 },
-  { name: "Masla Rice", category: "RICE", price: 750 },
-  { name: "Kabli Pulao", category: "RICE", price: 800 },
-  { name: "Chicken Biryani", category: "RICE", price: 700 },
-  
   // CHICKEN (Karahi)
-  { name: "Indus Sp. Karahi", category: "CHICKEN (Karahi)", sizes: { Half: 1000, Full: 2000 } },
-  { name: "Butt Karahi", category: "CHICKEN (Karahi)", sizes: { Half: 900, Full: 1750 } },
-  { name: "Shenwari Karhai", category: "CHICKEN (Karahi)", sizes: { Half: 950, Full: 1850 } },
-  { name: "Red Karahi", category: "CHICKEN (Karahi)", sizes: { Half: 850, Full: 1600 } },
-  { name: "Achari Karahi", category: "CHICKEN (Karahi)", sizes: { Half: 850, Full: 1650 } },
-  { name: "White Karahi", category: "CHICKEN (Karahi)", sizes: { Half: 900, Full: 1800 } },
-  
-  // HANDI (Chicken)
-  { name: "Indus Sp. Handi", category: "HANDI (Chicken)", sizes: { Half: 1100, Full: 2100 } },
-  { name: "Makhani Handi", category: "HANDI (Chicken)", sizes: { Half: 1300, Full: 2250 } },
-  { name: "Red Handi", category: "HANDI (Chicken)", sizes: { Half: 1000, Full: 2050 } },
-  { name: "Achari Handi", category: "HANDI (Chicken)", sizes: { Half: 1100, Full: 2100 } },
-  { name: "White Handi", category: "HANDI (Chicken)", sizes: { Half: 1050, Full: 2000 } },
-  { name: "Zeera Handi", category: "HANDI (Chicken)", sizes: { Half: 1050, Full: 2000 } },
-  { name: "Mughlai Handi", category: "HANDI (Chicken)", sizes: { Half: 1100, Full: 1950 } },
-  
+  { name: "Chicken Special Indus Karahi", category: "CHICKEN (Karahi)", sizes: { Half: 1000, Full: 2000 } },
+  { name: "Chicken Red Karahi", category: "CHICKEN (Karahi)", sizes: { Half: 950, Full: 1800 } },
+  { name: "Chicken White Karahi", category: "CHICKEN (Karahi)", sizes: { Half: 1050, Full: 2000 } },
+  { name: "Chicken Green Karahi", category: "CHICKEN (Karahi)", sizes: { Half: 1050, Full: 2000 } },
+  { name: "Chicken Tikka Karahi", category: "CHICKEN (Karahi)", sizes: { Half: 950, Full: 1800 } },
+  { name: "Chicken Brown Karahi", category: "CHICKEN (Karahi)", sizes: { Half: 1000, Full: 2000 } },
+
   // MUTTON (Karahi)
-  { name: "Indus Sp. Karahi", category: "MUTTON (Karahi)", sizes: { Half: 2100, Full: 3800 } },
-  { name: "Butt Karahi", category: "MUTTON (Karahi)", sizes: { Half: 2000, Full: 3700 } },
-  { name: "Shenwari Karhai", category: "MUTTON (Karahi)", sizes: { Half: 2000, Full: 3700 } },
-  { name: "Red Karahi", category: "MUTTON (Karahi)", sizes: { Half: 1800, Full: 3350 } },
-  { name: "Achari Karahi", category: "MUTTON (Karahi)", sizes: { Half: 1900, Full: 3600 } },
-  { name: "White Karahi", category: "MUTTON (Karahi)", sizes: { Half: 1900, Full: 3600 } },
-  
+  { name: "Mutton Special Karahi", category: "MUTTON (Karahi)", sizes: { Half: 1900, Full: 3800 } },
+  { name: "Mutton Red Karahi", category: "MUTTON (Karahi)", sizes: { Half: 1750, Full: 3400 } },
+  { name: "Mutton Karachi White Karahi", category: "MUTTON (Karahi)", sizes: { Half: 1900, Full: 3800 } },
+  { name: "Mutton Achari Karahi", category: "MUTTON (Karahi)", sizes: { Half: 1800, Full: 3500 } },
+  { name: "Mutton Green Karahi", category: "MUTTON (Karahi)", sizes: { Half: 1750, Full: 3400 } },
+  { name: "Mutton Balochi Karahi", category: "MUTTON (Karahi)", sizes: { Half: 1750, Full: 3400 } },
+  { name: "Mutton Peshawari Karahi", category: "MUTTON (Karahi)", sizes: { Half: 1800, Full: 3500 } },
+  { name: "Mutton Brown Karahi", category: "MUTTON (Karahi)", sizes: { Half: 1800, Full: 3500 } },
+
+  // HANDI (Chicken)
+  { name: "Chicken Handi", category: "HANDI (Chicken)", sizes: { Half: 1150, Full: 2200 } },
+  { name: "Special Indus Handi", category: "HANDI (Chicken)", sizes: { Half: 1100, Full: 2100 } },
+  { name: "Chicken Red Handi", category: "HANDI (Chicken)", sizes: { Half: 1050, Full: 2000 } },
+  { name: "Chicken White Handi", category: "HANDI (Chicken)", sizes: { Half: 1150, Full: 2200 } },
+  { name: "Chicken Green Handi", category: "HANDI (Chicken)", sizes: { Half: 1050, Full: 2000 } },
+  { name: "Chicken Makhani Handi", category: "HANDI (Chicken)", sizes: { Half: 1150, Full: 2200 } },
+  { name: "Chicken Achari Handi", category: "HANDI (Chicken)", sizes: { Half: 1050, Full: 2000 } },
+
   // MUTTON HANDI
-  { name: "Indus Sp. Handi", category: "MUTTON HANDI", sizes: { Half: 2100, Full: 3800 } },
-  { name: "Makhani Handi", category: "MUTTON HANDI", sizes: { Half: 2150, Full: 3900 } },
-  { name: "Red Handi", category: "MUTTON HANDI", sizes: { Half: 1750, Full: 3400 } },
-  { name: "Achari Handi", category: "MUTTON HANDI", sizes: { Half: 1900, Full: 3600 } },
-  { name: "White Handi", category: "MUTTON HANDI", sizes: { Half: 2150, Full: 3750 } },
-  { name: "Zeera Handi", category: "MUTTON HANDI", sizes: { Half: 1950, Full: 3650 } },
-  { name: "Mughlai Handi", category: "MUTTON HANDI", sizes: { Half: 1750, Full: 3300 } },
-
-  // CHAI
-  { name: "Chia Full", category: "CHAI", price: 100 },
-  { name: "Chia Half", category: "CHAI", price: 50 },
-  { name: "Badami Chai", category: "CHAI", price: 120 },
-  { name: "Kawa Chai", category: "CHAI", price: 50 },
-
-  // ROTI
-  { name: "Tandoori Roti", category: "ROTI", price: 25 },
-  { name: "Plain Naan", category: "ROTI", price: 30 },
-  { name: "Garlic Naan", category: "ROTI", price: 40 },
+  { name: "Mutton Handi", category: "MUTTON HANDI", sizes: { Half: 2100, Full: 4000 } },
+  { name: "Special Indus Handi", category: "MUTTON HANDI", sizes: { Half: 2100, Full: 4000 } },
+  { name: "Mutton Red Handi", category: "MUTTON HANDI", sizes: { Half: 2000, Full: 3900 } },
+  { name: "Mutton White Handi", category: "MUTTON HANDI", sizes: { Half: 2100, Full: 4000 } },
+  { name: "Mutton Green Handi", category: "MUTTON HANDI", sizes: { Half: 2100, Full: 4000 } },
+  { name: "Mutton Makhani Handi", category: "MUTTON HANDI", sizes: { Half: 2100, Full: 4000 } },
+  { name: "Mutton Achari Handi", category: "MUTTON HANDI", sizes: { Half: 2100, Full: 4000 } },
 
   // VEGETARIAN
   { name: "Makhani Dal", category: "VEGETARIAN", price: 400 },
   { name: "Special Sabzi", category: "VEGETARIAN", price: 350 },
   { name: "Veg Handi", category: "VEGETARIAN", sizes: { Half: 600, Full: 1200 } },
   { name: "Veg Karahi", category: "VEGETARIAN", sizes: { Half: 600, Full: 1200 } },
-  { name: "Veg Cutlets", category: "VEGETARIAN", sizes: { Half: 550, Full: 1000 } },
+  { name: "Veg Cutlets (F-8, H-4)", category: "VEGETARIAN", sizes: { Half: 550, Full: 1000 } },
   { name: "Veg Kofta", category: "VEGETARIAN", sizes: { Half: 600, Full: 1100 } },
 
   // FRIED
   { name: "Chicken Dhaka", category: "FRIED", sizes: { Half: 1050, Full: 2000 } },
   { name: "Chicken Dry Chilli with Rice", category: "FRIED", sizes: { Half: 950, Full: 1800 } },
   { name: "Chicken Spring", category: "FRIED", sizes: { Half: 850, Full: 1600 } },
-  { name: "Chicken Fingers", category: "FRIED", sizes: { Half: 500, Full: 1000 } },
+  { name: "Chicken Fingers (F-10, H-5)", category: "FRIED", sizes: { Half: 1000, Full: 2000 } },
   { name: "Chicken Lemon", category: "FRIED", price: 1600 },
   { name: "Chicken Jalfrezi with Rice", category: "FRIED", sizes: { Half: 800, Full: 1500 } },
 

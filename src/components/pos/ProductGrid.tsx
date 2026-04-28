@@ -114,9 +114,9 @@ const ProductGrid = () => {
     
     if (tenant?.restaurant_name?.toLowerCase().includes('indus')) {
       const indusCategories = [
-        'DRY', 'CHINESE GRAVY', 'RICE', 'CHICKEN (Karahi)', 
-        'HANDI (Chicken)', 'MUTTON (Karahi)', 'MUTTON HANDI',
-        'CHAI', 'ROTI'
+        'RICE', 'CHICKEN (Karahi)', 'HANDI (Chicken)', 
+        'MUTTON (Karahi)', 'MUTTON HANDI', 'VEGETARIAN',
+        'FRIED', 'JOINTS', 'BBQ', 'NAAN_ROTI', 'SALADS', 'TEA'
       ];
       
       indusCategories.forEach(cat => {
@@ -384,15 +384,18 @@ const ProductGrid = () => {
      // Special logic for Cafe Indus Categories:
      if (isIndus) {
        const indusCategories = [
-         { name: 'DRY', id: 'indus_dry', key: 'pos_menu_indus_dry' },
-         { name: 'CHINESE GRAVY', id: 'indus_chinese', key: 'pos_menu_indus_chinese_gravy' },
          { name: 'RICE', id: 'indus_rice', key: 'pos_menu_indus_rice' },
          { name: 'CHICKEN (Karahi)', id: 'indus_chicken_karahi', key: 'pos_menu_indus_chicken_karahi' },
          { name: 'HANDI (Chicken)', id: 'indus_handi', key: 'pos_menu_indus_handi_chicken' },
          { name: 'MUTTON (Karahi)', id: 'indus_mutton_karahi', key: 'pos_menu_indus_mutton_karahi' },
          { name: 'MUTTON HANDI', id: 'indus_mutton_handi', key: 'pos_menu_indus_mutton_handi' },
-         { name: 'CHAI', id: 'indus_chai', key: 'pos_menu_indus_chai' },
-         { name: 'ROTI', id: 'indus_roti', key: 'pos_menu_indus_roti' }
+         { name: 'VEGETARIAN', id: 'indus_veg', key: 'pos_menu_indus_veg' },
+         { name: 'FRIED', id: 'indus_fried', key: 'pos_menu_indus_fried' },
+         { name: 'JOINTS', id: 'indus_joints', key: 'pos_menu_indus_joints' },
+         { name: 'BBQ', id: 'indus_bbq', key: 'pos_menu_indus_bbq' },
+         { name: 'NAAN_ROTI', id: 'indus_roti', key: 'pos_menu_indus_roti' },
+         { name: 'SALADS', id: 'indus_salads', key: 'pos_menu_indus_salads' },
+         { name: 'TEA', id: 'indus_tea', key: 'pos_menu_indus_tea' }
        ];
 
        indusCategories.forEach(cat => {
@@ -417,7 +420,7 @@ const ProductGrid = () => {
            }
 
            // 2. Add individual items from this category if it's explicitly selected
-          if (isCatSelected && !(cat.name === 'CHAI' || cat.name === 'ROTI')) {
+          if (isCatSelected && !(cat.name === 'TEA' || cat.name === 'NAAN_ROTI')) {
              const saved = localStorage.getItem(cat.key);
              let items = [];
              if (saved) {
