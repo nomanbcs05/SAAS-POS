@@ -409,7 +409,7 @@ const ProductGrid = () => {
              name: `${cat.name} Menu`,
              price: 0,
              category: cat.name,
-             image: localStorage.getItem('pos_category_image_' + cat.id) || '🍲',
+             image: localStorage.getItem('pos_category_image_' + cat.id) || (cat.id === 'indus_tea' ? '/tea_menu.png' : cat.id === 'indus_bbq' ? '/Barbq.png' : '🍲'),
              isVirtual: true,
              modalType: 'indus',
              indusCategory: cat.name
