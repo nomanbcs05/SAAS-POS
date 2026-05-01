@@ -71,6 +71,24 @@ const OngoingOrdersPage = () => {
     return saved !== 'false';
   });
 
+  const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
+    if (order.daily_id) {
+      return order.daily_id.toString().padStart(2, '0');
+    }
+    if (Array.isArray(allOrders)) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const sortedTodayOrders = allOrders
+        .filter((o: any) => new Date(o.created_at) >= today)
+        .sort((a: any, b: any) => new Date(a.created_at) - new Date(b.created_at));
+      const dailyIndex = sortedTodayOrders.findIndex((o: any) => o.id === order.id);
+      if (dailyIndex !== -1) {
+        return (dailyIndex + 1).toString().padStart(2, '0');
+      }
+    }
+    return order.id?.slice(0, 8).toUpperCase() || '00';
+  };
+
   useEffect(() => {
     if (hookCashierName) {
       setCashierName(hookCashierName);
@@ -147,23 +165,9 @@ const OngoingOrdersPage = () => {
       // Prepare bill data
       const order = selectedOrder;
       if (order) {
-        // Find the daily sequential number for this order
-        let dailyOrderNumber = '';
-        if (Array.isArray(orders)) {
-          // Get today's orders sorted by created_at
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const sortedTodayOrders = orders
-            .filter((o: any) => new Date(o.created_at) >= today)
-            .sort((a: any, b: any) => new Date(a.created_at) - new Date(b.created_at));
-          const dailyIndex = sortedTodayOrders.findIndex((o: any) => o.id === order.id);
-          if (dailyIndex !== -1) {
-            dailyOrderNumber = (dailyIndex + 1).toString().padStart(2, '0');
-          }
-        }
         const billData = {
-          id: order.id, // Include order ID for auto-save
-          orderNumber: dailyOrderNumber || order.id.slice(0, 8).toUpperCase(),
+          id: order.id,
+          orderNumber: getDailyOrderNumber(order, orders),
           items: order.order_items?.map((item: any) => {
             const matched = (products as any[]).find((p: any) =>
               p.id === item.product_id ||
@@ -297,6 +301,7 @@ const OngoingOrdersPage = () => {
       const query = searchQuery.toLowerCase();
       result = result.filter(order =>
         order.id.toLowerCase().includes(query) ||
+        getDailyOrderNumber(order, orders).includes(query) ||
         order.customers?.name?.toLowerCase().includes(query) ||
         order.restaurant_tables?.table_number?.toLowerCase().includes(query)
       );
@@ -428,7 +433,7 @@ const OngoingOrdersPage = () => {
                         onClick={() => setSelectedOrderId(order.id)}
                       >
                         <TableCell className="font-medium text-slate-600">
-                          #{order.id.slice(0, 8)}
+                          #{getDailyOrderNumber(order, orders)}
                         </TableCell>
                         <TableCell className="text-slate-500 text-xs">
                           {order.created_at ? format(new Date(order.created_at), 'h:mm a') : 'N/A'}
@@ -468,22 +473,9 @@ const OngoingOrdersPage = () => {
                               className="h-8 px-3 font-bold text-xs bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm transition-all"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // Find the daily sequential number for this order
-                                let dailyOrderNumber = '';
-                                if (Array.isArray(orders)) {
-                                  const today = new Date();
-                                  today.setHours(0, 0, 0, 0);
-                                  const sortedTodayOrders = orders
-                                    .filter((o: any) => new Date(o.created_at) >= today)
-                                    .sort((a: any, b: any) => new Date(a.created_at) - new Date(b.created_at));
-                                  const dailyIndex = sortedTodayOrders.findIndex((o: any) => o.id === order.id);
-                                  if (dailyIndex !== -1) {
-                                    dailyOrderNumber = (dailyIndex + 1).toString().padStart(2, '0');
-                                  }
-                                }
                                 const billData = {
                                   id: order.id,
-                                  orderNumber: dailyOrderNumber || order.id.slice(0, 8).toUpperCase(),
+                                  orderNumber: getDailyOrderNumber(order, orders),
                                   items: order.order_items?.map((item: any) => ({
                                     product: {
                                       id: item.product_id,
@@ -553,10 +545,9 @@ const OngoingOrdersPage = () => {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={(e) => {
                                   e.stopPropagation();
-                                  // Prepare bill data for printing
                                   const billData = {
-                                    id: order.id, // Include order ID for auto-save
-                                    orderNumber: order.id.slice(0, 8).toUpperCase(),
+                                    id: order.id,
+                                    orderNumber: getDailyOrderNumber(order, orders),
                                     items: order.order_items?.map((item: any) => ({
                                       product: {
                                         id: item.product_id,

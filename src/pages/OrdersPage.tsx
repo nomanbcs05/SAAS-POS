@@ -58,6 +58,33 @@ import { Separator } from '@/components/ui/separator';
 import { api } from '@/services/api';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 
+const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
+  if (order.daily_id) {
+    return order.daily_id.toString().padStart(2, '0');
+  }
+  if (order.dailyId) {
+    return order.dailyId;
+  }
+  if (Array.isArray(allOrders)) {
+    const orderDate = new Date(order.created_at);
+    const startOfOrderDay = startOfDay(orderDate);
+    const endOfOrderDay = endOfDay(orderDate);
+    
+    const sortedDayOrders = allOrders
+      .filter((o: any) => {
+        const d = new Date(o.created_at);
+        return d >= startOfOrderDay && d <= endOfOrderDay;
+      })
+      .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    
+    const dailyIndex = sortedDayOrders.findIndex((o: any) => o.id === order.id);
+    if (dailyIndex !== -1) {
+      return (dailyIndex + 1).toString().padStart(2, '0');
+    }
+  }
+  return order.id?.slice(0, 8).toUpperCase() || '00';
+};
+
 const OrdersPage = () => {
   const { cashierName } = useMultiTenant();
   const [searchQuery, setSearchQuery] = useState('');
@@ -116,7 +143,7 @@ const OrdersPage = () => {
 
   const handlePrintIndividual = useReactToPrint({
     contentRef: receiptRef,
-    documentTitle: `Receipt-${printingOrder?.dailyId || printingOrder?.id?.slice(0, 8)}`,
+    documentTitle: `Receipt-${printingOrder?.orderNumber || '00'}`,
     onAfterPrint: () => {
       setPrintingOrder(null);
       toast.success('Receipt printed successfully');
@@ -125,7 +152,7 @@ const OrdersPage = () => {
 
   const handlePrintKOT = useReactToPrint({
     contentRef: kotRef,
-    documentTitle: `KOT-Duplicate-${printingKOTOrder?.dailyId || printingKOTOrder?.id?.slice(0, 8)}`,
+    documentTitle: `KOT-Duplicate-${printingKOTOrder?.orderNumber || '00'}`,
     onAfterPrint: () => {
       setPrintingKOTOrder(null);
       toast.success('Duplicate KOT printed successfully');
@@ -134,7 +161,7 @@ const OrdersPage = () => {
 
   const handlePrintBill = useReactToPrint({
     contentRef: billRef,
-    documentTitle: `Bill-${billOrder?.orderNumber || Date.now()}`,
+    documentTitle: `Bill-${billOrder?.orderNumber || '00'}`,
     onAfterPrint: async () => {
       toast.success('Bill printed successfully');
 
@@ -157,11 +184,8 @@ const OrdersPage = () => {
   const onPrintIndividual = async (orderId: string) => {
     try {
       const fullOrder = await api.orders.getByIdWithItems(orderId);
-      // Map database order to the format Receipt expects
-      const dailyId = ordersWithDailyId.find(o => o.id === orderId)?.dailyId;
-
       const formattedOrder = {
-        orderNumber: dailyId || fullOrder.id.slice(0, 8),
+        orderNumber: getDailyOrderNumber(fullOrder, orders),
         items: fullOrder.order_items.map((item: any) => {
           const fallbackProduct = (products as any[])?.find?.((p: any) => p.id === item?.product_id) || {};
           const name = item.products?.name || item.product_name || fallbackProduct.name || 'Unknown Product';
@@ -217,10 +241,8 @@ const OrdersPage = () => {
   const onPrintKOTDuplicate = async (orderId: string) => {
     try {
       const fullOrder = await api.orders.getByIdWithItems(orderId);
-      const dailyId = ordersWithDailyId.find(o => o.id === orderId)?.dailyId;
-
       const formattedOrder = {
-        orderNumber: dailyId || fullOrder.id.slice(0, 8),
+        orderNumber: getDailyOrderNumber(fullOrder, orders),
         items: fullOrder.order_items.map((item: any) => ({
           product: {
             id: item.product_id,
@@ -254,11 +276,9 @@ const OrdersPage = () => {
   const onPrintBill = async (orderId: string) => {
     try {
       const fullOrder = await api.orders.getByIdWithItems(orderId);
-      const dailyId = ordersWithDailyId.find(o => o.id === orderId)?.dailyId;
-
       const billData = {
         id: fullOrder.id, // Include order ID for auto-save
-        orderNumber: dailyId || fullOrder.id.slice(0, 8),
+        orderNumber: getDailyOrderNumber(fullOrder, orders),
         items: fullOrder.order_items?.map((item: any) => ({
           product: {
             id: item.product_id,
@@ -366,7 +386,7 @@ const OrdersPage = () => {
       if (!order) return null;
       return {
         ...order,
-        dailyId: dailyIdMap.get(order.id)
+        dailyId: order.daily_id ? order.daily_id.toString().padStart(2, '0') : dailyIdMap.get(order.id)
       };
     }).filter(Boolean);
   }, [orders]);
@@ -374,6 +394,7 @@ const OrdersPage = () => {
   const filteredOrders = ordersWithDailyId.filter((order: any) => {
     const customerName = order.customers?.name || 'Walk-in Customer';
     const orderDate = new Date(order.created_at);
+    const query = searchQuery.toLowerCase();
 
     // Filter by order type if not 'all'
     const matchesOrderType = orderTypeFilter === 'all' || order.order_type === orderTypeFilter;
@@ -400,9 +421,10 @@ const OrdersPage = () => {
       }
     }
 
-    const matchesSearch = order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (order.dailyId && order.dailyId.includes(searchQuery));
+    const matchesSearch = order.id.toLowerCase().includes(query) ||
+      customerName.toLowerCase().includes(query) ||
+      (order.dailyId && order.dailyId.includes(query)) ||
+      (order.restaurant_tables?.table_number?.toLowerCase().includes(query));
 
     return matchesOrderType && matchesDateRange && matchesSearch && matchesRole;
   });
@@ -498,8 +520,7 @@ const OrdersPage = () => {
   const onViewOrderDetails = async (orderId: string) => {
     try {
       const fullOrder = await api.orders.getByIdWithItems(orderId);
-      const dailyId = ordersWithDailyId.find(o => o.id === orderId)?.dailyId;
-      setViewingOrder({ ...fullOrder, dailyId });
+      setViewingOrder(fullOrder);
       setShowViewModal(true);
     } catch (err) {
       console.error('Error viewing order details:', err);
@@ -652,13 +673,13 @@ const OrdersPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOrders.map((order: any) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-bold text-lg">
-                        {order.dailyId ? `#${order.dailyId}` : '-'}
-                      </TableCell>
-                      <TableCell className="font-medium text-muted-foreground text-xs">{order.id.slice(0, 8)}...</TableCell>
-                      <TableCell>{order.customers?.name || 'Walk-in Customer'}</TableCell>
+                      {filteredOrders.map((order: any) => (
+                        <TableRow key={order.id}>
+                          <TableCell className="font-bold text-lg">
+                            #{getDailyOrderNumber(order, orders)}
+                          </TableCell>
+                          <TableCell className="font-medium text-muted-foreground text-xs">{order.id.substring(0, 8)}...</TableCell>
+                          <TableCell>{order.customers?.name || 'Walk-in Customer'}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="capitalize">
                           {order.order_type?.replace('_', ' ') || 'Dine In'}
@@ -770,7 +791,7 @@ const OrdersPage = () => {
                 Order Details
               </DialogTitle>
               <DialogDescription className="sr-only">
-                Detailed view of order #{viewingOrder?.dailyId || viewingOrder?.id?.slice(0, 8)}
+                Detailed view of order #{getDailyOrderNumber(viewingOrder, orders)}
               </DialogDescription>
             </DialogHeader>
 
@@ -778,7 +799,7 @@ const OrdersPage = () => {
               <div className="max-h-[80vh] overflow-y-auto px-1 pb-4">
                 <Bill order={{
                   ...viewingOrder,
-                  orderNumber: viewingOrder.dailyId || viewingOrder.id.slice(0, 8),
+                  orderNumber: getDailyOrderNumber(viewingOrder, orders),
                   items: viewingOrder.order_items.map((item: any) => ({
                     product: {
                       name: item.products?.name || item.product_name || 'Item',

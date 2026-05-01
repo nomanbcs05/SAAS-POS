@@ -133,7 +133,7 @@ const CartPanel = () => {
       }
       return api.orders.create(orderData.order, orderData.items);
     },
-    onSuccess: (newOrder) => {
+    onSuccess: (newOrder: any) => {
       toast.dismiss(); // Dismiss any loading toast
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
@@ -141,9 +141,17 @@ const CartPanel = () => {
       // If it was an update, newOrder might just be 'true' or the updated order
       // We need to handle both cases for setLastOrder
       if (editingOrderId) {
-        setLastOrder((prev: any) => ({ ...prev, id: editingOrderId }));
+        setLastOrder((prev: any) => ({ 
+          ...prev, 
+          id: editingOrderId,
+          orderNumber: newOrder?.orderNumber || prev?.orderNumber
+        }));
       } else if (newOrder && typeof newOrder === 'object') {
-        setLastOrder((prev: any) => ({ ...prev, id: newOrder.id }));
+        setLastOrder((prev: any) => ({ 
+          ...prev, 
+          id: newOrder.id,
+          orderNumber: newOrder.orderNumber || prev?.orderNumber
+        }));
       }
 
       // Small delay to allow state to update, then print directly (Silent)
@@ -192,6 +200,9 @@ const CartPanel = () => {
       // because the user wants to "save all the orders whose bills was printed once"
       if (items.length > 0) {
         try {
+          const count = await api.orders.getDailyCount(openRegister?.id);
+          const dailyId = count + 1;
+
           const orderInsert = {
             customer_id: customer?.id || null,
             total_amount: total,
@@ -202,6 +213,7 @@ const CartPanel = () => {
             server_name: getServerNameWithRole(),
             customer_address: customerAddress || null,
             register_id: openRegister?.id || null,
+            daily_id: dailyId,
           };
 
           const orderItemsInsert = items.map(item => ({
@@ -262,10 +274,12 @@ const CartPanel = () => {
     cashierName: typeof cashierName;
   }> => {
     const count = await api.orders.getDailyCount(openRegister?.id);
-    const dailyId = (count + 1).toString().padStart(2, '0');
+    const dailyId = count + 1;
+    const dailyIdStr = dailyId.toString().padStart(2, '0');
 
     return {
-      orderNumber: dailyId,
+      orderNumber: dailyIdStr,
+      daily_id: dailyId,
       items: [...items],
       customer,
       rider, // Include rider
@@ -298,7 +312,7 @@ const CartPanel = () => {
       }
       return api.orders.create(orderData.order, orderData.items);
     },
-    onSuccess: async (newOrder) => {
+    onSuccess: async (newOrder: any) => {
       queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
 
@@ -306,8 +320,10 @@ const CartPanel = () => {
       const orderData = await prepareOrderData();
       if (editingOrderId) {
         orderData.id = editingOrderId;
+        if (newOrder?.orderNumber) orderData.orderNumber = newOrder.orderNumber;
       } else if (newOrder && typeof newOrder === 'object') {
         orderData.id = newOrder.id;
+        if (newOrder.orderNumber) orderData.orderNumber = newOrder.orderNumber;
       }
       setLastOrder(orderData);
 
@@ -331,6 +347,9 @@ const CartPanel = () => {
       return;
     }
 
+    const count = await api.orders.getDailyCount(openRegister?.id);
+    const dailyId = count + 1;
+
     const orderInsert = {
       customer_id: customer?.id || null,
       total_amount: total,
@@ -342,6 +361,7 @@ const CartPanel = () => {
       customer_address: customerAddress || null,
       register_id: openRegister?.id || null,
       tenant_id: tenant?.id || null,
+      daily_id: dailyId,
     };
 
     const orderItemsInsert = items.map(item => ({

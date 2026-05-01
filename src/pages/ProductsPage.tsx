@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Plus, Edit, Trash2, MoreHorizontal, Package, AlertTriangle, Loader2, Settings, ChefHat, Utensils, Tag, X, Save } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, MoreHorizontal, Package, AlertTriangle, Loader2, Settings, ChefHat, Utensils, Tag, X, Save, ImagePlus } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -130,7 +130,8 @@ const ProductsPage = () => {
           .filter(item => item.category === category.filter)
           .map(item => ({
             name: item.name,
-            price: item.price || (item.sizes ? item.sizes.Full : 0) // Defaulting to Full price if sizes exist
+            price: item.price || (item.sizes ? item.sizes.Full : 0), // Defaulting to Full price if sizes exist
+            image: (item as any).image || ''
           }));
       }
       setVirtualMenuItems(defaults);
@@ -301,6 +302,24 @@ const ProductsPage = () => {
     }
   };
 
+  const handleVirtualItemImageUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const url = await uploadImageMutation.mutateAsync(file);
+        const newItems = [...virtualMenuItems];
+        newItems[index] = { ...newItems[index], image: url };
+        setVirtualMenuItems(newItems);
+        uiToast({
+          title: "Success",
+          description: "Image uploaded successfully",
+        });
+      } catch (error) {
+        // Error handled by mutation onError
+      }
+    }
+  };
+
   const resetProductForm = () => {
     setNewProduct({
       name: '',
@@ -402,7 +421,7 @@ const ProductsPage = () => {
           cost: 0,
           price: item.price,
           stock: 0,
-          image: '📦',
+          image: item.image || '📦',
           isVirtual: true
         } as any);
       });
@@ -495,7 +514,7 @@ const ProductsPage = () => {
               <div className="flex gap-3">
                 <Button 
                   className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold"
-                  onClick={() => setVirtualMenuItems([...virtualMenuItems, { name: '', price: 0 }])}
+                  onClick={() => setVirtualMenuItems([...virtualMenuItems, { name: '', price: 0, image: '' }])}
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add New Item
@@ -506,6 +525,20 @@ const ProductsPage = () => {
                 <div className="space-y-3">
                   {virtualMenuItems.map((item, index) => (
                     <div key={index} className="flex gap-3 items-center bg-slate-50 p-3 rounded-2xl border border-slate-100 group">
+                      <div className="h-14 w-14 shrink-0 rounded-xl overflow-hidden bg-white border border-slate-200 relative group/img cursor-pointer flex items-center justify-center hover:border-slate-300 transition-colors">
+                        {item.image ? (
+                          <img src={item.image} alt="Item" className="h-full w-full object-cover" />
+                        ) : (
+                          <ImagePlus className="h-5 w-5 text-slate-300 group-hover/img:text-slate-400 transition-colors" />
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                          onChange={(e) => handleVirtualItemImageUpload(index, e)}
+                          title="Upload Image"
+                        />
+                      </div>
                       <div className="flex-1">
                         <Label className="text-[10px] font-black uppercase text-slate-400 ml-1 mb-1 block">Item Name</Label>
                         <Input 

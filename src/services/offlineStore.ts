@@ -7,7 +7,9 @@ const CACHE_KEYS = {
   SESSION: 'pos_offline_session',
   PROFILE: 'pos_offline_profile',
   TENANT: 'pos_offline_tenant',
-  DAILY_COUNTER: 'pos_daily_counter'
+  DAILY_COUNTER: 'pos_daily_counter',
+  PENDING_UPDATES: 'pos_offline_updates',
+  PENDING_DELETIONS: 'pos_offline_deletions'
 };
 
 export const isOnline = () => {
@@ -63,11 +65,27 @@ export interface PendingOrder {
   synced: boolean;
 }
 
-export const queueOrder = (order: any, items: any[]) => {
+export const queueOrder = (order: any, items: any[], existingId?: string) => {
   const pending = getPendingOrders();
+  
+  // If updating an existing offline order
+  if (existingId) {
+    const index = pending.findIndex(o => o.id === existingId);
+    if (index !== -1) {
+      pending[index] = {
+        ...pending[index],
+        order: { ...order, daily_id: pending[index].order.daily_id },
+        items,
+        createdAt: new Date().toISOString()
+      };
+      localStorage.setItem(CACHE_KEYS.PENDING_ORDERS, JSON.stringify(pending));
+      return pending[index];
+    }
+  }
+
   const nextCount = incrementDailyCounter();
   const newOrder: PendingOrder = {
-    id: crypto.randomUUID(),
+    id: existingId || crypto.randomUUID(),
     order: { ...order, daily_id: nextCount }, // Attach daily ID for printing
     items,
     createdAt: new Date().toISOString(),
@@ -97,26 +115,121 @@ export const markOrderSynced = (id: string) => {
   }
 };
 
-export const updateOrderStatus = (id: string, status: string) => {
+export const queueUpdate = (id: string, update: { status?: string; items?: any[]; total_amount?: number }) => {
   try {
+    // 1. Check if it's an offline order
     let pending = JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_ORDERS) || '[]');
-    pending = pending.map((o: PendingOrder) => o.id === id ? { ...o, order: { ...o.order, status } } : o);
-    localStorage.setItem(CACHE_KEYS.PENDING_ORDERS, JSON.stringify(pending));
+    const isOfflineOrder = pending.some((o: PendingOrder) => o.id === id);
+    
+    if (isOfflineOrder) {
+      pending = pending.map((o: PendingOrder) => {
+        if (o.id === id) {
+          const newOrder = { ...o.order };
+          if (update.status) newOrder.status = update.status;
+          if (update.total_amount !== undefined) newOrder.total_amount = update.total_amount;
+          
+          return {
+            ...o,
+            order: newOrder,
+            items: update.items || o.items
+          };
+        }
+        return o;
+      });
+      localStorage.setItem(CACHE_KEYS.PENDING_ORDERS, JSON.stringify(pending));
+      return true;
+    }
+
+    // 2. If it's an online order, queue the update
+    let updates = JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_UPDATES) || '{}');
+    updates[id] = {
+      ...(updates[id] || {}),
+      ...update,
+      timestamp: new Date().toISOString()
+    };
+    localStorage.setItem(CACHE_KEYS.PENDING_UPDATES, JSON.stringify(updates));
     return true;
   } catch (err) {
-    console.error('Error updating order status', err);
+    console.error('Error queuing update', err);
     return false;
+  }
+};
+
+export const updateOrderStatus = (id: string, status: string) => {
+  return queueUpdate(id, { status });
+};
+
+export const getPendingUpdates = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_UPDATES) || '{}');
+  } catch (err) {
+    console.error('Error getting pending updates', err);
+    return {};
+  }
+};
+
+export const clearPendingUpdate = (id: string) => {
+  try {
+    const updates = JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_UPDATES) || '{}');
+    delete updates[id];
+    localStorage.setItem(CACHE_KEYS.PENDING_UPDATES, JSON.stringify(updates));
+  } catch (err) {
+    console.error('Error clearing pending update', err);
   }
 };
 
 export const deleteOrder = (id: string) => {
   try {
+    // 1. Check if it's an offline order
     let pending = JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_ORDERS) || '[]');
-    pending = pending.filter((o: PendingOrder) => o.id !== id);
-    localStorage.setItem(CACHE_KEYS.PENDING_ORDERS, JSON.stringify(pending));
+    const isOfflineOrder = pending.some((o: PendingOrder) => o.id === id);
+
+    if (isOfflineOrder) {
+      pending = pending.filter((o: PendingOrder) => o.id !== id);
+      localStorage.setItem(CACHE_KEYS.PENDING_ORDERS, JSON.stringify(pending));
+      return true;
+    }
+
+    // 2. If it's an online order, queue the deletion
+    let deletions = JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_DELETIONS) || '[]');
+    if (!deletions.includes(id)) {
+      deletions.push(id);
+      localStorage.setItem(CACHE_KEYS.PENDING_DELETIONS, JSON.stringify(deletions));
+    }
     return true;
   } catch (err) {
     console.error('Error deleting order', err);
+    return false;
+  }
+};
+
+export const getPendingDeletions = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_DELETIONS) || '[]');
+  } catch (err) {
+    console.error('Error getting pending deletions', err);
+    return [];
+  }
+};
+
+export const clearPendingDeletion = (id: string) => {
+  try {
+    let deletions = JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_DELETIONS) || '[]');
+    deletions = deletions.filter((did: string) => did !== id);
+    localStorage.setItem(CACHE_KEYS.PENDING_DELETIONS, JSON.stringify(deletions));
+  } catch (err) {
+    console.error('Error clearing pending deletion', err);
+  }
+};
+
+export const clearAllToday = () => {
+  try {
+    localStorage.setItem(CACHE_KEYS.PENDING_ORDERS, '[]');
+    localStorage.setItem(CACHE_KEYS.PENDING_UPDATES, '{}');
+    localStorage.setItem(CACHE_KEYS.PENDING_DELETIONS, '[]');
+    return true;
+  } catch (err) {
+    console.error('Error clearing all today offline', err);
     return false;
   }
 };

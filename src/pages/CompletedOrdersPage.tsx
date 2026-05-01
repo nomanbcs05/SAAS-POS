@@ -120,6 +120,7 @@ const CompletedOrdersPage = () => {
       const query = searchQuery.toLowerCase();
       result = result.filter(order =>
         order.id.toLowerCase().includes(query) ||
+        getDailyOrderNumber(order, orders).includes(query) ||
         order.customers?.name?.toLowerCase().includes(query) ||
         (order as any).restaurant_tables?.table_number?.toLowerCase().includes(query)
       );
@@ -142,32 +143,38 @@ const CompletedOrdersPage = () => {
     }
   };
 
-  const onPrintBill = (order: any) => {
-    // Find the daily sequential number for this order
-    let dailyOrderNumber = '';
-    if (Array.isArray(orders)) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const sortedTodayOrders = orders
-        .filter((o: any) => {
-          if (!o.created_at) return false;
-          const d = new Date(o.created_at);
-          return !isNaN(d.getTime()) && d >= today;
-        })
-        .sort((a: any, b: any) => {
-          const da = new Date(a.created_at).getTime();
-          const db = new Date(b.created_at).getTime();
-          return (isNaN(da) ? 0 : da) - (isNaN(db) ? 0 : db);
-        });
-      const dailyIndex = sortedTodayOrders.findIndex((o: any) => o.id === order.id);
-      if (dailyIndex !== -1) {
-        dailyOrderNumber = (dailyIndex + 1).toString().padStart(2, '0');
-      }
+  const getDailyOrderNumber = (order: any, allOrders: any[]) => {
+    if (order.daily_id) {
+      return order.daily_id.toString().padStart(2, '0');
     }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const sortedTodayOrders = allOrders
+      .filter((o: any) => {
+        if (!o.created_at) return false;
+        const d = new Date(o.created_at);
+        return !isNaN(d.getTime()) && d >= today;
+      })
+      .sort((a: any, b: any) => {
+        const da = new Date(a.created_at).getTime();
+        const db = new Date(b.created_at).getTime();
+        return (isNaN(da) ? 0 : da) - (isNaN(db) ? 0 : db);
+      });
+    const dailyIndex = sortedTodayOrders.findIndex((o: any) => o.id === order.id);
+    if (dailyIndex !== -1) {
+      return (dailyIndex + 1).toString().padStart(2, '0');
+    }
+    return order.id.slice(0, 8).toUpperCase();
+  };
+
+  const onPrintBill = (order: any) => {
+    if (!order) return;
+    const orderNumber = getDailyOrderNumber(order, orders);
     
     const billData = {
       id: order.id,
-      orderNumber: dailyOrderNumber || order.id.slice(0, 8).toUpperCase(),
+      orderNumber: orderNumber,
       items: order.order_items?.map((item: any) => {
         const matched = (products as any[]).find((p: any) =>
           p.id === item.product_id ||
@@ -286,7 +293,7 @@ const CompletedOrdersPage = () => {
                         onClick={() => setSelectedOrderId(order.id)}
                       >
                         <TableCell className="font-bold text-slate-900 text-sm">
-                          #{order.id.slice(0, 8).toUpperCase()}
+                          #{getDailyOrderNumber(order, orders)}
                         </TableCell>
                         <TableCell className="text-slate-500 text-xs font-medium">
                           {(() => {
@@ -386,13 +393,18 @@ const CompletedOrdersPage = () => {
                 <div className="p-6 border-b bg-slate-50/30 space-y-4">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h2 className="text-xl font-black text-slate-900 leading-tight">
-                        {selectedOrder.order_type === 'dine_in'
-                          ? ((selectedOrder as any).restaurant_tables?.table_number
-                            ? `Table ${(selectedOrder as any).restaurant_tables.table_number}`
-                            : 'Table N/A')
-                          : selectedOrder.order_type === 'take_away' ? 'Take Away' : 'Delivery'}
-                      </h2>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-black bg-slate-900 text-white px-1.5 py-0.5 rounded">
+                          #{getDailyOrderNumber(selectedOrder, orders)}
+                        </span>
+                        <h2 className="text-xl font-black text-slate-900 leading-tight">
+                          {selectedOrder.order_type === 'dine_in'
+                            ? ((selectedOrder as any).restaurant_tables?.table_number
+                              ? `Table ${(selectedOrder as any).restaurant_tables.table_number}`
+                              : 'Table N/A')
+                            : selectedOrder.order_type === 'take_away' ? 'Take Away' : 'Delivery'}
+                        </h2>
+                      </div>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge variant="secondary" className="bg-emerald-50 text-emerald-600 border-none text-[8px] font-black uppercase tracking-tighter py-0 px-1.5 h-4">
                           <CheckCircle2 className="h-2.5 w-2.5 mr-1" />
