@@ -141,7 +141,12 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
     ? `indus_${initialCategory.toLowerCase().replace(/\s+/g, '_').replace(/[()]/g, '')}`
     : 'indus_all';
 
-  const [categoryImage, setCategoryImage] = useState<string>(() => localStorage.getItem('pos_category_image_' + categoryKey) || '');
+  const [categoryImage, setCategoryImage] = useState<string>(() => {
+    const saved = localStorage.getItem('pos_category_image_' + categoryKey);
+    if (saved) return saved;
+    if (categoryKey === 'indus_salads') return '/Salad.png';
+    return '';
+  });
 
   const uploadImageMutation = useMutation({
     mutationFn: api.products.uploadImage,
