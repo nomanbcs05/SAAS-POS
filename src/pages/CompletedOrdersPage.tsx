@@ -144,6 +144,7 @@ const CompletedOrdersPage = () => {
   };
 
   const getDailyOrderNumber = (order: any, allOrders: any[]) => {
+    if (!order) return '00';
     if (order.daily_id) {
       return order.daily_id.toString().padStart(2, '0');
     }

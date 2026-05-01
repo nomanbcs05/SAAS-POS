@@ -74,7 +74,7 @@ export const queueOrder = (order: any, items: any[], existingId?: string) => {
     if (index !== -1) {
       pending[index] = {
         ...pending[index],
-        order: { ...order, daily_id: pending[index].order.daily_id },
+        order: { ...order, daily_id: pending[index].order?.daily_id },
         items,
         createdAt: new Date().toISOString()
       };

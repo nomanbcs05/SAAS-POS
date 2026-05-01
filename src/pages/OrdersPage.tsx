@@ -59,6 +59,7 @@ import { api } from '@/services/api';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 
 const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
+  if (!order) return '00';
   if (order.daily_id) {
     return order.daily_id.toString().padStart(2, '0');
   }
@@ -386,7 +387,7 @@ const OrdersPage = () => {
       if (!order) return null;
       return {
         ...order,
-        dailyId: order.daily_id ? order.daily_id.toString().padStart(2, '0') : dailyIdMap.get(order.id)
+        dailyId: order?.daily_id ? order.daily_id.toString().padStart(2, '0') : dailyIdMap.get(order.id)
       };
     }).filter(Boolean);
   }, [orders]);

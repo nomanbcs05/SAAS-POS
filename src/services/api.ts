@@ -523,8 +523,8 @@ export const api = {
           id: queued.id, 
           _offline: true, 
           created_at: queued.createdAt,
-          daily_id: queued.order.daily_id,
-          orderNumber: queued.order.daily_id.toString().padStart(2, '0')
+          daily_id: queued.order?.daily_id,
+          orderNumber: queued.order?.daily_id?.toString().padStart(2, '0')
         };
       };
 
