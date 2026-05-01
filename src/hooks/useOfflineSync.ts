@@ -173,11 +173,39 @@ async function syncPendingOrders() {
         daily_id: order.daily_id || null,
       };
 
-      const { data: newOrder, error: orderError } = await supabase
+      let { data: newOrder, error: orderError } = await supabase
         .from('orders')
         .insert(safeOrder)
         .select()
         .maybeSingle();
+
+      // Retry without optional columns if schema mismatch
+      if (orderError && (orderError.code === 'PGRST204' || orderError.message.includes('Could not find the'))) {
+        console.warn("[Sync] Retrying order sync without optional columns (schema mismatch):", orderError.message);
+        const { 
+          customer_address, 
+          server_name, 
+          table_id, 
+          register_id, 
+          tenant_id,
+          daily_id,
+          customer_id,
+          ...minimalOrder 
+        } = safeOrder;
+        
+        const { data: retryData, error: retryError } = await supabase
+          .from('orders')
+          .insert(minimalOrder)
+          .select()
+          .maybeSingle();
+          
+        if (!retryError && retryData) {
+          newOrder = retryData;
+          orderError = null;
+        } else if (retryError) {
+          orderError = retryError;
+        }
+      }
 
       if (orderError || !newOrder) {
         console.error('[Sync] Failed to insert order:', orderError);

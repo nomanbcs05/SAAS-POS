@@ -670,6 +670,8 @@ export const api = {
           table_id, 
           register_id, 
           tenant_id,
+          daily_id,
+          customer_id,
           ...minimalOrder 
         } = safeOrder;
         
@@ -829,6 +831,8 @@ export const api = {
           table_id, 
           register_id, 
           tenant_id,
+          daily_id,
+          customer_id,
           ...minimalOrder 
         } = safeOrder;
         
