@@ -194,7 +194,7 @@ const ProductGrid = () => {
         name: 'Pizzas Menu',
         price: 0,
         category: 'Pizzas',
-        image: '/Pizzas.png',
+        image: localStorage.getItem('pos_category_image_pizza') || '/Pizzas.png',
         imageFallbacks: ['/Pizzas.jpg', '/Pizza.png', '/pizza.png', '/pizza.jpg', '/Pizzas.jpeg'],
         isVirtual: true,
         modalType: 'pizza'
@@ -215,7 +215,7 @@ const ProductGrid = () => {
          name: 'Rolls Menu',
          price: 0,
          category: 'Rolls',
-          image: '/Rolls.png',
+          image: localStorage.getItem('pos_category_image_roll') || '/Rolls.png',
           imageFallbacks: ['/Rolls.jpg', '/Roll.png', '/roll.png', '/roll.jpg', '/Rolls.jpeg'],
          isVirtual: true,
          modalType: 'roll'
@@ -235,7 +235,7 @@ const ProductGrid = () => {
          name: 'Broast Menu',
          price: 0,
          category: 'Broast',
-         image: '/Broast.png',
+         image: localStorage.getItem('pos_category_image_broast') || '/Broast.png',
          imageFallbacks: ['/Broast.jpg', '/broast.png', '/broast.jpg', '/Broast.jpeg'],
          isVirtual: true,
          modalType: 'simple-broast'
@@ -255,7 +255,7 @@ const ProductGrid = () => {
          name: 'Burgers Menu',
          price: 0,
          category: 'Burgers',
-        image: '/Burgers.png',
+        image: localStorage.getItem('pos_category_image_burger') || '/Burgers.png',
         imageFallbacks: ['/Burgers.jpg', '/Burger.png', '/burger.png', '/burger.jpg', '/Burgers.jpeg'],
          isVirtual: true,
          modalType: 'burger'
@@ -275,7 +275,7 @@ const ProductGrid = () => {
          name: 'BAR BQ Menu',
          price: 0,
          category: 'BAR BQ',
-        image: '/Barbq.png',
+        image: localStorage.getItem('pos_category_image_barbq') || '/Barbq.png',
         imageFallbacks: ['/Barbq.jpg', '/Barbq.jpeg', '/barbq.png', '/barbq.jpg'],
          isVirtual: true,
          modalType: 'barbq'
@@ -295,7 +295,7 @@ const ProductGrid = () => {
          name: 'Sauces & Toppings',
          price: 0,
          category: 'ALA CART',
-        image: '/sauces.png',
+        image: localStorage.getItem('pos_category_image_sauce') || '/sauces.png',
          isVirtual: true,
          modalType: 'sauce-topping'
        };
@@ -314,7 +314,7 @@ const ProductGrid = () => {
          name: 'Deals Menu',
          price: 0,
          category: 'Deals',
-         image: '/gx.png', // Fallback icon
+         image: localStorage.getItem('pos_category_image_deals') || '/gx.png', // Fallback icon
          isVirtual: true,
          modalType: 'deals'
        };
@@ -333,7 +333,7 @@ const ProductGrid = () => {
          name: 'Fries Menu',
          price: 0,
          category: 'ALA CART',
-         image: '🍟',
+         image: localStorage.getItem('pos_category_image_fries') || '🍟',
          isVirtual: true,
          modalType: 'fries'
        };
@@ -352,7 +352,7 @@ const ProductGrid = () => {
          name: 'Beverages Menu',
          price: 0,
          category: 'Beverages',
-         image: '🥤',
+         image: localStorage.getItem('pos_category_image_beverages') || '🥤',
          isVirtual: true,
          modalType: 'beverages'
        };
@@ -371,7 +371,7 @@ const ProductGrid = () => {
          name: 'ALA CART Menu',
          price: 0,
          category: 'ALA CART',
-         image: '🍱',
+         image: localStorage.getItem('pos_category_image_alacart') || '🍱',
          isVirtual: true,
          modalType: 'alacart'
        };
@@ -409,7 +409,7 @@ const ProductGrid = () => {
              name: `${cat.name} Menu`,
              price: 0,
              category: cat.name,
-             image: '🍲',
+             image: localStorage.getItem('pos_category_image_' + cat.id) || '🍲',
              isVirtual: true,
              modalType: 'indus',
              indusCategory: cat.name

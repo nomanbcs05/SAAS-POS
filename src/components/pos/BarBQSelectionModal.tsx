@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, Utensils, ChefHat, Edit2, Save, Trash2 } from 'lucide-react';
+import { Search, Plus, Utensils, ChefHat, Edit2, Save, Trash2, ImagePlus, Loader2 } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { api } from '@/services/api';
+import { useMutation } from '@tanstack/react-query';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 import { toast } from 'sonner';
 
@@ -37,6 +39,28 @@ export default function BarBQSelectionModal({ isOpen, onClose, onAdd }: BarBQSel
   const { isAdmin } = useMultiTenant();
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [menuItems, setMenuItems] = useState<BarBQItem[]>([]);
+  const [categoryImage, setCategoryImage] = useState<string>(() => localStorage.getItem('pos_category_image_barbq') || '');
+
+  const uploadImageMutation = useMutation({
+    mutationFn: api.products.uploadImage,
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to upload image");
+    },
+  });
+
+  const handleCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const url = await uploadImageMutation.mutateAsync(file);
+        setCategoryImage(url);
+        localStorage.setItem('pos_category_image_barbq', url);
+        toast.success("Category image uploaded successfully");
+      } catch (error) {
+        // Error handled by mutation onError
+      }
+    }
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem('pos_menu_barbq');
@@ -112,8 +136,28 @@ export default function BarBQSelectionModal({ isOpen, onClose, onAdd }: BarBQSel
         <div className="bg-slate-900 bg-gradient-to-br from-slate-900 to-slate-800 px-6 py-5 text-white shrink-0 relative">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/10 rounded-lg">
-                <ChefHat className="h-7 w-7 text-orange-500" />
+              <div className="p-2 bg-white/10 rounded-lg relative overflow-hidden group">
+                {categoryImage ? (
+                  <img src={categoryImage} alt="Bar BQ" className="h-7 w-7 object-cover rounded-md" />
+                ) : (
+                  <ChefHat className="h-7 w-7 text-orange-500" />
+                )}
+                {isEditingMode && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                    {uploadImageMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 text-white animate-spin" />
+                    ) : (
+                      <ImagePlus className="h-4 w-4 text-white" />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      onChange={handleCategoryImageUpload}
+                      disabled={uploadImageMutation.isPending}
+                    />
+                  </div>
+                )}
               </div>
               <div>
                 <div className="flex items-center gap-2">

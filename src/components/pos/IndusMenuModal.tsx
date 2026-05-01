@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, Utensils, ChefHat, Edit2, Trash2, ImagePlus } from 'lucide-react';
+import { Search, Plus, Utensils, ChefHat, Edit2, Trash2, ImagePlus, Loader2 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { api } from '@/services/api';
 import { useMutation } from '@tanstack/react-query';
@@ -137,6 +137,12 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const { isAdmin } = useMultiTenant();
 
+  const categoryKey = initialCategory 
+    ? `indus_${initialCategory.toLowerCase().replace(/\s+/g, '_').replace(/[()]/g, '')}`
+    : 'indus_all';
+
+  const [categoryImage, setCategoryImage] = useState<string>(() => localStorage.getItem('pos_category_image_' + categoryKey) || '');
+
   const uploadImageMutation = useMutation({
     mutationFn: api.products.uploadImage,
     onError: (error) => {
@@ -144,13 +150,14 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
     },
   });
 
-  const handleImageUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       try {
         const url = await uploadImageMutation.mutateAsync(file);
-        handleUpdateItem(index, 'image', url);
-        toast.success("Image uploaded successfully");
+        setCategoryImage(url);
+        localStorage.setItem('pos_category_image_' + categoryKey, url);
+        toast.success("Category image uploaded successfully");
       } catch (error) {
         // Error handled by mutation onError
       }
@@ -258,8 +265,28 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
         <div className="bg-slate-900 bg-gradient-to-br from-slate-900 to-slate-800 px-6 py-5 text-white shrink-0">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/10 rounded-lg">
-                <Utensils className="h-7 w-7 text-blue-500" />
+              <div className="p-2 bg-white/10 rounded-lg relative overflow-hidden group">
+                {categoryImage ? (
+                  <img src={categoryImage} alt="Category" className="h-7 w-7 object-cover rounded-md" />
+                ) : (
+                  <Utensils className="h-7 w-7 text-blue-500" />
+                )}
+                {isEditingMode && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                    {uploadImageMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 text-white animate-spin" />
+                    ) : (
+                      <ImagePlus className="h-4 w-4 text-white" />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      onChange={handleCategoryImageUpload}
+                      disabled={uploadImageMutation.isPending}
+                    />
+                  </div>
+                )}
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -354,41 +381,16 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
                         </Button>
                       )}
                     </div>
-                    <div className="flex gap-3 mb-4 items-center">
-                      {(item.image || isEditingMode) && (
-                        <div className={cn(
-                          "h-12 w-12 shrink-0 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 relative group/img flex items-center justify-center",
-                          isEditingMode ? "cursor-pointer hover:border-blue-300" : ""
-                        )}>
-                          {item.image ? (
-                            <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
-                          ) : (
-                            <ImagePlus className="h-5 w-5 text-slate-400 group-hover/img:text-slate-500 transition-colors" />
-                          )}
-                          {isEditingMode && (
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                              onChange={(e) => handleImageUpload(originalIndex, e)}
-                              title="Upload Image"
-                            />
-                          )}
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        {isEditingMode ? (
-                          <Input 
-                            value={item.name} 
-                            onChange={(e) => handleUpdateItem(originalIndex, 'name', e.target.value)}
-                            className="h-9 text-sm font-bold"
-                            placeholder="Item Name"
-                          />
-                        ) : (
-                          <h3 className="text-base font-bold text-slate-900">{item.name}</h3>
-                        )}
-                      </div>
-                    </div>
+                    {isEditingMode ? (
+                      <Input 
+                        value={item.name} 
+                        onChange={(e) => handleUpdateItem(originalIndex, 'name', e.target.value)}
+                        className="h-9 text-sm font-bold mb-4"
+                        placeholder="Item Name"
+                      />
+                    ) : (
+                      <h3 className="text-base font-bold text-slate-900 mb-4">{item.name}</h3>
+                    )}
                   </div>
 
                   <div className="flex gap-2">
