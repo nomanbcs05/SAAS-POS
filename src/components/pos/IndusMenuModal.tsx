@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, Utensils, ChefHat, Edit2, Trash2 } from 'lucide-react';
+import { Search, Plus, Utensils, ChefHat, Edit2, Trash2, ImagePlus } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { api } from '@/services/api';
+import { useMutation } from '@tanstack/react-query';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,6 +21,7 @@ interface MenuItem {
   name: string;
   category: string;
   price?: number;
+  image?: string;
   sizes?: {
     Half: number;
     Full: number;
@@ -134,6 +137,26 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const { isAdmin } = useMultiTenant();
 
+  const uploadImageMutation = useMutation({
+    mutationFn: api.products.uploadImage,
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to upload image");
+    },
+  });
+
+  const handleImageUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const url = await uploadImageMutation.mutateAsync(file);
+        handleUpdateItem(index, 'image', url);
+        toast.success("Image uploaded successfully");
+      } catch (error) {
+        // Error handled by mutation onError
+      }
+    }
+  };
+
   useEffect(() => {
     if (initialCategory) {
       setSelectedCategory(initialCategory);
@@ -215,7 +238,7 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
       name,
       price: price || 0,
       category: item.category,
-      image: '🍲',
+      image: item.image || '🍲',
       sku: `IND-${item.name.substring(0, 3).toUpperCase()}${size ? `-${size[0]}` : ''}`,
     };
 
@@ -331,16 +354,41 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
                         </Button>
                       )}
                     </div>
-                    {isEditingMode ? (
-                      <Input 
-                        value={item.name} 
-                        onChange={(e) => handleUpdateItem(originalIndex, 'name', e.target.value)}
-                        className="h-9 text-sm font-bold mb-4"
-                        placeholder="Item Name"
-                      />
-                    ) : (
-                      <h3 className="text-base font-bold text-slate-900 mb-4">{item.name}</h3>
-                    )}
+                    <div className="flex gap-3 mb-4 items-center">
+                      {(item.image || isEditingMode) && (
+                        <div className={cn(
+                          "h-12 w-12 shrink-0 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 relative group/img flex items-center justify-center",
+                          isEditingMode ? "cursor-pointer hover:border-blue-300" : ""
+                        )}>
+                          {item.image ? (
+                            <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <ImagePlus className="h-5 w-5 text-slate-400 group-hover/img:text-slate-500 transition-colors" />
+                          )}
+                          {isEditingMode && (
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                              onChange={(e) => handleImageUpload(originalIndex, e)}
+                              title="Upload Image"
+                            />
+                          )}
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        {isEditingMode ? (
+                          <Input 
+                            value={item.name} 
+                            onChange={(e) => handleUpdateItem(originalIndex, 'name', e.target.value)}
+                            className="h-9 text-sm font-bold"
+                            placeholder="Item Name"
+                          />
+                        ) : (
+                          <h3 className="text-base font-bold text-slate-900">{item.name}</h3>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex gap-2">
