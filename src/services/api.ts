@@ -353,6 +353,23 @@ export const api = {
       if (error) throw error;
       return data;
     },
+    create: async (table: { table_number: string; section: string; capacity: number }) => {
+      const { data, error } = await supabase
+        .from('restaurant_tables')
+        .insert(table)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    bulkCreate: async (tables: { table_number: string; section: string; capacity: number }[]) => {
+      const { data, error } = await supabase
+        .from('restaurant_tables')
+        .insert(tables)
+        .select();
+      if (error) throw error;
+      return data;
+    },
     updateStatus: async (id: string, status: 'available' | 'occupied' | 'reserved' | 'cleaning') => {
       const { data, error } = await supabase
         .from('restaurant_tables')

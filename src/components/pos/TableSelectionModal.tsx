@@ -101,6 +101,26 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     toast.success('Proceeding with Dine-In (No Table)');
   };
 
+  const seedTablesMutation = useMutation({
+    mutationFn: async () => {
+      const tablesToCreate = Array.from({ length: 15 }, (_, i) => ({
+        table_number: `${i + 1}`,
+        section: 'indoor',
+        capacity: 4,
+        status: 'available' as const
+      }));
+      return api.tables.bulkCreate(tablesToCreate);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
+      toast.success('Tables 1-15 generated successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to generate tables');
+      console.error(error);
+    }
+  });
+
   const handleClearTable = (e: React.MouseEvent, table: any) => {
     e.stopPropagation();
     updateStatusMutation.mutate({ 
@@ -274,7 +294,16 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
                   {filteredTables.length === 0 && !isLoading && (
                     <div className="flex flex-col items-center justify-center py-20 text-slate-300">
                       <LayoutGrid className="h-16 w-16 mb-4 opacity-10" />
-                      <p className="text-sm font-black uppercase tracking-widest opacity-40">No tables in this section</p>
+                      <p className="text-sm font-black uppercase tracking-widest opacity-40 mb-6">No tables in this section</p>
+                      {activeFilter === 'all' && (
+                        <Button 
+                          onClick={() => seedTablesMutation.mutate()}
+                          disabled={seedTablesMutation.isPending}
+                          className="bg-slate-900 text-white rounded-2xl h-14 px-8 font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl"
+                        >
+                          {seedTablesMutation.isPending ? 'Generating...' : 'Generate Tables 1-15'}
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
