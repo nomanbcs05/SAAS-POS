@@ -257,6 +257,13 @@ const OngoingOrdersPage = () => {
     }
   };
 
+  const handleQuickEdit = () => {
+    if (selectedOrder) {
+      setEditedItems(selectedOrder.order_items.map((item: any) => ({ ...item })));
+      setIsEditing(true);
+    }
+  };
+
   const handleSaveEdit = () => {
     if (selectedOrderId) {
       updateOrderItemsMutation.mutate({
@@ -655,9 +662,13 @@ const OngoingOrdersPage = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-36 rounded-lg">
+                        <DropdownMenuItem className="py-1.5 text-xs" onClick={handleQuickEdit}>
+                          <Edit2 className="h-3 w-3 mr-2" />
+                          Quick Edit
+                        </DropdownMenuItem>
                         <DropdownMenuItem className="py-1.5 text-xs" onClick={handleEditOrder}>
                           <Edit2 className="h-3 w-3 mr-2" />
-                          Edit Order
+                          Full Edit (POS)
                         </DropdownMenuItem>
                         <DropdownMenuItem className="py-1.5 text-xs">Transfer Table</DropdownMenuItem>
                         <DropdownMenuItem className="py-1.5 text-xs text-red-600">Cancel Order</DropdownMenuItem>
@@ -831,10 +842,10 @@ const OngoingOrdersPage = () => {
                         <Button
                           variant="outline"
                           className="flex-1 h-12 font-bold border-slate-200 text-slate-600 rounded-xl"
-                          onClick={handleEditOrder}
+                          onClick={handleQuickEdit}
                         >
                           <Edit2 className="h-4 w-4 mr-2" />
-                          Edit Order
+                          Quick Edit
                         </Button>
                       </div>
                       <Button

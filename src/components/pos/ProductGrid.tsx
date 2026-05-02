@@ -534,8 +534,7 @@ const ProductGrid = () => {
               orderType === 'dine_in' ? "bg-white text-blue-600 hover:bg-slate-50 border-2 border-blue-600 shadow-sm" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
             )}
             onClick={() => {
-              setOrderType('dine_in');
-              if (!tableId) setShowTableModal(true);
+              navigate('/dining');
             }}
           >
             <Utensils className="h-5 w-5" />

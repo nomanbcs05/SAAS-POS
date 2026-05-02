@@ -14,8 +14,9 @@ import ProductsPage from "./pages/ProductsPage";
 import CustomersPage from "./pages/CustomersPage";
 import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
-import LedgerPage from "./pages/LedgerPage";
+
 import Welcome from "./pages/Welcome";
+import DiningPage from "./pages/DiningPage";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
 import LicenseGenerator from "./pages/LicenseGenerator";
@@ -75,6 +76,11 @@ const AppContent = () => {
               <Index />
             </ProtectedRoute>
           } />
+          <Route path="/dining" element={
+            <ProtectedRoute>
+              <DiningPage />
+            </ProtectedRoute>
+          } />
           <Route path="/ongoing-orders" element={
             <ProtectedRoute>
               <OngoingOrdersPage />
@@ -110,11 +116,7 @@ const AppContent = () => {
               <SettingsPage />
             </ProtectedRoute>
           } />
-          <Route path="/ledger" element={
-            <ProtectedRoute adminOnly={true}>
-              <LedgerPage />
-            </ProtectedRoute>
-          } />
+
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
       </Routes>

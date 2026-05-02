@@ -101,6 +101,7 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutGrid },
+    { name: 'Dining', href: '/dining', icon: Utensils },
     { name: 'SaaS Admin', href: '/saas-admin', icon: ShieldCheck, superAdminOnly: true },
     { name: 'Running Orders', href: '/ongoing-orders', icon: Clock },
     { name: 'Completed Orders', href: '/completed-orders', icon: CheckCircle2 },
@@ -108,7 +109,7 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
     { name: 'Products', href: '/products', icon: Package, adminOnly: true, management: true },
     { name: 'Customers', href: '/customers', icon: Users, adminOnly: true, management: true },
     { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true, management: true },
-    { name: 'Account Ledgers', href: '/ledger', icon: ClipboardList, adminOnly: true, management: true },
+
     { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true, management: true },
   ].filter(item => {
     if (item.superAdminOnly) return profile?.role === 'super-admin';
