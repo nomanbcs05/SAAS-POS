@@ -6,10 +6,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { api } from '@/services/api';
 import { useCartStore } from '@/stores/cartStore';
 import { toast } from 'sonner';
-import { Users, X, Trash2, UserCircle2 } from 'lucide-react';
+import { Users, X, UserCircle2, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-const SERVERS = ['Babar', 'Touheed', 'Nasrullah'];
 
 interface TableSelectionModalProps {
   isOpen: boolean;
@@ -20,12 +18,16 @@ type TableStatus = 'available' | 'occupied' | 'reserved' | 'cleaning';
 type TableSection = 'indoor' | 'outdoor' | 'vip';
 
 const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
+  const [step, setStep] = useState<'server' | 'table'>('server');
   const [activeFilter, setActiveFilter] = useState<TableSection | 'all'>('all');
   const [serverList, setServerList] = useState<string[]>(['Babar', 'Touheed', 'Nasrullah']);
   const { setTableId, setOrderType, serverName, setServerName } = useCartStore();
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    if (isOpen) {
+      setStep('server');
+    }
     const savedServers = localStorage.getItem('pos_server_names');
     if (savedServers) {
       setServerList(JSON.parse(savedServers));
@@ -35,6 +37,12 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
   const { data: tables = [], isLoading } = useQuery({
     queryKey: ['tables'],
     queryFn: api.tables.getAll,
+    enabled: isOpen,
+  });
+
+  const { data: ongoingOrders = [] } = useQuery({
+    queryKey: ['ongoing-orders'],
+    queryFn: api.orders.getOngoing,
     enabled: isOpen,
   });
 
@@ -48,44 +56,42 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     onError: (error) => {
       toast.error('Failed to update table status');
       console.error(error);
-      // Rollback optimistic update
       setTableId(null);
       setOrderType('take_away');
     }
   });
 
-  const clearReservedMutation = useMutation({
-    mutationFn: api.tables.clearReserved,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tables'] });
-      toast.success('All reserved tables cleared');
-    },
-    onError: (error) => {
-      toast.error('Failed to clear reserved tables');
-      console.error(error);
-    }
-  });
+  const handleServerSelect = (name: string) => {
+    setServerName(name);
+    setStep('table');
+  };
 
   const handleTableSelect = (table: any) => {
-    if (table.status !== 'available') return;
-
-    // Optimistically update UI
-    setTableId(table.id || table.table_id);
-    setOrderType('dine_in');
+    const tableIdVal = table.id || table.table_id;
+    const isOccupied = ongoingOrders.some((o: any) => o.table_id === tableIdVal);
     
-    // Check if server is selected, if not show reminder but allow proceeding
-    if (!serverName) {
-      toast.info('Note: No server selected for this table');
+    if (isOccupied) {
+      setTableId(tableIdVal);
+      setOrderType('dine_in');
+      onClose();
+      toast.success(`Table ${table.table_number} loaded`);
+      return;
     }
+
+    if (table.status !== 'available' && table.status !== 'occupied') return;
+
+    setTableId(tableIdVal);
+    setOrderType('dine_in');
     
     onClose();
     toast.success(`Table ${table.table_number} selected`);
 
-    // Perform server update in background
-    updateStatusMutation.mutate({ 
-      id: table.id || table.table_id, 
-      status: 'occupied' 
-    });
+    if (table.status === 'available') {
+      updateStatusMutation.mutate({ 
+        id: tableIdVal, 
+        status: 'occupied' 
+      });
+    }
   };
 
   const handleSkipTable = () => {
@@ -96,13 +102,11 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
   };
 
   const handleClearTable = (e: React.MouseEvent, table: any) => {
-    e.stopPropagation(); // Prevent selecting the table
-    
+    e.stopPropagation();
     updateStatusMutation.mutate({ 
       id: table.id || table.table_id, 
       status: 'available' 
     });
-    
     toast.success(`Table ${table.table_number} is now available`);
   };
 
@@ -123,167 +127,193 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent 
-        className="max-w-[700px] w-[95vw] max-h-[95vh] p-0 overflow-hidden bg-background rounded-2xl shadow-2xl border-none"
+        className="max-w-[750px] w-[95vw] max-h-[90vh] p-0 overflow-hidden bg-background rounded-[2.5rem] shadow-2xl border-none"
         aria-describedby="table-selection-description"
       >
-        <div className="flex flex-col h-full max-h-[95vh]">
+        <div className="flex flex-col h-full max-h-[90vh]">
           {/* Header Section */}
-          <div className="p-6 pb-4 border-b bg-slate-50/50">
+          <div className="p-8 pb-4 bg-slate-50/50 relative">
             <div className="flex justify-between items-start">
               <DialogHeader className="space-y-1">
-                <DialogTitle className="text-2xl font-black font-heading uppercase tracking-tight text-slate-900">
-                  Dine-In Selection
+                <DialogTitle className="text-3xl font-black font-heading uppercase tracking-tight text-slate-900">
+                  {step === 'server' ? 'Select Server' : 'Choose Table'}
                 </DialogTitle>
                 <DialogDescription id="table-selection-description" className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-                  Assign server & table (Optional)
+                  {step === 'server' ? 'Step 1 of 2: Assign a server' : `Step 2 of 2: Select a table (${activeFilter})`}
                 </DialogDescription>
               </DialogHeader>
               <div className="flex items-center gap-3">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => clearReservedMutation.mutate()}
-                  className="text-[10px] h-8 font-bold font-heading uppercase tracking-widest border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
-                >
-                  Clear Reserved
-                </Button>
+                {step === 'table' && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setStep('server')}
+                    className="text-[10px] h-9 px-4 font-black font-heading uppercase tracking-widest border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-xl"
+                  >
+                    Back to Servers
+                  </Button>
+                )}
                 <Button 
                   variant="ghost" 
                   size="icon" 
                   onClick={onClose} 
-                  className="h-8 w-8 rounded-full hover:bg-slate-200 transition-colors"
+                  className="h-9 w-9 rounded-full hover:bg-slate-200 transition-colors"
                 >
-                  <X className="h-4 w-4 text-slate-500" />
+                  <X className="h-5 w-5 text-slate-500" />
                 </Button>
               </div>
             </div>
           </div>
 
-          <div className="p-6 pt-4 overflow-y-auto">
-            {/* Server Selection Section */}
-            <div className="mb-8 space-y-4">
-              <div className="flex items-center gap-2 text-[10px] font-black font-heading uppercase tracking-[0.15em] text-slate-400">
-                <UserCircle2 className="w-3.5 h-3.5" />
-                Select Server
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {serverList.map((name) => (
-                  <Button
-                    key={name}
-                    variant={serverName === name ? "default" : "outline"}
-                    onClick={() => setServerName(serverName === name ? null : name)}
-                    className={cn(
-                      "rounded-xl text-xs font-bold transition-all h-12 border-2",
-                      serverName === name 
-                        ? "bg-slate-900 border-slate-900 text-white shadow-lg scale-[1.02]" 
-                        : "border-slate-100 bg-slate-50/50 text-slate-600 hover:border-slate-300 hover:bg-white"
-                    )}
-                  >
-                    {name}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2 text-[10px] font-black font-heading uppercase tracking-[0.15em] text-slate-400">
-                <Users className="w-3.5 h-3.5" />
-                Select Table
-              </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleSkipTable}
-                className="text-[10px] font-black font-heading uppercase tracking-widest text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8 px-3 rounded-lg border border-emerald-100"
-              >
-                Skip Table Selection
-              </Button>
-            </div>
-
-            <div className="flex gap-1.5 mb-6 bg-slate-100/80 p-1.5 rounded-xl">
-              {(['all', 'indoor', 'outdoor', 'vip'] as const).map((section) => (
-                <Button
-                  key={section}
-                  variant={activeFilter === section ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setActiveFilter(section)}
-                  className={cn(
-                    "flex-1 rounded-lg text-[10px] font-black font-heading uppercase tracking-widest h-9 transition-all",
-                    activeFilter === section 
-                      ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200" 
-                      : "text-slate-500 hover:text-slate-900"
-                  )}
-                >
-                  {section}
-                </Button>
-              ))}
-            </div>
-
-            {/* Tables Grid */}
-            <div className="min-h-[300px]">
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center h-48 text-slate-400 gap-3">
-                  <div className="w-6 h-6 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Loading tables...</span>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pb-4">
-                  {filteredTables.map((table: any) => (
-                    <div
-                      key={table.table_id}
-                      onClick={() => handleTableSelect(table)}
+          <div className="px-8 pb-8 pt-4 overflow-y-auto">
+            {step === 'server' ? (
+              <div className="space-y-6 py-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {serverList.map((name) => (
+                    <Button
+                      key={name}
+                      variant={serverName === name ? "default" : "outline"}
+                      onClick={() => handleServerSelect(name)}
                       className={cn(
-                        "relative border-2 rounded-2xl p-4 flex flex-col items-center justify-center gap-1 transition-all duration-300 group",
-                        "h-28 shadow-sm",
-                        getStatusColor(table.status),
-                        table.status === 'available' 
-                          ? "cursor-pointer hover:-translate-y-1.5 hover:shadow-xl hover:border-emerald-400" 
-                          : "opacity-80"
+                        "rounded-3xl text-sm font-black font-heading uppercase tracking-wider transition-all h-24 border-2 flex flex-col gap-2 shadow-sm",
+                        serverName === name 
+                          ? "bg-slate-900 border-slate-900 text-white shadow-xl scale-[1.05] z-10" 
+                          : "border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:shadow-md"
                       )}
                     >
-                      <span className="text-2xl font-black font-heading tracking-tight">{table.table_number}</span>
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider opacity-70">
-                        <Users className="w-3 h-3" />
-                        <span>{table.capacity} Seats</span>
-                      </div>
-                      <div className={cn(
-                        "text-[8px] uppercase tracking-[0.2em] font-black px-2 py-0.5 rounded-full mt-1",
-                        table.status === 'available' ? "bg-emerald-500/10" : "bg-slate-900/10"
-                      )}>
-                        {table.status}
-                      </div>
-                      
-                      {table.status !== 'available' && (
-                        <Button 
-                          size="icon" 
-                          variant="destructive" 
-                          className="absolute -top-2 -right-2 h-7 w-7 rounded-full shadow-lg z-10 opacity-100 hover:scale-110 active:scale-95 transition-all"
-                          onClick={(e) => handleClearTable(e, table)}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </div>
+                      <UserCircle2 className={cn("w-6 h-6", serverName === name ? "text-blue-400" : "text-slate-300")} />
+                      {name}
+                    </Button>
                   ))}
                 </div>
-              )}
-            </div>
+                <div className="pt-4 flex justify-center">
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => setStep('table')}
+                    className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-slate-900"
+                  >
+                    Skip to table selection →
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Category Tabs */}
+                <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl sticky top-0 z-20">
+                  {(['all', 'indoor', 'outdoor', 'vip'] as const).map((section) => (
+                    <Button
+                      key={section}
+                      variant={activeFilter === section ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setActiveFilter(section)}
+                      className={cn(
+                        "flex-1 rounded-xl text-[10px] font-black font-heading uppercase tracking-widest h-10 transition-all",
+                        activeFilter === section 
+                          ? "bg-white text-slate-900 shadow-md ring-1 ring-slate-200" 
+                          : "text-slate-500 hover:text-slate-900 hover:bg-slate-50/50"
+                      )}
+                    >
+                      {section}
+                    </Button>
+                  ))}
+                </div>
 
-            {/* Legend */}
-            <div className="flex items-center justify-center gap-8 py-6 border-t border-slate-100 text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-2">
-              <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200" />
-                <span>Available</span>
+                <div className="min-h-[350px]">
+                  {isLoading ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3">
+                      <div className="w-8 h-8 border-3 border-slate-200 border-t-slate-900 rounded-full animate-spin" />
+                      <span className="text-xs font-black uppercase tracking-widest">Loading tables...</span>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pb-6">
+                      {filteredTables.map((table: any) => {
+                        const tableIdVal = table.id || table.table_id;
+                        const isOccupied = ongoingOrders.some((o: any) => o.table_id === tableIdVal);
+                        const status = isOccupied ? 'occupied' : table.status;
+                        
+                        return (
+                          <div
+                            key={tableIdVal}
+                            onClick={() => handleTableSelect(table)}
+                            className={cn(
+                              "relative border-2 rounded-[2rem] p-6 flex flex-col items-center justify-center gap-1 transition-all duration-300 group",
+                              "h-32 shadow-sm cursor-pointer",
+                              getStatusColor(status),
+                              "hover:-translate-y-1.5 hover:shadow-2xl hover:border-blue-400"
+                            )}
+                          >
+                            <span className="text-3xl font-black font-heading tracking-tighter">{table.table_number}</span>
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider opacity-60">
+                              <Users className="w-3.5 h-3.5" />
+                              <span>{table.capacity} Seats</span>
+                            </div>
+                            <div className={cn(
+                              "text-[8px] uppercase tracking-[0.2em] font-black px-2.5 py-1 rounded-full mt-2",
+                              status === 'available' ? "bg-emerald-500/10 text-emerald-600" : 
+                              status === 'occupied' ? "bg-red-500/10 text-red-600" : "bg-slate-900/10"
+                            )}>
+                              {status}
+                            </div>
+                            
+                            {status !== 'available' && (
+                              <Button 
+                                size="icon" 
+                                variant="destructive" 
+                                className="absolute -top-2 -right-2 h-8 w-8 rounded-full shadow-lg z-10 scale-0 group-hover:scale-100 transition-all duration-200"
+                                onClick={(e) => handleClearTable(e, table)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {filteredTables.length === 0 && !isLoading && (
+                    <div className="flex flex-col items-center justify-center py-20 text-slate-300">
+                      <LayoutGrid className="h-16 w-16 mb-4 opacity-10" />
+                      <p className="text-sm font-black uppercase tracking-widest opacity-40">No tables in this section</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer Section */}
+                <div className="flex flex-col gap-4 pt-6 border-t border-slate-100">
+                  <div className="flex items-center justify-center gap-10 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" />
+                      <span>Available</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm" />
+                      <span>Occupied</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-slate-300 shadow-sm" />
+                      <span>Cleaning</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <Button 
+                      variant="outline" 
+                      onClick={handleSkipTable}
+                      className="flex-1 h-14 rounded-2xl text-[11px] font-black uppercase tracking-widest border-2 border-slate-100 text-slate-400 hover:text-slate-900 hover:border-slate-200"
+                    >
+                      Skip Table Selection
+                    </Button>
+                    {serverName && (
+                      <div className="flex-1 bg-slate-900 rounded-2xl px-6 flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Selected Server</span>
+                        <span className="text-white font-black uppercase tracking-widest text-xs">{serverName}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm shadow-red-200" />
-                <span>Occupied</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm shadow-amber-200" />
-                <span>Reserved</span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </DialogContent>

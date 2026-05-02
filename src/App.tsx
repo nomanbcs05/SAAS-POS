@@ -16,7 +16,6 @@ import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
 
 import Welcome from "./pages/Welcome";
-import DiningPage from "./pages/DiningPage";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
 import LicenseGenerator from "./pages/LicenseGenerator";
@@ -74,11 +73,6 @@ const AppContent = () => {
           <Route path="/" element={
             <ProtectedRoute>
               <Index />
-            </ProtectedRoute>
-          } />
-          <Route path="/dining" element={
-            <ProtectedRoute>
-              <DiningPage />
             </ProtectedRoute>
           } />
           <Route path="/ongoing-orders" element={
