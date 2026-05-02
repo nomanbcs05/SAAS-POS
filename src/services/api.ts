@@ -1487,6 +1487,123 @@ export const api = {
       return data;
     }
   },
+  vendors: {
+    getAll: async () => {
+      const { data, error } = await supabase
+        .from('vendors' as any)
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      return data as any[];
+    },
+    create: async (vendor: any) => {
+      const { data, error } = await supabase
+        .from('vendors' as any)
+        .insert(vendor)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    update: async (id: string, vendor: any) => {
+      const { data, error } = await supabase
+        .from('vendors' as any)
+        .update(vendor)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    delete: async (id: string) => {
+      const { error } = await supabase
+        .from('vendors' as any)
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    }
+  },
+  accounts: {
+    getAll: async () => {
+      const { data, error } = await supabase
+        .from('accounts' as any)
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      return data as any[];
+    },
+    create: async (account: any) => {
+      const { data, error } = await supabase
+        .from('accounts' as any)
+        .insert(account)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    update: async (id: string, account: any) => {
+      const { data, error } = await supabase
+        .from('accounts' as any)
+        .update(account)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    delete: async (id: string) => {
+      const { error } = await supabase
+        .from('accounts' as any)
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    }
+  },
+  ledger: {
+    getAll: async (entityType?: string, entityId?: string) => {
+      let query = supabase
+        .from('ledger_entries' as any)
+        .select('*, customers(name), vendors(name), accounts(name)')
+        .order('date', { ascending: false });
+      
+      if (entityType) query = query.eq('entity_type', entityType);
+      if (entityId) {
+        if (entityType === 'customer') query = query.eq('customer_id', entityId);
+        if (entityType === 'vendor') query = query.eq('vendor_id', entityId);
+        if (entityType === 'account') query = query.eq('account_id', entityId);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as any[];
+    },
+    create: async (entry: any) => {
+      const { data, error } = await supabase
+        .from('ledger_entries' as any)
+        .insert(entry)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    update: async (id: string, entry: any) => {
+      const { data, error } = await supabase
+        .from('ledger_entries' as any)
+        .update(entry)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    delete: async (id: string) => {
+      const { error } = await supabase
+        .from('ledger_entries' as any)
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    }
+  },
   profiles: {
     getAll: async () => {
       const { data, error } = await supabase

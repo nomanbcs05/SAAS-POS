@@ -102,6 +102,24 @@ const CustomersPage = () => {
     },
   });
 
+  const updateCustomerMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string, data: any }) => api.customers.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast({
+        title: "Success",
+        description: "Customer updated successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleAddCustomer = () => {
     if (!newCustomer.name) {
       toast({
@@ -236,13 +254,76 @@ const CustomersPage = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Edit Customer</DialogTitle>
+                                  <DialogDescription>
+                                    Update the details for {customer.name}.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="edit-name">Name</Label>
+                                    <Input
+                                      id="edit-name"
+                                      defaultValue={customer.name}
+                                      onChange={(e) => {
+                                        customer.name = e.target.value;
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="edit-phone">Phone</Label>
+                                    <Input
+                                      id="edit-phone"
+                                      defaultValue={customer.phone}
+                                      onChange={(e) => {
+                                        customer.phone = e.target.value;
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="edit-email">Email</Label>
+                                    <Input
+                                      id="edit-email"
+                                      defaultValue={customer.email}
+                                      onChange={(e) => {
+                                        customer.email = e.target.value;
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+                                  <Button onClick={() => {
+                                    updateCustomerMutation.mutate({
+                                      id: customer.id || customer.customer_id,
+                                      data: {
+                                        name: customer.name,
+                                        phone: customer.phone,
+                                        email: customer.email
+                                      }
+                                    });
+                                  }}>
+                                    Save Changes
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
                             <DropdownMenuItem 
                               className="text-destructive"
-                              onClick={() => deleteCustomerMutation.mutate(customer.id || customer.customer_id)}
+                              onClick={() => {
+                                if (confirm(`Are you sure you want to delete ${customer.name}?`)) {
+                                  deleteCustomerMutation.mutate(customer.id || customer.customer_id);
+                                }
+                              }}
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
                               Delete

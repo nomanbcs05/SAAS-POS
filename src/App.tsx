@@ -14,6 +14,7 @@ import ProductsPage from "./pages/ProductsPage";
 import CustomersPage from "./pages/CustomersPage";
 import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
+import LedgerPage from "./pages/LedgerPage";
 import Welcome from "./pages/Welcome";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
@@ -107,6 +108,11 @@ const AppContent = () => {
           <Route path="/settings" element={
             <ProtectedRoute adminOnly={true}>
               <SettingsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/ledger" element={
+            <ProtectedRoute adminOnly={true}>
+              <LedgerPage />
             </ProtectedRoute>
           } />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -106,8 +106,9 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
     { name: 'Completed Orders', href: '/completed-orders', icon: CheckCircle2 },
     { name: 'Orders', href: '/orders', icon: ClipboardList },
     { name: 'Products', href: '/products', icon: Package, adminOnly: true, management: true },
-    { name: 'Customers', href: '/customers', icon: Users, adminOnly: true },
+    { name: 'Customers', href: '/customers', icon: Users, adminOnly: true, management: true },
     { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true, management: true },
+    { name: 'Account Ledgers', href: '/ledger', icon: ClipboardList, adminOnly: true, management: true },
     { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true, management: true },
   ].filter(item => {
     if (item.superAdminOnly) return profile?.role === 'super-admin';
@@ -186,11 +187,20 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
 
         {/* Navigation */}
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
-          {navigation.map((item) => {
+          {navigation.map((item, index) => {
             const isActive = location.pathname === item.href;
+            const isManagementStart = item.management && (index === 0 || !navigation[index-1].management);
 
             return (
-              isCollapsed ? (
+              <div key={item.name}>
+                {isManagementStart && !isCollapsed && (
+                  <div className="px-3 py-2 mt-4 mb-1">
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-sidebar-foreground/30 font-heading">
+                      Accounts & Staff
+                    </p>
+                  </div>
+                )}
+                {isCollapsed ? (
                 <Tooltip key={item.name}>
                   <TooltipTrigger asChild>
                     <NavLink
@@ -230,6 +240,8 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
                   )}
                 </NavLink>
               )
+            }
+            </div>
             );
           })}
         </nav>
