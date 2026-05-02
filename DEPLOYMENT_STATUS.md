@@ -5,87 +5,44 @@
 **Status**: ✅ **SUCCESSFUL**
 
 ```
-Build completed successfully in 41.53s
-- dist/index.html: 1.09 kB (gzip: 0.49 kB)
-- CSS: 92.08 kB (gzip: 15.24 kB)
-- JS: 1,388.68 kB (gzip: 391.04 kB)
+Build completed successfully in 3m 40s (May 2, 2026)
+- dist/index.html: 1.09 kB
+- CSS: 117.85 kB
+- JS: 1,652.88 kB
 ```
 
 ### Build Warnings
-- ⚠️ Large bundle size detected (1.38 MB JS)
+- ⚠️ Large bundle size detected (1.65 MB JS)
   - **Recommendation**: Consider code splitting with dynamic imports
   - **Action**: Can be optimized later, not blocking deployment
 
 ## 📦 Recent Deployments
 
 ### Latest Commits (Last 10)
-1. **9671e9a** - Restart Vercel app
-2. **9663cd2** - Update modern fonts and styling for Welcome, Login, and POS components
-3. **e45268c** - style: update StartDayModal with modern font styling and UX improvements
-4. **21caf7d** - fix: import missing ChefHat icon from lucide-react in selection modals
-5. **a64e925** - fix: resolve JSX syntax error in PizzaSelectionModal
-6. **c53f669** - trigger redeploy
-7. **4c8adaf** - feat: implement modern font rollout and premium modal styling across POS
-8. **6f5cbf2** - Created SauceToppingSelectionModal
-9. **c7cd2bd** - Created BarBQSelectionModal
-10. **aee9b1e** - Created BurgerSelectionModal
+1. **85cab11** - feat: implement dining page and enhance running orders editability (May 2, 2026)
+2. **ff1c0d4** - refactor: remove account ledgers page and routes
+3. **9671e9a** - Restart Vercel app
+4. **9663cd2** - Update modern fonts and styling for Welcome, Login, and POS components
+5. **e45268c** - style: update StartDayModal with modern font styling and UX improvements
+6. **21caf7d** - fix: import missing ChefHat icon from lucide-react in selection modals
+7. **a64e925** - fix: resolve JSX syntax error in PizzaSelectionModal
+8. **c53f669** - trigger redeploy
+9. **4c8adaf** - feat: implement modern font rollout and premium modal styling across POS
+10. **6f5cbf2** - Created SauceToppingSelectionModal
 
 ## 🎨 Recent Changes Summary
 
-### Styling & UI Improvements
-- ✅ Modern font system implemented
-  - **Sans**: Inter (body text)
-  - **Heading**: Montserrat (titles, headings)
-- ✅ Premium modal styling across POS components
-- ✅ Enhanced UX improvements in StartDayModal
-- ✅ Updated Welcome and Login page styling
+### Dining & Tables
+- ✅ New **Dining Page** with section filters (Indoor, Outdoor, VIP)
+- ✅ Integrated Dine-In flow from POS to Dining Page
+- ✅ Real-time table status indicators (Available, Occupied)
 
-### New Features
-- ✅ SauceToppingSelectionModal - Sauce and topping selection
-- ✅ BarBQSelectionModal - BarBQ menu selection
-- ✅ BurgerSelectionModal - Burger menu selection
-- ✅ Enhanced product selection modals
+### Order Management
+- ✅ **Quick Edit** enabled for ongoing orders
+- ✅ Inline quantity adjustments in running orders panel
 
-### Bug Fixes
-- ✅ Fixed missing ChefHat icon import
-- ✅ Resolved JSX syntax error in PizzaSelectionModal
-- ✅ Improved error handling
-
-## 📝 Uncommitted Changes
-
-The following files have local modifications (not yet committed):
-
-1. **src/components/layout/AppSidebar.tsx**
-   - Changes: 36 lines modified
-   - Status: Local development changes
-
-2. **src/components/pos/ProductGrid.tsx**
-   - Changes: 12 lines modified
-   - Status: Local development changes
-
-3. **src/components/pos/StartDayModal.tsx**
-   - Changes: 11 lines added/modified
-   - Status: Local development changes
-
-4. **src/pages/LoginPage.tsx**
-   - Changes: 20 lines added/modified
-   - Status: Local development changes
-
-**Note**: These changes are in your working directory but haven't been committed. If you want to deploy these changes, commit and push them.
-
-## 🔧 Configuration
-
-### Vercel Configuration
-- ✅ `vercel.json` configured correctly
-- ✅ SPA routing rewrite rules in place
-- ✅ All routes redirect to `/index.html`
-
-### Environment Variables
-- ✅ Supabase URL configured
-- ✅ Supabase publishable key configured
-- ✅ Project ID configured
-
-**⚠️ Important**: Ensure environment variables are set in Vercel dashboard, not just in `.env` file.
+### Cleanup
+- ✅ Removed legacy **Account Ledgers** page and routes
 
 ## 🚀 Deployment Checklist
 
@@ -94,58 +51,12 @@ The following files have local modifications (not yet committed):
 - [x] No build errors
 - [x] Vercel configuration valid
 - [x] Environment variables configured
-- [ ] Uncommitted changes reviewed (if needed)
-- [ ] Vercel deployment triggered
-
-## 📊 Performance Metrics
-
-### Bundle Analysis
-- **Total JS Size**: 1,388.68 kB (391.04 kB gzipped)
-- **CSS Size**: 92.08 kB (15.24 kB gzipped)
-- **HTML Size**: 1.09 kB (0.49 kB gzipped)
-
-### Optimization Opportunities
-1. **Code Splitting**: Implement dynamic imports for routes
-2. **Tree Shaking**: Verify unused code is removed
-3. **Image Optimization**: Consider WebP format for product images
-4. **Lazy Loading**: Implement lazy loading for modals
-
-## 🔍 Next Steps
-
-1. **Verify Deployment**
-   - Check Vercel dashboard for deployment status
-   - Test live URL functionality
-   - Verify all routes work correctly
-
-2. **Review Uncommitted Changes**
-   - Decide if local changes should be committed
-   - Test changes locally before deploying
-
-3. **Performance Optimization** (Optional)
-   - Implement code splitting
-   - Optimize bundle size
-   - Add performance monitoring
-
-4. **Testing**
-   - Test all major features
-   - Verify authentication flow
-   - Check POS functionality
-   - Test printing features
-
-## 📱 Application Features Verified
-
-- ✅ Authentication system
-- ✅ POS interface
-- ✅ Product management
-- ✅ Order processing
-- ✅ Customer management
-- ✅ Daily register
-- ✅ Reports & analytics
-- ✅ Printing functionality
-- ✅ License gate system
+- [x] Changes committed to Git
+- [x] Pushed to GitHub origin
+- [x] Vercel deployment triggered
 
 ---
 
-**Last Updated**: February 13, 2026
+**Last Updated**: May 2, 2026
 **Build Status**: ✅ Successful
-**Ready for Deployment**: ✅ Yes
+**Ready for Deployment**: ✅ Yes (Pushed to GitHub)

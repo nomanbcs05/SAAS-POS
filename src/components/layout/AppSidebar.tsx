@@ -19,7 +19,8 @@ import {
   ShieldCheck,
   Building2,
   Download,
-  CheckCircle2
+  CheckCircle2,
+  Utensils
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';

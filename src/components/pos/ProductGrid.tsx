@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Search, X, Grid3x3, Package, Coffee, UtensilsCrossed, Gift, IceCream, Utensils, ShoppingBag, Truck, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -30,6 +31,7 @@ import IndusMenuModal, { DEFAULT_INDUS_DATA } from './IndusMenuModal';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 
 const ProductGrid = () => {
+  const navigate = useNavigate();
   const { tenant } = useMultiTenant();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
