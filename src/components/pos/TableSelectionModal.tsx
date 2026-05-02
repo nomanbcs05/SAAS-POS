@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { api } from '@/services/api';
 import { useCartStore } from '@/stores/cartStore';
 import { toast } from 'sonner';
@@ -46,6 +45,26 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     enabled: isOpen,
   });
 
+  // Always show 15 tables by default
+  const displayTables = useMemo(() => {
+    const baseTables = Array.from({ length: 15 }, (_, i) => {
+      const tableNum = (i + 1).toString();
+      const existing = tables.find((t: any) => t.table_number === tableNum);
+      
+      return existing || {
+        table_number: tableNum,
+        section: 'indoor',
+        capacity: 4,
+        status: 'available' as TableStatus,
+        isVirtual: true
+      };
+    });
+
+    return baseTables.filter((table: any) => 
+      activeFilter === 'all' ? true : table.section === activeFilter
+    );
+  }, [tables, activeFilter]);
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TableStatus }) => {
       return api.tables.updateStatus(id, status);
@@ -56,37 +75,56 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     onError: (error) => {
       toast.error('Failed to update table status');
       console.error(error);
-      setTableId(null);
-      setOrderType('take_away');
     }
   });
 
-  const handleServerSelect = (name: string) => {
-    setServerName(name);
-    setStep('table');
-  };
+  const createTableMutation = useMutation({
+    mutationFn: async (table: any) => {
+      return api.tables.create({
+        table_number: table.table_number,
+        section: table.section,
+        capacity: table.capacity
+      });
+    },
+    onSuccess: (newTable) => {
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
+      return newTable;
+    }
+  });
 
-  const handleTableSelect = (table: any) => {
-    const tableIdVal = table.id || table.table_id;
+  const handleTableSelect = async (table: any) => {
+    let tableToSelect = table;
+
+    // If it's a virtual table (doesn't exist in DB yet), create it
+    if (table.isVirtual) {
+      try {
+        tableToSelect = await createTableMutation.mutateAsync(table);
+      } catch (err) {
+        toast.error('Failed to initialize table');
+        return;
+      }
+    }
+
+    const tableIdVal = tableToSelect.id || tableToSelect.table_id;
     const isOccupied = ongoingOrders.some((o: any) => o.table_id === tableIdVal);
     
     if (isOccupied) {
       setTableId(tableIdVal);
       setOrderType('dine_in');
       onClose();
-      toast.success(`Table ${table.table_number} loaded`);
+      toast.success(`Table ${tableToSelect.table_number} loaded`);
       return;
     }
 
-    if (table.status !== 'available' && table.status !== 'occupied') return;
+    if (tableToSelect.status !== 'available' && tableToSelect.status !== 'occupied') return;
 
     setTableId(tableIdVal);
     setOrderType('dine_in');
     
     onClose();
-    toast.success(`Table ${table.table_number} selected`);
+    toast.success(`Table ${tableToSelect.table_number} selected`);
 
-    if (table.status === 'available') {
+    if (tableToSelect.status === 'available') {
       updateStatusMutation.mutate({ 
         id: tableIdVal, 
         status: 'occupied' 
@@ -101,38 +139,16 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     toast.success('Proceeding with Dine-In (No Table)');
   };
 
-  const seedTablesMutation = useMutation({
-    mutationFn: async () => {
-      const tablesToCreate = Array.from({ length: 15 }, (_, i) => ({
-        table_number: `${i + 1}`,
-        section: 'indoor',
-        capacity: 4,
-        status: 'available' as const
-      }));
-      return api.tables.bulkCreate(tablesToCreate);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tables'] });
-      toast.success('Tables 1-15 generated successfully');
-    },
-    onError: (error) => {
-      toast.error('Failed to generate tables');
-      console.error(error);
-    }
-  });
-
   const handleClearTable = (e: React.MouseEvent, table: any) => {
     e.stopPropagation();
+    if (table.isVirtual) return;
+
     updateStatusMutation.mutate({ 
       id: table.id || table.table_id, 
       status: 'available' 
     });
     toast.success(`Table ${table.table_number} is now available`);
   };
-
-  const filteredTables = tables.filter((table: any) => 
-    activeFilter === 'all' ? true : table.section === activeFilter
-  );
 
   const getStatusColor = (status: TableStatus) => {
     switch (status) {
@@ -147,7 +163,7 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent 
-        className="max-w-[750px] w-[95vw] max-h-[90vh] p-0 overflow-hidden bg-background rounded-[2.5rem] shadow-2xl border-none"
+        className="max-w-[850px] w-[95vw] max-h-[90vh] p-0 overflow-hidden bg-background rounded-[2.5rem] shadow-2xl border-none"
         aria-describedby="table-selection-description"
       >
         <div className="flex flex-col h-full max-h-[90vh]">
@@ -159,7 +175,7 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
                   {step === 'server' ? 'Select Server' : 'Choose Table'}
                 </DialogTitle>
                 <DialogDescription id="table-selection-description" className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-                  {step === 'server' ? 'Step 1 of 2: Assign a server' : `Step 2 of 2: Select a table (${activeFilter})`}
+                  {step === 'server' ? 'Step 1 of 2: Assign a server' : `Step 2 of 2: Select a table (1-15)`}
                 </DialogDescription>
               </DialogHeader>
               <div className="flex items-center gap-3">
@@ -206,15 +222,6 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
                     </Button>
                   ))}
                 </div>
-                <div className="pt-4 flex justify-center">
-                  <Button 
-                    variant="ghost" 
-                    onClick={() => setStep('table')}
-                    className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-slate-900"
-                  >
-                    Skip to table selection →
-                  </Button>
-                </div>
               </div>
             ) : (
               <div className="space-y-6">
@@ -245,65 +252,49 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
                       <span className="text-xs font-black uppercase tracking-widest">Loading tables...</span>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pb-6">
-                      {filteredTables.map((table: any) => {
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 pb-6">
+                      {displayTables.map((table: any) => {
                         const tableIdVal = table.id || table.table_id;
-                        const isOccupied = ongoingOrders.some((o: any) => o.table_id === tableIdVal);
+                        const isOccupied = tableIdVal ? ongoingOrders.some((o: any) => o.table_id === tableIdVal) : false;
                         const status = isOccupied ? 'occupied' : table.status;
                         
                         return (
                           <div
-                            key={tableIdVal}
+                            key={table.table_number}
                             onClick={() => handleTableSelect(table)}
                             className={cn(
-                              "relative border-2 rounded-[2rem] p-6 flex flex-col items-center justify-center gap-1 transition-all duration-300 group",
-                              "h-32 shadow-sm cursor-pointer",
+                              "relative border-2 rounded-[2rem] p-4 flex flex-col items-center justify-center gap-1 transition-all duration-300 group",
+                              "h-28 shadow-sm cursor-pointer",
                               getStatusColor(status),
                               "hover:-translate-y-1.5 hover:shadow-2xl hover:border-blue-400"
                             )}
                           >
-                            <span className="text-3xl font-black font-heading tracking-tighter">{table.table_number}</span>
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider opacity-60">
-                              <Users className="w-3.5 h-3.5" />
+                            <span className="text-2xl font-black font-heading tracking-tighter">{table.table_number}</span>
+                            <div className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-wider opacity-60">
+                              <Users className="w-3 h-3" />
                               <span>{table.capacity} Seats</span>
                             </div>
                             <div className={cn(
-                              "text-[8px] uppercase tracking-[0.2em] font-black px-2.5 py-1 rounded-full mt-2",
+                              "text-[7px] uppercase tracking-[0.2em] font-black px-2 py-0.5 rounded-full mt-1",
                               status === 'available' ? "bg-emerald-500/10 text-emerald-600" : 
                               status === 'occupied' ? "bg-red-500/10 text-red-600" : "bg-slate-900/10"
                             )}>
                               {status}
                             </div>
                             
-                            {status !== 'available' && (
+                            {status !== 'available' && !table.isVirtual && (
                               <Button 
                                 size="icon" 
                                 variant="destructive" 
-                                className="absolute -top-2 -right-2 h-8 w-8 rounded-full shadow-lg z-10 scale-0 group-hover:scale-100 transition-all duration-200"
+                                className="absolute -top-2 -right-2 h-7 w-7 rounded-full shadow-lg z-10 scale-0 group-hover:scale-100 transition-all duration-200"
                                 onClick={(e) => handleClearTable(e, table)}
                               >
-                                <X className="h-4 w-4" />
+                                <X className="h-3.5 w-3.5" />
                               </Button>
                             )}
                           </div>
                         );
                       })}
-                    </div>
-                  )}
-                  
-                  {filteredTables.length === 0 && !isLoading && (
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-300">
-                      <LayoutGrid className="h-16 w-16 mb-4 opacity-10" />
-                      <p className="text-sm font-black uppercase tracking-widest opacity-40 mb-6">No tables in this section</p>
-                      {activeFilter === 'all' && (
-                        <Button 
-                          onClick={() => seedTablesMutation.mutate()}
-                          disabled={seedTablesMutation.isPending}
-                          className="bg-slate-900 text-white rounded-2xl h-14 px-8 font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl"
-                        >
-                          {seedTablesMutation.isPending ? 'Generating...' : 'Generate Tables 1-15'}
-                        </Button>
-                      )}
                     </div>
                   )}
                 </div>
@@ -318,10 +309,6 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
                     <div className="flex items-center gap-3">
                       <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm" />
                       <span>Occupied</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-2.5 h-2.5 rounded-full bg-slate-300 shadow-sm" />
-                      <span>Cleaning</span>
                     </div>
                   </div>
                   
