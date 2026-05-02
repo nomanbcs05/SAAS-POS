@@ -189,7 +189,7 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className="max-w-[900px] w-[96vw] max-h-[92vh] p-0 overflow-hidden bg-background rounded-[2.5rem] shadow-2xl border-none"
-        aria-describedby="table-selection-description"
+        aria-describedby={undefined}
       >
         <div className="flex flex-col h-full max-h-[92vh]">
 
