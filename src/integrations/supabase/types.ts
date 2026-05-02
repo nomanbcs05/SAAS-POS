@@ -249,6 +249,7 @@ export interface Database {
         Row: {
           id: string
           table_number: string
+          section: string
           capacity: number
           status: string
           created_at: string
@@ -258,6 +259,7 @@ export interface Database {
         Insert: {
           id?: string
           table_number: string
+          section?: string
           capacity?: number
           status?: string
           created_at?: string
@@ -267,6 +269,7 @@ export interface Database {
         Update: {
           id?: string
           table_number?: string
+          section?: string
           capacity?: number
           status?: string
           created_at?: string
