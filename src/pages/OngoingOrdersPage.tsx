@@ -662,13 +662,9 @@ const OngoingOrdersPage = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-36 rounded-lg">
-                        <DropdownMenuItem className="py-1.5 text-xs" onClick={handleQuickEdit}>
-                          <Edit2 className="h-3 w-3 mr-2" />
-                          Quick Edit
-                        </DropdownMenuItem>
                         <DropdownMenuItem className="py-1.5 text-xs" onClick={handleEditOrder}>
                           <Edit2 className="h-3 w-3 mr-2" />
-                          Full Edit (POS)
+                          Edit in POS
                         </DropdownMenuItem>
                         <DropdownMenuItem className="py-1.5 text-xs">Transfer Table</DropdownMenuItem>
                         <DropdownMenuItem className="py-1.5 text-xs text-red-600">Cancel Order</DropdownMenuItem>
@@ -842,10 +838,10 @@ const OngoingOrdersPage = () => {
                         <Button
                           variant="outline"
                           className="flex-1 h-12 font-bold border-slate-200 text-slate-600 rounded-xl"
-                          onClick={handleQuickEdit}
+                          onClick={handleEditOrder}
                         >
                           <Edit2 className="h-4 w-4 mr-2" />
-                          Quick Edit
+                          Edit in POS
                         </Button>
                       </div>
                       <Button
