@@ -69,6 +69,7 @@ const CartPanel = () => {
   const [pendingAfterRider, setPendingAfterRider] = useState<'none' | 'bill' | 'complete'>('none');
   const [lastOrder, setLastOrder] = useState<any>(null);
   const [previewActive, setPreviewActive] = useState<'none' | 'receipt' | 'kot' | 'bill'>('none');
+  const [kotItemsToPrint, setKotItemsToPrint] = useState<any[]>([]);
   const [cashierName, setCashierName] = useState(hookCashierName || 'Anas');
   const receiptRef = useRef<HTMLDivElement>(null);
   const kotRef = useRef<HTMLDivElement>(null);
@@ -185,6 +186,16 @@ const CartPanel = () => {
     documentTitle: `KOT-${Date.now()}`,
     onAfterPrint: () => {
       toast.success('KOT printed successfully');
+      
+      // Save printed quantities
+      if (lastOrder?.id) {
+        const printedMap = JSON.parse(localStorage.getItem(`kot_printed_${lastOrder.id}`) || '{}');
+        kotItemsToPrint.forEach(item => {
+          printedMap[item.product.id] = (printedMap[item.product.id] || 0) + item.quantity;
+        });
+        localStorage.setItem(`kot_printed_${lastOrder.id}`, JSON.stringify(printedMap));
+      }
+
       clearCart();
       navigate('/ongoing-orders');
     },
@@ -325,12 +336,29 @@ const CartPanel = () => {
         orderData.id = newOrder.id;
         if (newOrder.orderNumber) orderData.orderNumber = newOrder.orderNumber;
       }
+      
+      const targetId = orderData.id;
+      const printedMap = JSON.parse(localStorage.getItem(`kot_printed_${targetId}`) || '{}');
+      
+      const newKotItems = orderData.items.map(item => {
+        const previouslyPrinted = printedMap[item.product.id] || 0;
+        const qtyToPrint = item.quantity - previouslyPrinted;
+        return { ...item, quantity: qtyToPrint };
+      }).filter(item => item.quantity > 0);
+
+      setKotItemsToPrint(newKotItems);
       setLastOrder(orderData);
 
-      // Print KOT directly (Silent)
-      setTimeout(() => {
-        handlePrintKOT();
-      }, 100);
+      if (newKotItems.length > 0) {
+        // Print KOT directly (Silent)
+        setTimeout(() => {
+          handlePrintKOT();
+        }, 100);
+      } else {
+        toast.info('No new items to print on KOT');
+        clearCart();
+        navigate('/ongoing-orders');
+      }
     },
     onError: (error: any) => {
       console.error('Order creation failed:', error);
@@ -773,7 +801,7 @@ const CartPanel = () => {
         {lastOrder && (
           <>
             <Receipt ref={receiptRef} order={lastOrder} />
-            <KOT ref={kotRef} order={lastOrder} />
+            <KOT ref={kotRef} order={{ ...lastOrder, items: kotItemsToPrint.length > 0 ? kotItemsToPrint : lastOrder.items }} />
             <Bill ref={billRef} order={lastOrder} />
           </>
         )}
@@ -790,7 +818,7 @@ const CartPanel = () => {
         title={`Print Preview - ${previewActive.toUpperCase()}`}
       >
         {lastOrder && previewActive === 'receipt' && <Receipt order={lastOrder} />}
-        {lastOrder && previewActive === 'kot' && <KOT order={lastOrder} />}
+        {lastOrder && previewActive === 'kot' && <KOT order={{ ...lastOrder, items: kotItemsToPrint.length > 0 ? kotItemsToPrint : lastOrder.items }} />}
         {lastOrder && previewActive === 'bill' && <Bill order={lastOrder} />}
       </PrintPreviewModal>
 
