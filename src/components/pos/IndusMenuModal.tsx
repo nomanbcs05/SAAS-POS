@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, Utensils, ChefHat, Edit2, Trash2, ImagePlus, Loader2 } from 'lucide-react';
+import { Search, Plus, Utensils, ChefHat, Edit2, Trash2, ImagePlus, Loader2, Save, X } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { api } from '@/services/api';
 import { useMutation } from '@tanstack/react-query';
@@ -190,12 +190,22 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
     }
   }, [isOpen, initialCategory]);
 
-  const saveMenu = (updatedItems: MenuItem[]) => {
+  const updateMenuState = (updatedItems: MenuItem[]) => {
+    setMenuItems(updatedItems);
+  };
+
+  const cancelEditing = () => {
+    // Revert to saved state
     const key = initialCategory 
       ? `pos_menu_indus_${initialCategory.toLowerCase().replace(/\s+/g, '_').replace(/[()]/g, '')}`
       : 'pos_menu_indus';
-    setMenuItems(updatedItems);
-    localStorage.setItem(key, JSON.stringify(updatedItems));
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      setMenuItems(JSON.parse(saved));
+    } else {
+      setMenuItems(DEFAULT_INDUS_DATA.filter(item => !initialCategory || item.category === initialCategory));
+    }
+    setIsEditingMode(false);
   };
 
   const categories = Array.from(new Set(menuItems.map(item => item.category)));
@@ -221,7 +231,7 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
     } else {
       updated[index] = { ...updated[index], [field]: value };
     }
-    saveMenu(updated);
+    updateMenuState(updated);
   };
 
   const handleAddNewItem = () => {
@@ -231,14 +241,14 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
       price: 0
     };
     const updated = [...menuItems, newItem];
-    saveMenu(updated);
-    toast.success('New item added');
+    updateMenuState(updated);
+    toast.success('New item added (Unsaved)');
   };
 
   const handleRemoveItem = (index: number) => {
     const updated = menuItems.filter((_, i) => i !== index);
-    saveMenu(updated);
-    toast.success('Item removed');
+    updateMenuState(updated);
+    toast.success('Item removed (Unsaved)');
   };
 
   const handleAddItem = (item: MenuItem, size?: 'Half' | 'Full') => {
@@ -306,11 +316,18 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
                       size="icon" 
                       className={cn(
                         "h-8 w-8 rounded-full",
-                        isEditingMode ? "bg-blue-500 text-white hover:bg-blue-600" : "bg-white/10 text-white hover:bg-white/20"
+                        isEditingMode ? "bg-red-500 text-white hover:bg-red-600" : "bg-white/10 text-white hover:bg-white/20"
                       )}
-                      onClick={() => setIsEditingMode(!isEditingMode)}
+                      onClick={() => {
+                        if (isEditingMode) {
+                          cancelEditing();
+                        } else {
+                          setIsEditingMode(true);
+                        }
+                      }}
+                      title={isEditingMode ? "Cancel Editing" : "Edit Menu"}
                     >
-                      <Edit2 className="h-4 w-4" />
+                      {isEditingMode ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
                     </Button>
                   )}
                 </div>
@@ -364,7 +381,7 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.1 }}
-                  key={`${item.category}-${item.name}-${index}`}
+                  key={`item-${originalIndex}`}
                   className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
                 >
                   <div>
@@ -475,14 +492,30 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
           </div>
 
           {isEditingMode && (
-            <Button 
-              variant="outline" 
-              className="w-full mt-6 border-dashed border-2 h-14 rounded-2xl text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
-              onClick={handleAddNewItem}
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Add New Item to Menu
-            </Button>
+            <div className="flex gap-3 mt-6">
+              <Button 
+                variant="outline" 
+                className="flex-1 border-dashed border-2 h-14 rounded-2xl text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
+                onClick={handleAddNewItem}
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Add New Item to Menu
+              </Button>
+              <Button 
+                className="flex-1 h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-lg shadow-blue-500/20"
+                onClick={() => {
+                  const key = initialCategory 
+                    ? `pos_menu_indus_${initialCategory.toLowerCase().replace(/\s+/g, '_').replace(/[()]/g, '')}`
+                    : 'pos_menu_indus';
+                  localStorage.setItem(key, JSON.stringify(menuItems));
+                  setIsEditingMode(false);
+                  toast.success('Menu changes saved successfully!');
+                }}
+              >
+                <Save className="h-5 w-5 mr-2" />
+                Save All Changes
+              </Button>
+            </div>
           )}
         </div>
       </DialogContent>
