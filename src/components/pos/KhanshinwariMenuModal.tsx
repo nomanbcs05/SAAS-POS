@@ -120,7 +120,14 @@ export default function KhanshinwariMenuModal({ isOpen, onClose, onAdd, category
 
   const [categoryImage, setCategoryImage] = useState<string>(() => {
     const saved = localStorage.getItem('pos_category_image_' + categoryKey);
-    return saved || '';
+    if (saved) return saved;
+    if (initialCategory?.toLowerCase().includes('karahi')) return '/Karahi.png';
+    if (initialCategory?.toLowerCase().includes('bbq')) return '/Barbq.png';
+    if (initialCategory?.toLowerCase().includes('handi')) return '/Handi.png';
+    if (initialCategory?.toLowerCase().includes('tandoor')) return '/Naan.png';
+    if (initialCategory?.toLowerCase().includes('salad')) return '/Salad.png';
+    if (initialCategory?.toLowerCase().includes('kebab')) return '/kebabs.jpg';
+    return '';
   });
 
   const uploadImageMutation = useMutation({
