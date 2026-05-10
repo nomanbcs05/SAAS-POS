@@ -504,7 +504,8 @@ const ProductGrid = () => {
                 cat.id.includes('drinks') ? '🥤' : 
                 cat.id.includes('tandoor') ? '/Naan.png' : 
                 cat.id.includes('salad') ? '/Salad.png' : 
-                cat.id.includes('kebab') ? '/kebabs.jpg' : '🍲'
+                cat.id.includes('kebab') ? '/kebabs.jpg' : 
+                cat.id.includes('kheer') ? '/kheer.png' : '🍲'
               ),
               isVirtual: true,
               modalType: 'khanshinwari',

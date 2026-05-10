@@ -127,6 +127,7 @@ export default function KhanshinwariMenuModal({ isOpen, onClose, onAdd, category
     if (initialCategory?.toLowerCase().includes('tandoor')) return '/Naan.png';
     if (initialCategory?.toLowerCase().includes('salad')) return '/Salad.png';
     if (initialCategory?.toLowerCase().includes('kebab')) return '/kebabs.jpg';
+    if (initialCategory?.toLowerCase().includes('kheer')) return '/kheer.png';
     return '';
   });
 
