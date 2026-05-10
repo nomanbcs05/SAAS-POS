@@ -425,7 +425,7 @@ const ProductGrid = () => {
              name: `${cat.name} Menu`,
              price: 0,
              category: cat.name,
-             image: localStorage.getItem('pos_category_image_' + cat.id) || (cat.id === 'indus_tea' ? '/tea_menu.png' : cat.id === 'indus_bbq' ? '/Barbq.png' : cat.id === 'indus_salads' ? '/Salad.png' : cat.id === 'indus_roti' ? '/Naan.png' : cat.id === 'indus_fried' ? '/Fried.png' : '🍲'),
+             image: localStorage.getItem('pos_category_image_' + cat.id) || (cat.id === 'indus_tea' ? '/tea_menu.png' : cat.id === 'indus_bbq' ? '/Barbq.png' : cat.id === 'indus_salads' ? '/Salad.png' : cat.id === 'indus_roti' ? '/Naan.png' : cat.id === 'indus_fried' ? '/Fried.png' : cat.id === 'indus_mutton_handi' ? '/mutton_handi.png' : '🍲'),
              isVirtual: true,
              modalType: 'indus',
              indusCategory: cat.name
@@ -500,6 +500,7 @@ const ProductGrid = () => {
               image: localStorage.getItem('pos_category_image_' + cat.id) || (
                 cat.id.includes('karahi') ? '/Karahi.png' : 
                 cat.id.includes('bbq') ? '/Barbq.png' : 
+                cat.id.includes('mutton_handi') ? '/mutton_handi.png' :
                 cat.id.includes('handi') ? '/Handi.png' : 
                 cat.id.includes('drinks') ? '🥤' : 
                 cat.id.includes('tandoor') ? '/Naan.png' : 

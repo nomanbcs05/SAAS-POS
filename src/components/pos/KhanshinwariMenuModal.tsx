@@ -123,6 +123,7 @@ export default function KhanshinwariMenuModal({ isOpen, onClose, onAdd, category
     if (saved) return saved;
     if (initialCategory?.toLowerCase().includes('karahi')) return '/Karahi.png';
     if (initialCategory?.toLowerCase().includes('bbq')) return '/Barbq.png';
+    if (initialCategory?.toLowerCase().includes('mutton handi') || initialCategory?.toLowerCase().includes('mutton_handi')) return '/mutton_handi.png';
     if (initialCategory?.toLowerCase().includes('handi')) return '/Handi.png';
     if (initialCategory?.toLowerCase().includes('tandoor')) return '/Naan.png';
     if (initialCategory?.toLowerCase().includes('salad')) return '/Salad.png';

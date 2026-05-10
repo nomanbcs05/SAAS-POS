@@ -147,6 +147,7 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
     if (categoryKey === 'indus_salads') return '/Salad.png';
     if (categoryKey === 'indus_roti') return '/Naan.png';
     if (categoryKey === 'indus_fried') return '/Fried.png';
+    if (categoryKey === 'indus_mutton_handi') return '/mutton_handi.png';
     return '';
   });
 
