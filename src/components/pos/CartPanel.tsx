@@ -174,8 +174,19 @@ const CartPanel = () => {
   const handlePrint = useReactToPrint({
     contentRef: receiptRef,
     documentTitle: `Receipt-${lastOrder?.orderNumber}`,
-    onAfterPrint: () => {
-      toast.success('Receipt printed successfully');
+    onAfterPrint: async () => {
+      toast.success('Receipt printed successfully', { duration: 1000 });
+      
+      // Auto-clear table if it's a dine-in order
+      if (orderType === 'dine_in' && tableId) {
+        try {
+          await api.tables.updateStatus(tableId, 'available');
+          queryClient.invalidateQueries({ queryKey: ['tables'] });
+        } catch (err) {
+          console.error('Failed to auto-clear table:', err);
+        }
+      }
+
       clearCart();
       navigate('/ongoing-orders');
     },
@@ -185,7 +196,7 @@ const CartPanel = () => {
     contentRef: kotRef,
     documentTitle: `KOT-${Date.now()}`,
     onAfterPrint: () => {
-      toast.success('KOT printed successfully');
+      toast.success('KOT printed successfully', { duration: 1000 });
       
       // Save printed quantities
       if (lastOrder?.id) {
@@ -205,7 +216,7 @@ const CartPanel = () => {
     contentRef: billRef,
     documentTitle: `Bill-${Date.now()}`,
     onAfterPrint: async () => {
-      toast.success('Bill printed successfully');
+      toast.success('Bill printed successfully', { duration: 1000 });
 
       // When bill is printed from the cart, we should save the order as completed
       // because the user wants to "save all the orders whose bills was printed once"
@@ -243,7 +254,17 @@ const CartPanel = () => {
           queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
 
           toast.dismiss(toastId);
-          toast.success('Order saved as completed');
+          toast.success('Order saved as completed', { duration: 1000 });
+          
+          // Auto-clear table if it's a dine-in order
+          if (orderType === 'dine_in' && tableId) {
+            try {
+              await api.tables.updateStatus(tableId, 'available');
+              queryClient.invalidateQueries({ queryKey: ['tables'] });
+            } catch (err) {
+              console.error('Failed to auto-clear table after bill:', err);
+            }
+          }
 
           // Clear cart after printing bill if it's considered a completion action
           clearCart();
@@ -355,7 +376,7 @@ const CartPanel = () => {
           handlePrintKOT();
         }, 100);
       } else {
-        toast.info('No new items to print on KOT');
+        toast.info('No new items to print on KOT', { duration: 1000 });
         clearCart();
         navigate('/ongoing-orders');
       }
