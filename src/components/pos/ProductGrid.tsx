@@ -28,6 +28,7 @@ import FriesSelectionModal from './FriesSelectionModal';
 import BeveragesSelectionModal from './BeveragesSelectionModal';
 import AlaCartSelectionModal from './AlaCartSelectionModal';
 import IndusMenuModal, { DEFAULT_INDUS_DATA } from './IndusMenuModal';
+import KhanshinwariMenuModal, { DEFAULT_KHANSHINWARI_DATA } from './KhanshinwariMenuModal';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 
 const ProductGrid = () => {
@@ -50,7 +51,9 @@ const ProductGrid = () => {
   const [showBeveragesModal, setShowBeveragesModal] = useState(false);
   const [showAlaCartModal, setShowAlaCartModal] = useState(false);
   const [showIndusModal, setShowIndusModal] = useState(false);
+  const [showKhanshinwariModal, setShowKhanshinwariModal] = useState(false);
   const [selectedIndusCategory, setSelectedIndusCategory] = useState<string | undefined>(undefined);
+  const [selectedKhanshinwariCategory, setSelectedKhanshinwariCategory] = useState<string | undefined>(undefined);
   
   const { data: openRegister } = useQuery({
     queryKey: ['open-register'],
@@ -128,6 +131,16 @@ const ProductGrid = () => {
       });
     }
     
+    if (tenant?.restaurant_name?.toLowerCase().includes('khanshinwari') || tenant?.restaurant_name?.toLowerCase().includes('khan shinwari')) {
+      const khanCategories = Array.from(new Set(DEFAULT_KHANSHINWARI_DATA.map(item => item.category)));
+      
+      khanCategories.forEach(cat => {
+        if (!baseCategories.some(c => c.id === cat)) {
+          baseCategories.push({ id: cat, name: cat, icon: 'ChefHat' });
+        }
+      });
+    }
+    
     return baseCategories;
   }, [categories, tenant]);
 
@@ -144,10 +157,11 @@ const ProductGrid = () => {
     const cardVisibility = savedVisibility ? JSON.parse(savedVisibility) : {};
     
     const isIndus = tenant?.restaurant_name?.toLowerCase().includes('indus');
+    const isKhanshinwari = tenant?.restaurant_name?.toLowerCase().includes('khanshinwari') || tenant?.restaurant_name?.toLowerCase().includes('khan shinwari');
     
     const isCardVisible = (id: string) => {
-      // Specifically hide these for Cafe Indus
-      if (isIndus && ['pizza', 'burger', 'alacart', 'sauce', 'roll', 'broast'].includes(id)) {
+      // Specifically hide these for Cafe Indus & Khanshinwari
+      if ((isIndus || isKhanshinwari) && ['pizza', 'burger', 'alacart', 'sauce', 'roll', 'broast'].includes(id)) {
         return false;
       }
       return cardVisibility[id] !== false;
@@ -451,9 +465,89 @@ const ProductGrid = () => {
            }
          }
        });
-     }
+      }
 
-     // Then filter by search
+      // Special logic for Khanshinwari Categories:
+      if (isKhanshinwari) {
+        const khanCategories = [
+          { name: 'CHICKEN KARHAI', id: 'khan_chicken_karahi' },
+          { name: 'BBQ PLATTERS', id: 'khan_bbq_platters' },
+          { name: 'EID ITEM', id: 'khan_eid_item' },
+          { name: 'MUTTON ROSH', id: 'khan_mutton_rosh' },
+          { name: 'MUTTON KARHAI', id: 'khan_mutton_karahi' },
+          { name: 'NAMKEEN BOTI', id: 'khan_namkeen_boti' },
+          { name: 'DRINKS', id: 'khan_drinks' },
+          { name: 'TANDOOR', id: 'khan_tandoor' },
+          { name: 'SALAD & RAITA', id: 'khan_salad_raita' },
+          { name: 'BBQ ITEMS', id: 'khan_bbq_items' },
+          { name: 'KEBABS', id: 'khan_kebabs' },
+          { name: 'CHICKEN HANDI', id: 'khan_chicken_handi' },
+          { name: 'MUTTON HANDI', id: 'khan_mutton_handi' },
+          { name: 'KHEER', id: 'khan_kheer' }
+        ];
+
+        khanCategories.forEach(cat => {
+          const isCatSelected = selectedCategory === cat.name;
+          const isAllSelected = selectedCategory === 'all';
+          
+          if ((isAllSelected || isCatSelected) && isCardVisible(cat.id)) {
+            // 1. Add the Virtual Menu Card
+            const virtualCard = {
+              id: `virtual-khan-card-${cat.name.toLowerCase().replace(/\s+/g, '-')}`,
+              name: `${cat.name} Menu`,
+              price: 0,
+              category: cat.name,
+              image: localStorage.getItem('pos_category_image_' + cat.id) || (
+                cat.id.includes('karahi') ? '/Karahi.png' : 
+                cat.id.includes('bbq') ? '/Barbq.png' : 
+                cat.id.includes('handi') ? '/Handi.png' : 
+                cat.id.includes('drinks') ? '🥤' : 
+                cat.id.includes('tandoor') ? '/Naan.png' : 
+                cat.id.includes('salad') ? '/Salad.png' : '🍲'
+              ),
+              isVirtual: true,
+              modalType: 'khanshinwari',
+              khanCategory: cat.name
+            };
+            
+            if (!searchQuery.trim() || virtualCard.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+              products = [virtualCard as any, ...products];
+            }
+
+            // 2. Add individual items if category selected
+            if (isCatSelected) {
+              const key = `pos_menu_khanshinwari_${cat.name.toLowerCase().replace(/\s+/g, '_').replace(/[()]/g, '')}`;
+              const saved = localStorage.getItem(key);
+              let items = [];
+              if (saved) {
+                items = JSON.parse(saved);
+              } else {
+                items = DEFAULT_KHANSHINWARI_DATA.filter(item => item.category === cat.name);
+              }
+
+              items.forEach((item: any, idx: number) => {
+                const productItem = {
+                  id: `khan-item-${cat.name.toLowerCase()}-${idx}`,
+                  name: item.name,
+                  price: item.price || 0,
+                  category: cat.name,
+                  image: '🍲',
+                  isVirtual: true,
+                  modalType: item.sizes ? 'khanshinwari' : 'simple',
+                  khanCategory: cat.name,
+                  khanItem: item
+                };
+
+                if (!searchQuery.trim() || productItem.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+                  products.push(productItem as any);
+                }
+              });
+            }
+          }
+        });
+      }
+
+      // Then filter by search
     if (searchQuery.trim()) {
       const searchResults = fuse.search(searchQuery);
       const searchIds = new Set(searchResults.map(r => r.item.id));
@@ -490,6 +584,9 @@ const ProductGrid = () => {
       } else if ((product as any).modalType === 'indus') {
         setSelectedIndusCategory((product as any).indusCategory);
         setShowIndusModal(true);
+      } else if ((product as any).modalType === 'khanshinwari') {
+        setSelectedKhanshinwariCategory((product as any).khanCategory);
+        setShowKhanshinwariModal(true);
       } else if ((product as any).modalType === 'simple') {
         // Handle individual virtual items that don't need a modal
         addItem(product);
@@ -754,6 +851,16 @@ const ProductGrid = () => {
             onAdd={handleAddToCart}
             category={selectedIndusCategory}
           />
+
+          <KhanshinwariMenuModal
+            isOpen={showKhanshinwariModal}
+            onClose={() => {
+              setShowKhanshinwariModal(false);
+              setSelectedKhanshinwariCategory(undefined);
+            }}
+            onAdd={handleAddToCart}
+            category={selectedKhanshinwariCategory}
+          />
         </div>
     );
 };
@@ -771,10 +878,11 @@ const ProductCard = ({ product, onAdd }: ProductCardProps) => {
   const isVirtualPizza = (product as any).id === 'virtual-pizza-menu';
   const isVirtualRoll = (product as any).id === 'virtual-roll-menu';
   const isVirtualIndus = (product as any).id?.startsWith?.('virtual-indus-');
+  const isVirtualKhan = (product as any).id?.startsWith?.('virtual-khan-');
   const isVirtualSimpleBroast = (product as any).id === 'virtual-broast-menu';
   const isLoadedFries = (product as any).name?.toLowerCase?.().includes('loaded fries');
   const isVirtualDeals = (product as any).id === 'virtual-deals-menu';
-  const forceShowImage = isVirtualSauce || isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isLoadedFries || isVirtualDeals;
+  const forceShowImage = isVirtualSauce || isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isVirtualKhan || isLoadedFries || isVirtualDeals;
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [currentSrc, setCurrentSrc] = useState<string | undefined>((product.image as any) || (isLoadedFries ? '/LoadedFries.png' : undefined));
