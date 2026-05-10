@@ -104,7 +104,6 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
     { name: 'Dashboard', href: '/', icon: LayoutGrid },
     { name: 'SaaS Admin', href: '/saas-admin', icon: ShieldCheck, superAdminOnly: true },
     { name: 'Running Orders', href: '/ongoing-orders', icon: Clock },
-    { name: 'Completed Orders', href: '/completed-orders', icon: CheckCircle2 },
     { name: 'Orders', href: '/orders', icon: ClipboardList },
     { name: 'Products', href: '/products', icon: Package, adminOnly: true, management: true },
     { name: 'Customers', href: '/customers', icon: Users, adminOnly: true, management: true },
