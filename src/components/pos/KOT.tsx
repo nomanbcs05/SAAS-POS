@@ -9,6 +9,7 @@ interface Order {
   orderType?: 'dine_in' | 'take_away' | 'delivery';
   createdAt: Date;
   cashierName: string;
+  serverName?: string | null;
   rider?: { name: string } | null;
 }
 
@@ -48,6 +49,9 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
         )}
         {order.customer && (
           <p>Customer: {order.customer.name}</p>
+        )}
+        {order.serverName && (
+          <p>Server: {order.serverName.replace(/^\[.*?\]\s*/, '')}</p>
         )}
       </div>
 
