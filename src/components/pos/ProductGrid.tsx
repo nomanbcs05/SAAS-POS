@@ -502,6 +502,7 @@ const ProductGrid = () => {
                 cat.id.includes('karahi') ? '/Karahi.png' : 
                 cat.id.includes('bbq') ? '/Barbq.png' : 
                 cat.id.includes('mutton_handi') ? '/mutton_handi.png' :
+                cat.id.includes('chicken_handi') ? '/chicken_handi.jpg' :
                 cat.id.includes('handi') ? '/Handi.png' : 
                 cat.id.includes('drinks') ? '🥤' : 
                 cat.id.includes('tandoor') ? '/Naan.png' : 

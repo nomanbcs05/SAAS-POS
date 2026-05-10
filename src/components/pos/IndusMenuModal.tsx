@@ -145,6 +145,7 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
     const saved = localStorage.getItem('pos_category_image_' + categoryKey);
     if (saved) return saved;
     if (categoryKey === 'indus_chicken_karahi') return '/chicken_karahi.jpg';
+    if (categoryKey === 'indus_handi') return '/chicken_handi.jpg';
     if (categoryKey === 'indus_salads') return '/Salad.png';
     if (categoryKey === 'indus_roti') return '/Naan.png';
     if (categoryKey === 'indus_fried') return '/Fried.png';

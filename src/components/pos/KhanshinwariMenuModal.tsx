@@ -124,6 +124,7 @@ export default function KhanshinwariMenuModal({ isOpen, onClose, onAdd, category
     if (initialCategory?.toLowerCase().includes('chicken karhai') || initialCategory?.toLowerCase().includes('chicken_karahi') || initialCategory?.toLowerCase().includes('chicken (karahi)')) return '/chicken_karahi.jpg';
     if (initialCategory?.toLowerCase().includes('karahi') || initialCategory?.toLowerCase().includes('karhai')) return '/Karahi.png';
     if (initialCategory?.toLowerCase().includes('bbq')) return '/Barbq.png';
+    if (initialCategory?.toLowerCase().includes('chicken handi') || initialCategory?.toLowerCase().includes('chicken_handi') || initialCategory?.toLowerCase().includes('handi (chicken)')) return '/chicken_handi.jpg';
     if (initialCategory?.toLowerCase().includes('mutton handi') || initialCategory?.toLowerCase().includes('mutton_handi')) return '/mutton_handi.png';
     if (initialCategory?.toLowerCase().includes('handi')) return '/Handi.png';
     if (initialCategory?.toLowerCase().includes('tandoor')) return '/Naan.png';
