@@ -301,19 +301,26 @@ export const getCachedTenant = () => {
 
 // Daily Counter
 export const getDailyCounter = () => {
-  const today = new Date().toISOString().split('T')[0];
   const stored = localStorage.getItem(CACHE_KEYS.DAILY_COUNTER);
   if (stored) {
-    const { date, count } = JSON.parse(stored);
-    if (date === today) return count;
+    try {
+      const parsed = JSON.parse(stored);
+      // Support old format { date, count } but ignore the date check
+      if (parsed && typeof parsed.count === 'number') {
+        return parsed.count;
+      }
+    } catch {
+      // It's a plain number string
+      return parseInt(stored, 10) || 0;
+    }
   }
   return 0;
 };
 
 export const incrementDailyCounter = () => {
-  const today = new Date().toISOString().split('T')[0];
   const current = getDailyCounter();
   const next = current + 1;
-  localStorage.setItem(CACHE_KEYS.DAILY_COUNTER, JSON.stringify({ date: today, count: next }));
+  // Just store the plain number
+  localStorage.setItem(CACHE_KEYS.DAILY_COUNTER, next.toString());
   return next;
 };

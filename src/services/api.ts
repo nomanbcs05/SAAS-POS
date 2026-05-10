@@ -94,9 +94,14 @@ const COUNT_CACHE_TTL = 30000; // 30 seconds cache for daily count
 export const api = {
   registers: {
     getOpen: async () => {
-      // Return a stable placeholder to bypass the shift management system entirely
+      // Return a stable placeholder that uses a persistent UUID per session
+      let sessionId = localStorage.getItem('pos_session_id');
+      if (!sessionId) {
+        sessionId = crypto.randomUUID();
+        localStorage.setItem('pos_session_id', sessionId);
+      }
       return {
-        id: 'automatic-session',
+        id: sessionId,
         status: 'open',
         opened_at: new Date().toISOString(),
         starting_amount: 0,
@@ -572,9 +577,12 @@ export const api = {
       // Force SQLite for desktop app
       if (isDesktop() && window.electronAPI) {
         const all = await window.electronAPI.getAllOrders();
-        // Return count of orders created today
+        if (registerId && isValidUUID(registerId)) {
+          return all.filter(o => o.register_id === registerId).length;
+        }
+        // Fallback to count of orders created today if no registerId
         const today = new Date().toISOString().split('T')[0];
-        return all.filter(o => o.created_at.startsWith(today)).length;
+        return all.filter(o => o.created_at?.startsWith(today)).length;
       }
       
       if (!offline.isOnline()) {
@@ -809,6 +817,11 @@ export const api = {
       }
 
       if (!newOrder) throw new Error('Failed to create order - no data returned');
+
+      // Sync local sequence counter when successfully saved to Supabase
+      if (safeOrder.daily_id) {
+        localStorage.setItem('pos_daily_counter', safeOrder.daily_id.toString());
+      }
 
       const itemsWithOrderIdFull = items.map(item => {
         const candidate = (item as any).product_id;

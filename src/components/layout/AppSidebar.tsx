@@ -124,6 +124,8 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
     try {
       localStorage.removeItem("pos_local_user"); // Clear local dev session
       localStorage.removeItem("pos_hide_management"); // Reset hide state on logout
+      localStorage.removeItem("pos_daily_counter"); // Reset order sequence
+      localStorage.removeItem("pos_session_id"); // Reset session ID
       await supabase.auth.signOut(); 
       toast.success("Logged out successfully");
       navigate("/auth");

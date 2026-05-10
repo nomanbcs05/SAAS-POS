@@ -116,6 +116,8 @@ const ReportsPage = () => {
       toast.success('Shift ended successfully');
       // Clear local state and log out
       localStorage.removeItem("pos_local_user");
+      localStorage.removeItem("pos_daily_counter");
+      localStorage.removeItem("pos_session_id");
       await supabase.auth.signOut();
       navigate("/auth");
     },
