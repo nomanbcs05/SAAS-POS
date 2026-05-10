@@ -272,18 +272,9 @@ const SettingsPage = () => {
       setStaffList(JSON.parse(savedStaff));
     }
 
-    const savedServers = localStorage.getItem('pos_server_names');
-    if (savedServers) {
-      setServerList(JSON.parse(savedServers));
-    } else {
-      setServerList(['Babar', 'Touheed', 'Nasrullah']); // Defaults
-    }
-
     const savedRiders = localStorage.getItem('pos_rider_names');
     if (savedRiders) {
       setRiderList(JSON.parse(savedRiders));
-    } else {
-      setRiderList(['Ayaz', 'Mumtaz', 'Abuzar', 'Zafar']); // Defaults
     }
 
     const savedLockPassword = localStorage.getItem('pos_lock_password');
@@ -291,6 +282,63 @@ const SettingsPage = () => {
       setLockPassword(savedLockPassword);
     }
   }, []);
+
+  // Database-backed staff and riders
+  const { data: staffMembersDb = [], refetch: refetchStaff } = useQuery({
+    queryKey: ['staff-db', tenant?.id],
+    queryFn: () => api.staff.getAll(),
+    enabled: !!tenant?.id,
+  });
+
+  const { data: ridersDb = [], refetch: refetchRiders } = useQuery({
+    queryKey: ['riders-db', tenant?.id],
+    queryFn: () => api.drivers.getAll(),
+    enabled: !!tenant?.id,
+  });
+
+  const handleAddServerDb = async () => {
+    if (!newServerName.trim()) return;
+    try {
+      await api.staff.create({ name: newServerName.trim(), role: 'waiter' });
+      setNewServerName('');
+      refetchStaff();
+      toast.success('Server added to database');
+    } catch (err) {
+      toast.error('Failed to add server to database');
+    }
+  };
+
+  const handleDeleteServerDb = async (id: string) => {
+    try {
+      await api.staff.delete(id);
+      refetchStaff();
+      toast.success('Server removed from database');
+    } catch (err) {
+      toast.error('Failed to remove server');
+    }
+  };
+
+  const handleAddRiderDb = async () => {
+    if (!newRiderName.trim()) return;
+    try {
+      await api.drivers.create({ name: newRiderName.trim() });
+      setNewRiderName('');
+      refetchRiders();
+      toast.success('Rider added to database');
+    } catch (err) {
+      toast.error('Failed to add rider to database');
+    }
+  };
+
+  const handleDeleteRiderDb = async (id: string) => {
+    try {
+      await api.drivers.delete(id);
+      refetchRiders();
+      toast.success('Rider removed from database');
+    } catch (err) {
+      toast.error('Failed to remove rider');
+    }
+  };
 
   const handleUpdateStaffName = (id: string, newName: string) => {
     const updated = staffList.map(s => s.id === id ? { ...s, name: newName } : s);
@@ -306,38 +354,6 @@ const SettingsPage = () => {
     }
     
     toast.success(`${id.charAt(0).toUpperCase() + id.slice(1)} display name updated`);
-  };
-
-  const handleAddServer = () => {
-    if (!newServerName.trim()) return;
-    const updated = [...serverList, newServerName.trim()];
-    setServerList(updated);
-    localStorage.setItem('pos_server_names', JSON.stringify(updated));
-    setNewServerName('');
-    toast.success('Server added successfully');
-  };
-
-  const handleDeleteServer = (name: string) => {
-    const updated = serverList.filter(s => s !== name);
-    setServerList(updated);
-    localStorage.setItem('pos_server_names', JSON.stringify(updated));
-    toast.success('Server removed');
-  };
-
-  const handleAddRider = () => {
-    if (!newRiderName.trim()) return;
-    const updated = [...riderList, newRiderName.trim()];
-    setRiderList(updated);
-    localStorage.setItem('pos_rider_names', JSON.stringify(updated));
-    setNewRiderName('');
-    toast.success('Rider added successfully');
-  };
-
-  const handleDeleteRider = (name: string) => {
-    const updated = riderList.filter(r => r !== name);
-    setRiderList(updated);
-    localStorage.setItem('pos_rider_names', JSON.stringify(updated));
-    toast.success('Rider removed');
   };
 
   const handleSaveLockPassword = () => {
@@ -832,14 +848,14 @@ const SettingsPage = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {serverList.map((name) => (
-                        <div key={name} className="flex items-center justify-between p-3 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow group">
-                          <span className="font-bold text-slate-700 ml-2">{name}</span>
+                      {staffMembersDb.map((staff: any) => (
+                        <div key={staff.id} className="flex items-center justify-between p-3 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow group">
+                          <span className="font-bold text-slate-700 ml-2">{staff.name}</span>
                           <Button 
                             variant="ghost" 
                             size="icon" 
                             className="h-8 w-8 text-slate-300 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleDeleteServer(name)}
+                            onClick={() => handleDeleteServerDb(staff.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -863,21 +879,21 @@ const SettingsPage = () => {
                         onChange={(e) => setNewRiderName(e.target.value)}
                         className="bg-white font-bold"
                       />
-                      <Button onClick={handleAddRider} className="bg-slate-900 text-white font-bold px-6 shrink-0">
+                      <Button onClick={handleAddRiderDb} className="bg-slate-900 text-white font-bold px-6 shrink-0">
                         <Plus className="h-4 w-4 mr-2" />
                         Add Rider
                       </Button>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {riderList.map((name) => (
-                        <div key={name} className="flex items-center justify-between p-3 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow group">
-                          <span className="font-bold text-slate-700 ml-2">{name}</span>
+                      {ridersDb.map((rider: any) => (
+                        <div key={rider.id} className="flex items-center justify-between p-3 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow group">
+                          <span className="font-bold text-slate-700 ml-2">{rider.name}</span>
                           <Button 
                             variant="ghost" 
                             size="icon" 
                             className="h-8 w-8 text-slate-300 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleDeleteRider(name)}
+                            onClick={() => handleDeleteRiderDb(rider.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

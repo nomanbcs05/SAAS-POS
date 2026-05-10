@@ -426,6 +426,62 @@ export const api = {
       }
     }
   },
+  staff: {
+    getAll: async () => {
+      const { data, error } = await supabase
+        .from('staff')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+    create: async (staff: { name: string; role?: string }) => {
+      const { data, error } = await supabase
+        .from('staff')
+        .insert(staff)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    delete: async (id: string) => {
+      const { error } = await supabase
+        .from('staff')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    }
+  },
+  drivers: {
+    getAll: async () => {
+      const { data, error } = await supabase
+        .from('delivery_drivers')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+    create: async (driver: { name: string; phone?: string; vehicle_type?: string }) => {
+      const { data, error } = await supabase
+        .from('delivery_drivers')
+        .insert({
+          ...driver,
+          phone: driver.phone || '0000000000',
+          vehicle_type: driver.vehicle_type || 'Bike'
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    delete: async (id: string) => {
+      const { error } = await supabase
+        .from('delivery_drivers')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    }
+  },
   orders: {
     getAll: async () => {
       // Force SQLite for desktop

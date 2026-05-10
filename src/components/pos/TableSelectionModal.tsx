@@ -8,21 +8,25 @@ import { toast } from 'sonner';
 import { Users, X, UserCircle2, TreePine, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { useMultiTenant } from '@/hooks/useMultiTenant';
+
 interface TableSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
 type TableStatus = 'available' | 'occupied' | 'reserved' | 'cleaning';
-type TableSection = 'indoor' | 'outdoor';
+type TableSection = 'indoor' | 'outdoor' | 'vip';
 
 // Layout definition: Indoor = 16 tables × 6 seats, Outdoor = 8 tables × 8 seats
 const SECTION_CONFIG: Record<TableSection, { count: number; capacity: number; label: string }> = {
   indoor:  { count: 16, capacity: 6, label: 'Indoor'  },
   outdoor: { count: 8,  capacity: 8, label: 'Outdoor' },
+  vip:     { count: 0,  capacity: 10, label: 'VIP'     },
 };
 
 const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
+  const { tenant } = useMultiTenant();
   const [step, setStep] = useState<'server' | 'table'>('server');
   const [activeFilter, setActiveFilter] = useState<TableSection | 'all'>('all');
   const [serverList, setServerList] = useState<string[]>(['Babar', 'Touheed', 'Nasrullah']);
@@ -47,6 +51,19 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     enabled: isOpen,
   });
 
+  const { data: staffMembers = [] } = useQuery({
+    queryKey: ['staff-db'],
+    queryFn: () => api.staff.getAll(),
+    enabled: isOpen,
+  });
+
+  // Combine default with DB staff
+  const displayServers = useMemo(() => {
+    const dbNames = staffMembers.map((s: any) => s.name);
+    if (dbNames.length > 0) return dbNames;
+    return serverList; // fallback to hardcoded if DB empty
+  }, [staffMembers, serverList]);
+
   const { data: ongoingOrders = [] } = useQuery({
     queryKey: ['ongoing-orders'],
     queryFn: api.orders.getOngoing,
@@ -56,13 +73,45 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
   // Build the full table list from config, merging DB records
   const displayTables = useMemo(() => {
     const allTables: any[] = [];
+    const isKhanshinwari = tenant?.restaurant_name?.toLowerCase().includes('khanshinwari') || tenant?.restaurant_name?.toLowerCase().includes('khan shinwari');
 
-    const sections: TableSection[] = activeFilter === 'all' ? ['indoor', 'outdoor'] : [activeFilter];
+    if (isKhanshinwari) {
+      // Logic for Khanshinwari specific ranges: 1-30, 50-65, 90-100
+      const ranges = [
+        { start: 1, end: 30, section: 'indoor' as TableSection, capacity: 6 },
+        { start: 50, end: 65, section: 'outdoor' as TableSection, capacity: 8 },
+        { start: 90, end: 100, section: 'vip' as TableSection, capacity: 10 }
+      ];
+      
+      ranges.forEach(range => {
+        if (activeFilter === 'all' || activeFilter === range.section) {
+          for (let i = range.start; i <= range.end; i++) {
+            const tableNum = i.toString();
+            const existing = tables.find(
+              (t: any) => t.table_number === tableNum && t.section === range.section
+            );
+            allTables.push(
+              existing || {
+                table_number: tableNum,
+                section: range.section,
+                capacity: range.capacity,
+                status: 'available' as TableStatus,
+                isVirtual: true,
+              }
+            );
+          }
+        }
+      });
+      return allTables;
+    }
+
+    const sections: TableSection[] = activeFilter === 'all' ? ['indoor', 'outdoor'] : [activeFilter as TableSection];
 
     for (const section of sections) {
+      if (section === 'vip' && !isKhanshinwari) continue;
       const { count, capacity } = SECTION_CONFIG[section];
       // Number tables per section: Indoor → T1–T16, Outdoor → O1–O8
-      const prefix = section === 'indoor' ? 'T' : 'O';
+      const prefix = section === 'indoor' ? 'T' : (section === 'outdoor' ? 'O' : 'V');
       for (let i = 1; i <= count; i++) {
         const tableNum = `${prefix}${i}`;
         const existing = tables.find(
@@ -80,7 +129,7 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
       }
     }
     return allTables;
-  }, [tables, activeFilter]);
+  }, [tables, activeFilter, tenant]);
 
   /* ── mutations ── */
   const updateStatusMutation = useMutation({
@@ -170,10 +219,22 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     { key: 'all',     label: 'All Tables', icon: null },
     { key: 'indoor',  label: 'Indoor',     icon: <Home className="w-3.5 h-3.5" /> },
     { key: 'outdoor', label: 'Outdoor',    icon: <TreePine className="w-3.5 h-3.5" /> },
+    { key: 'vip',     label: 'VIP',        icon: <Users className="w-3.5 h-3.5" /> },
   ];
 
   /* ── counts for badges ── */
   const sectionCounts = useMemo(() => {
+    const isKhanshinwari = tenant?.restaurant_name?.toLowerCase().includes('khanshinwari') || tenant?.restaurant_name?.toLowerCase().includes('khan shinwari');
+    
+    if (isKhanshinwari) {
+      return {
+        all: 30 + 16 + 11,
+        indoor: 30,
+        outdoor: 16,
+        vip: 11
+      };
+    }
+
     const countFor = (section: TableSection) => {
       const { count } = SECTION_CONFIG[section];
       return count;
@@ -182,8 +243,9 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
       all:     SECTION_CONFIG.indoor.count + SECTION_CONFIG.outdoor.count,
       indoor:  countFor('indoor'),
       outdoor: countFor('outdoor'),
+      vip:     0,
     };
-  }, []);
+  }, [tenant]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -249,7 +311,7 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
                   Tap a server to continue
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {serverList.map((name) => (
+                  {displayServers.map((name) => (
                     <Button
                       key={name}
                       variant={serverName === name ? 'default' : 'outline'}
@@ -312,23 +374,26 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
                       {/* When "all" is selected, render each section with its own header */}
                       {activeFilter === 'all' ? (
                         <div className="space-y-7">
-                          {(['indoor', 'outdoor'] as TableSection[]).map((section) => {
+                          {(['indoor', 'outdoor', 'vip'] as TableSection[]).map((section) => {
+                            if (section === 'vip' && !(tenant?.restaurant_name?.toLowerCase().includes('khanshinwari') || tenant?.restaurant_name?.toLowerCase().includes('khan shinwari'))) return null;
                             const { label, capacity } = SECTION_CONFIG[section];
-                            const Icon = section === 'indoor' ? Home : TreePine;
+                            const Icon = section === 'indoor' ? Home : (section === 'outdoor' ? TreePine : Users);
                             const sectionTables = displayTables.filter((t) => t.section === section);
+                            if (sectionTables.length === 0) return null;
                             return (
                               <div key={section}>
                                 {/* Section header */}
                                 <div className="flex items-center gap-2 mb-3">
                                   <div className={cn(
                                     'flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest',
-                                    section === 'indoor' ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700'
+                                    section === 'indoor' ? 'bg-blue-50 text-blue-700' : 
+                                    section === 'outdoor' ? 'bg-green-50 text-green-700' : 'bg-purple-50 text-purple-700'
                                   )}>
                                     <Icon className="w-3 h-3" />
                                     {label}
                                   </div>
                                   <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">
-                                    {SECTION_CONFIG[section].count} tables · {capacity} chairs each
+                                    {sectionTables.length} tables · {capacity} chairs each
                                   </span>
                                 </div>
                                 <TableGrid
@@ -348,13 +413,14 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
                           <div className="flex items-center gap-2 mb-3">
                             <div className={cn(
                               'flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest',
-                              activeFilter === 'indoor' ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700'
+                              activeFilter === 'indoor' ? 'bg-blue-50 text-blue-700' : 
+                              activeFilter === 'outdoor' ? 'bg-green-50 text-green-700' : 'bg-purple-50 text-purple-700'
                             )}>
-                              {activeFilter === 'indoor' ? <Home className="w-3 h-3" /> : <TreePine className="w-3 h-3" />}
-                              {SECTION_CONFIG[activeFilter].label}
+                              {activeFilter === 'indoor' ? <Home className="w-3 h-3" /> : (activeFilter === 'outdoor' ? <TreePine className="w-3 h-3" /> : <Users className="w-3 h-3" />)}
+                              {SECTION_CONFIG[activeFilter as TableSection].label}
                             </div>
                             <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">
-                              {SECTION_CONFIG[activeFilter].count} tables · {SECTION_CONFIG[activeFilter].capacity} chairs each
+                              {displayTables.length} tables · {SECTION_CONFIG[activeFilter as TableSection].capacity} chairs each
                             </span>
                           </div>
                           <TableGrid
