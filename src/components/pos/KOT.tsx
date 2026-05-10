@@ -75,7 +75,7 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
             return (
               <tr key={key}>
                 <td className="py-2 pr-2 align-top w-12 text-lg">
-                  {qty}
+                  {qty % 1 === 0 ? qty : qty.toFixed(2)}
                 </td>
                 <td className="py-2 align-top">
                   <div className="text-lg">{name}</div>

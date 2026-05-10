@@ -173,7 +173,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
           <tbody>
             {order.items.map((item) => (
               <tr key={item.product.id}>
-                <td className="py-1 pl-1 align-top font-medium text-[11px]">{item.quantity}</td>
+                <td className="py-1 pl-1 align-top font-medium text-[11px]">{item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)}</td>
                 <td className="py-1 align-top uppercase break-words font-medium text-[11px]">
                   {item.product.name}
                 </td>

@@ -166,7 +166,7 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
           <tbody>
             {order.items.map((item) => (
               <tr key={item.product.id}>
-                <td className="py-0.5 pl-1 align-top">{item.quantity}</td>
+                <td className="py-0.5 pl-1 align-top">{item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)}</td>
                 <td className="py-0.5 align-top uppercase break-words">
                   {item.product.name}
                   {/* Modifiers could go here */}

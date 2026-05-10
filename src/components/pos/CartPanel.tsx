@@ -607,32 +607,55 @@ const CartPanel = () => {
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
-                  {/* Bottom row: unit price + qty controls + line total */}
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
-                      Rs {item.product.price.toLocaleString()}/ea
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                      >
-                        <Minus className="h-2.5 w-2.5" />
-                      </Button>
-                      <span className="w-7 text-center font-bold text-sm">{item.quantity}</span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                      >
-                        <Plus className="h-2.5 w-2.5" />
-                      </Button>
+                  {/* Bottom row: unit price + qty controls + line total */}                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                        Rs {item.product.price.toLocaleString()}/ea
+                      </span>
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => updateQuantity(item.product.id, Math.max(0, item.quantity - 0.25))}
+                          >
+                            <Minus className="h-2.5 w-2.5" />
+                          </Button>
+                          <span className="w-10 text-center font-bold text-sm">
+                            {item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => updateQuantity(item.product.id, item.quantity + 0.25)}
+                          >
+                            <Plus className="h-2.5 w-2.5" />
+                          </Button>
+                        </div>
+                        
+                        {item.product.name.toLowerCase().includes('kg') && (
+                          <div className="flex gap-1">
+                            {[0.25, 0.5, 0.75, 1].map((val) => (
+                              <Button
+                                key={val}
+                                variant={item.quantity === val ? "default" : "outline"}
+                                size="sm"
+                                className={cn(
+                                  "h-6 px-1.5 text-[9px] font-black min-w-[35px] transition-all",
+                                  item.quantity === val ? "bg-slate-900 text-white" : "text-slate-600 border-slate-200"
+                                )}
+                                onClick={() => updateQuantity(item.product.id, val)}
+                              >
+                                {val}kg
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <span className="font-black text-sm whitespace-nowrap">Rs {item.lineTotal.toLocaleString()}</span>
                     </div>
-                    <span className="font-black text-sm whitespace-nowrap">Rs {item.lineTotal.toLocaleString()}</span>
-                  </div>
+
                 </div>
               ))}
             </div>

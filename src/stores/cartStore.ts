@@ -104,16 +104,18 @@ export const useCartStore = create<CartState>()(
       addItem: (product) => {
         set((state) => {
           const existingItem = state.items.find(item => item.product.id === product.id);
+          const isKgItem = product.name.toLowerCase().includes('kg');
+          const increment = isKgItem ? 0.25 : 1;
           
           let newItems: CartItem[];
           if (existingItem) {
             newItems = state.items.map(item =>
               item.product.id === product.id
-                ? { ...item, quantity: item.quantity + 1, lineTotal: (item.quantity + 1) * item.product.price }
+                ? { ...item, quantity: item.quantity + increment, lineTotal: (item.quantity + increment) * item.product.price }
                 : item
             );
           } else {
-            newItems = [...state.items, { product, quantity: 1, lineTotal: product.price }];
+            newItems = [...state.items, { product, quantity: increment, lineTotal: product.price * increment }];
           }
           
           const subtotal = newItems.reduce((sum, item) => sum + item.lineTotal, 0);
