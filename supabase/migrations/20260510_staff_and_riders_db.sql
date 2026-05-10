@@ -12,7 +12,18 @@ CREATE TABLE IF NOT EXISTS public.staff (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2. Ensure 'delivery_drivers' has tenant_id and SaaS support
+-- 2. Ensure 'delivery_drivers' exists and has tenant_id
+CREATE TABLE IF NOT EXISTS public.delivery_drivers (
+    driver_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    vehicle_type VARCHAR(50) NOT NULL,
+    status VARCHAR(20) DEFAULT 'available' CHECK (status IN ('available', 'busy', 'offline')),
+    active_orders INTEGER DEFAULT 0,
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 DO $$ 
 BEGIN 
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'delivery_drivers' AND column_name = 'tenant_id') THEN

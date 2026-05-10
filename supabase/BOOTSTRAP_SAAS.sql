@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS public.order_items (
     product_id UUID REFERENCES public.products(id),
     product_name TEXT,
     product_category TEXT,
-    quantity INTEGER NOT NULL,
+    quantity NUMERIC NOT NULL,
     price NUMERIC NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

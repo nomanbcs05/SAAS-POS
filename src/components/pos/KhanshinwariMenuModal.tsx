@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface KhanshinwariMenuModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (product: any) => void;
+  onAdd: (product: any, quantity?: number) => void;
   category?: string; // Optional category filter
 }
 
@@ -109,6 +109,7 @@ export const DEFAULT_KHANSHINWARI_DATA: MenuItem[] = [
 export default function KhanshinwariMenuModal({ isOpen, onClose, onAdd, category: initialCategory }: KhanshinwariMenuModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>(initialCategory || 'all');
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const { isAdmin } = useMultiTenant();
@@ -237,8 +238,8 @@ export default function KhanshinwariMenuModal({ isOpen, onClose, onAdd, category
       sku: `KHAN-${item.name.substring(0, 3).toUpperCase()}${size ? `-${size[0]}` : ''}`,
     };
 
-    onAdd(product);
-    toast.success(`${name} added to cart`);
+    onAdd(product, selectedQuantity);
+    toast.success(`${name} (${selectedQuantity}x) added to cart`);
   };
 
   return (
@@ -337,6 +338,24 @@ export default function KhanshinwariMenuModal({ isOpen, onClose, onAdd, category
                 ))}
               </select>
             )}
+          </div>
+
+          <div className="flex flex-wrap gap-2 mt-4 px-2 overflow-x-auto pb-2 scrollbar-hide">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+              <Button
+                key={num}
+                variant="ghost"
+                className={cn(
+                  "h-10 w-10 min-w-[2.5rem] rounded-xl font-black text-sm transition-all",
+                  selectedQuantity === num 
+                    ? "bg-amber-500 text-white shadow-lg shadow-amber-500/30 scale-110" 
+                    : "bg-white/10 text-amber-100 hover:bg-white/20"
+                )}
+                onClick={() => setSelectedQuantity(num)}
+              >
+                {num}
+              </Button>
+            ))}
           </div>
         </div>
 

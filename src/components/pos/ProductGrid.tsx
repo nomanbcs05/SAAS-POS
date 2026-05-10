@@ -557,7 +557,7 @@ const ProductGrid = () => {
     return products;
   }, [searchQuery, selectedCategory, fuse, allProducts, tenant]);
 
-  const handleAddToCart = useCallback((product: Product) => {
+  const handleAddToCart = useCallback((product: Product, quantity?: number) => {
     if ((product as any).isVirtual) {
       if ((product as any).modalType === 'broast') {
         setShowBroastModal(true);
@@ -589,11 +589,11 @@ const ProductGrid = () => {
         setShowKhanshinwariModal(true);
       } else if ((product as any).modalType === 'simple') {
         // Handle individual virtual items that don't need a modal
-        addItem(product);
+        addItem(product, quantity);
       }
       return;
     }
-    addItem(product);
+    addItem(product, quantity);
   }, [addItem]);
 
   const handleClearSearch = () => {

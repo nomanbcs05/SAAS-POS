@@ -55,7 +55,7 @@ interface CartState {
   total: number;
   
   // Actions
-  addItem: (product: Product) => void;
+  addItem: (product: Product, quantity?: number) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   setCustomer: (customer: Customer | null) => void;
@@ -101,11 +101,15 @@ export const useCartStore = create<CartState>()(
         get().calculateTotals();
       },
       
-      addItem: (product) => {
+      addItem: (product, quantity) => {
         set((state) => {
           const existingItem = state.items.find(item => item.product.id === product.id);
           const isKgItem = product.name.toLowerCase().includes('kg');
-          const increment = isKgItem ? 0.25 : 1;
+          
+          // Use provided quantity, otherwise default to fractional logic for KG items or 1 for others
+          const increment = quantity !== undefined 
+            ? quantity 
+            : (isKgItem ? 0.25 : 1);
           
           let newItems: CartItem[];
           if (existingItem) {
