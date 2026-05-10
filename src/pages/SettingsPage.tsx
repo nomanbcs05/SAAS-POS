@@ -841,7 +841,7 @@ const SettingsPage = () => {
                         onChange={(e) => setNewServerName(e.target.value)}
                         className="bg-white font-bold"
                       />
-                      <Button onClick={handleAddServer} className="bg-slate-900 text-white font-bold px-6 shrink-0">
+                      <Button onClick={handleAddServerDb} className="bg-slate-900 text-white font-bold px-6 shrink-0">
                         <Plus className="h-4 w-4 mr-2" />
                         Add Server
                       </Button>
