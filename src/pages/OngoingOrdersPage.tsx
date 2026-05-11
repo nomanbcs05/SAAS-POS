@@ -73,19 +73,26 @@ const OngoingOrdersPage = () => {
 
   const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
     if (!order) return '00';
-    if (order.daily_id) {
-      return order.daily_id.toString().padStart(2, '0');
-    }
     if (Array.isArray(allOrders)) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const sortedTodayOrders = allOrders
-        .filter((o: any) => new Date(o.created_at) >= today)
-        .sort((a: any, b: any) => new Date(a.created_at) - new Date(b.created_at));
-      const dailyIndex = sortedTodayOrders.findIndex((o: any) => o.id === order.id);
+      const orderDate = new Date(order.created_at);
+      const start = new Date(orderDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(orderDate);
+      end.setHours(23, 59, 59, 999);
+      const sortedDayOrders = allOrders
+        .filter((o: any) => {
+          if (!o?.created_at) return false;
+          const d = new Date(o.created_at);
+          return !isNaN(d.getTime()) && d >= start && d <= end;
+        })
+        .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      const dailyIndex = sortedDayOrders.findIndex((o: any) => o.id === order.id);
       if (dailyIndex !== -1) {
         return (dailyIndex + 1).toString().padStart(2, '0');
       }
+    }
+    if (order.daily_id) {
+      return order.daily_id.toString().padStart(2, '0');
     }
     return order.id?.slice(0, 8).toUpperCase() || '00';
   };

@@ -60,11 +60,11 @@ import { useMultiTenant } from '@/hooks/useMultiTenant';
 
 const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
   if (!order) return '00';
-  if (order.daily_id) {
-    return order.daily_id.toString().padStart(2, '0');
-  }
   if (order.dailyId) {
     return order.dailyId;
+  }
+  if (order.daily_id) {
+    return order.daily_id.toString().padStart(2, '0');
   }
   if (Array.isArray(allOrders)) {
     const orderDate = new Date(order.created_at);
@@ -341,55 +341,34 @@ const OrdersPage = () => {
   // Calculate daily IDs for today's orders
   const ordersWithDailyId = useMemo(() => {
     if (!Array.isArray(orders)) return [];
-    
-    // 1. Group orders by register_id
-    const ordersByRegister: Record<string, any[]> = {};
-    
-    // Also handle orders without a register_id (fallback to daily grouping)
-    const ordersWithoutRegister: any[] = [];
 
-    orders.forEach((order: any) => {
-      if (!order) return;
-      if (order.register_id) {
-        if (!ordersByRegister[order.register_id]) {
-          ordersByRegister[order.register_id] = [];
-        }
-        ordersByRegister[order.register_id].push(order);
-      } else {
-        ordersWithoutRegister.push(order);
-      }
-    });
+    const ordersByDay: Record<string, any[]> = {};
+    for (const order of orders) {
+      if (!order?.created_at) continue;
+      const dayKey = format(new Date(order.created_at), 'yyyy-MM-dd');
+      if (!ordersByDay[dayKey]) ordersByDay[dayKey] = [];
+      ordersByDay[dayKey].push(order);
+    }
 
-    const dailyIdMap = new Map();
-
-    // 2. For each register group, sort by date and assign IDs starting from 1
-    Object.values(ordersByRegister).forEach(group => {
-      const sortedGroup = [...group].sort((a: any, b: any) =>
+    const dailyIdMap = new Map<string, string>();
+    Object.values(ordersByDay).forEach(dayOrders => {
+      const sorted = [...dayOrders].sort((a: any, b: any) =>
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
-      sortedGroup.forEach((order, index) => {
+      sorted.forEach((order: any, index: number) => {
         dailyIdMap.set(order.id, (index + 1).toString().padStart(2, '0'));
       });
     });
 
-    // 3. Handle orders without register (traditional daily grouping for legacy orders)
-    const sortedLegacy = [...ordersWithoutRegister].sort((a: any, b: any) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    );
-    sortedLegacy.forEach((order, index) => {
-      // For legacy, we might want to still group by day to avoid massive numbers
-      // but the user's request is for shift-based.
-      dailyIdMap.set(order.id, (index + 1).toString().padStart(2, '0'));
-    });
-
-    // 4. Return orders with IDs attached
-    return orders.map((order: any) => {
-      if (!order) return null;
-      return {
-        ...order,
-        dailyId: order?.daily_id ? order.daily_id.toString().padStart(2, '0') : dailyIdMap.get(order.id)
-      };
-    }).filter(Boolean);
+    return orders
+      .map((order: any) => {
+        if (!order) return null;
+        return {
+          ...order,
+          dailyId: dailyIdMap.get(order.id) || (order?.daily_id ? order.daily_id.toString().padStart(2, '0') : undefined),
+        };
+      })
+      .filter(Boolean);
   }, [orders]);
 
   const filteredOrders = ordersWithDailyId.filter((order: any) => {
