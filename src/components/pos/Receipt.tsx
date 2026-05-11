@@ -21,7 +21,7 @@ interface Order {
   serverName?: string | null;
   rider?: { name: string } | null;
   customerAddress?: string | null;
-  tableId?: number | null;
+  tableId?: string | number | null;
 }
 
 interface ReceiptProps {
@@ -121,10 +121,10 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
           <span>{format(order.createdAt, 'h:mm a')}</span>
         </div>
 
-        {order.tableId && (
+        {order.tableId != null && order.tableId !== '' && (
           <div className="flex justify-between mt-1">
-            <span className="font-bold">Table:</span>
-            <span className="font-bold uppercase">{order.tableId}</span>
+            <span className="font-black text-[12px]">Table:</span>
+            <span className="font-black text-[12px] uppercase">{order.tableId}</span>
           </div>
         )}
 

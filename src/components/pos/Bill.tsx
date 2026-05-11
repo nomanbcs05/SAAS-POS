@@ -19,7 +19,7 @@ interface Order {
   createdAt: Date;
   cashierName: string;
   serverName?: string | null;
-  tableId?: number | null;
+  tableId?: string | number | null;
   rider?: { name: string } | null;
   customerAddress?: string | null;
 }
@@ -114,10 +114,10 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
           <span>{format(order.createdAt, 'h:mm a')}</span>
         </div>
 
-        {order.tableId && (
+        {order.tableId != null && order.tableId !== '' && (
           <div className="flex justify-between">
-            <span className="font-bold">Table:</span>
-            <span className="font-bold uppercase">{order.tableId}</span>
+            <span className="font-black text-[13px]">Table:</span>
+            <span className="font-black text-[13px] uppercase">{order.tableId}</span>
           </div>
         )}
 

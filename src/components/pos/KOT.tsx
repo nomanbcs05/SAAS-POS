@@ -11,6 +11,7 @@ interface Order {
   cashierName: string;
   serverName?: string | null;
   rider?: { name: string } | null;
+  tableId?: string | number | null;
 }
 
 interface KOTProps {
@@ -44,6 +45,9 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
         <p>Order #: {order.orderNumber}</p>
         <p>Type: {order.orderType?.replace('_', ' ').toUpperCase() || 'DINE IN'}</p>
         <p>Date: {format(order.createdAt, 'yyyy-MM-dd HH:mm')}</p>
+        {order.tableId != null && order.tableId !== '' && (
+          <p>Table: {order.tableId}</p>
+        )}
         {order.orderType === 'delivery' && order.rider && (
           <p>Rider: {order.rider.name}</p>
         )}

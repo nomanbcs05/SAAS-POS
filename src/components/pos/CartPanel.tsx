@@ -323,7 +323,7 @@ const CartPanel = () => {
         }
         return serverName;
       })(), // Include server name with role tag
-      tableId, // Include tableId
+      tableId: selectedTable?.table_number ?? null,
       orderType,
       subtotal,
       taxAmount,
