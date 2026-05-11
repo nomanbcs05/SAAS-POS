@@ -603,7 +603,7 @@ export const api = {
             new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
           ]);
 
-          if (result && !result.error) return result.count || 0;
+          if (result && !result.error && (result.count || 0) > 0) return result.count || 0;
         } catch (err) {
           console.warn('Timeout or error fetching daily count, falling back to offline count');
           return offline.getDailyCounter();

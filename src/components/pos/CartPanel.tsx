@@ -222,7 +222,7 @@ const CartPanel = () => {
       // because the user wants to "save all the orders whose bills was printed once"
       if (items.length > 0) {
         try {
-          const count = await api.orders.getDailyCount(openRegister?.id);
+          const count = await api.orders.getDailyCount();
           const dailyId = count + 1;
 
           const orderInsert = {
@@ -234,7 +234,7 @@ const CartPanel = () => {
             table_id: tableId || null,
             server_name: getServerNameWithRole(),
             customer_address: customerAddress || null,
-            register_id: openRegister?.id || null,
+            register_id: null,
             daily_id: dailyId,
           };
 
@@ -305,7 +305,7 @@ const CartPanel = () => {
     createdAt: Date;
     cashierName: typeof cashierName;
   }> => {
-    const count = await api.orders.getDailyCount(openRegister?.id);
+    const count = await api.orders.getDailyCount();
     const dailyId = count + 1;
     const dailyIdStr = dailyId.toString().padStart(2, '0');
 
@@ -396,7 +396,7 @@ const CartPanel = () => {
       return;
     }
 
-    const count = await api.orders.getDailyCount(openRegister?.id);
+    const count = await api.orders.getDailyCount();
     const dailyId = count + 1;
 
     const orderInsert = {
@@ -408,7 +408,7 @@ const CartPanel = () => {
       table_id: tableId || null,
       server_name: getServerNameWithRole(),
       customer_address: customerAddress || null,
-      register_id: openRegister?.id || null,
+      register_id: null,
       tenant_id: tenant?.id || null,
       daily_id: dailyId,
     };
@@ -447,7 +447,7 @@ const CartPanel = () => {
   };
 
   const performCompleteSale = async () => {
-    const orderInsert = {
+    const orderInsert: any = {
       customer_id: customer?.id || null,
       total_amount: total,
       status: 'completed',
@@ -456,7 +456,7 @@ const CartPanel = () => {
       table_id: tableId || null,
       server_name: getServerNameWithRole(),
       customer_address: customerAddress || null,
-      register_id: openRegister?.id || null,
+      register_id: null,
       tenant_id: tenant?.id || null,
     };
 
@@ -471,6 +471,7 @@ const CartPanel = () => {
     const toastId = toast.loading('Preparing order data...');
     const localOrder = await prepareOrderData();
     setLastOrder(localOrder);
+    orderInsert.daily_id = (localOrder as any).daily_id ?? null;
 
     toast.loading('Processing order...', { id: toastId });
     createOrderMutation.mutate({ order: orderInsert, items: orderItemsInsert }, {
