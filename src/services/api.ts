@@ -709,7 +709,7 @@ export const api = {
         status: order.status || 'completed',
         payment_method: order.payment_method || 'cash',
         order_type: order.order_type || 'dine_in',
-        register_id: isValidUUID(String(order.register_id)) ? String(order.register_id) : null,
+        register_id: null,
         daily_id: order.daily_id || null,
         tenant_id: tenantId || null,
         customer_id: order.customer_id || null,
@@ -869,7 +869,7 @@ export const api = {
         status: order.status || 'pending',
         payment_method: order.payment_method || 'cash',
         order_type: order.order_type || 'dine_in',
-        register_id: isValidUUID(String(order.register_id)) ? String(order.register_id) : null,
+        register_id: null,
         daily_id: order.daily_id || null,
       };
 

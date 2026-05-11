@@ -164,7 +164,7 @@ async function syncPendingOrders() {
         status: order.status || 'completed',
         payment_method: order.payment_method || 'cash',
         order_type: order.order_type || 'dine_in',
-        register_id: isValidUUID(String(order.register_id)) ? String(order.register_id) : null,
+        register_id: null,
         tenant_id: order.tenant_id || profile?.tenant_id || null,
         customer_id: isValidUUID(String(order.customer_id)) ? String(order.customer_id) : null,
         customer_address: order.customer_address || null,
@@ -173,11 +173,42 @@ async function syncPendingOrders() {
         daily_id: order.daily_id || null,
       };
 
-      let { data: newOrder, error: orderError } = await supabase
+      let newOrder: any = null;
+      let orderError: any = null;
+
+      const { data: existingOrder } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('id', entry.id)
+        .maybeSingle();
+
+      if (existingOrder) {
+        console.log(`[Sync] Order ${entry.id} already exists, marking as synced`);
+        offline.markOrderSynced(entry.id);
+        synced++;
+        continue;
+      }
+
+      // Insert the order with the existing ID (if it's a valid UUID)
+      if (isValidUUID(entry.id)) {
+        safeOrder.id = entry.id;
+      }
+
+      let { data: insertResult, error: insertError } = await supabase
         .from('orders')
         .insert(safeOrder)
         .select()
         .maybeSingle();
+
+      if (insertError && insertError.code === '23505') {
+        console.log(`[Sync] Order ${entry.id} already exists (conflict), marking as synced`);
+        offline.markOrderSynced(entry.id);
+        synced++;
+        continue;
+      }
+
+      newOrder = insertResult;
+      orderError = insertError;
 
       // Retry without optional columns if schema mismatch
       if (orderError && (orderError.code === 'PGRST204' || orderError.message.includes('Could not find the'))) {

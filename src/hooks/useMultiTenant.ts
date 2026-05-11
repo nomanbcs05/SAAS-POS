@@ -5,6 +5,12 @@ import { toast } from 'sonner';
 import * as offline from '@/services/offlineStore';
 import { isDesktop } from '@/lib/env';
 
+const isAbortError = (error: any) => {
+  return error?.name === 'AbortError' || 
+         error?.message?.includes('signal is aborted') ||
+         error?.message?.includes('AbortError');
+};
+
 export interface Profile {
   id: string;
   full_name: string | null;
@@ -90,6 +96,10 @@ export const useMultiTenant = () => {
         offline.cacheProfile(data);
         return data as Profile;
       } catch (err) {
+        if (isAbortError(err)) {
+          console.warn('[Query] Aborted, returning cached or null');
+          return offline.getCachedProfile() as Profile | null;
+        }
         if (!offline.isOnline()) {
           console.warn('[Offline] Using cached profile');
           return offline.getCachedProfile() as Profile | null;
@@ -99,6 +109,10 @@ export const useMultiTenant = () => {
       }
     },
     enabled: !!session?.user?.id,
+    retry: (failureCount, error) => {
+      if (isAbortError(error)) return false;
+      return failureCount < 3;
+    },
   });
 
   const { data: ownedTenants, isLoading: ownedTenantsLoading } = useQuery({
@@ -111,12 +125,20 @@ export const useMultiTenant = () => {
         .eq('owner_id', session.user.id);
 
       if (error) {
+        if (isAbortError(error)) {
+          console.warn('[Query] Aborted, returning empty');
+          return [];
+        }
         console.error('Error fetching owned tenants:', error);
         return [];
       }
       return data as Tenant[];
     },
     enabled: !!session?.user?.id,
+    retry: (failureCount, error) => {
+      if (isAbortError(error)) return false;
+      return failureCount < 3;
+    },
   });
 
   const { data: tenant, isLoading: tenantLoading } = useQuery({
@@ -166,6 +188,10 @@ export const useMultiTenant = () => {
 
         return null;
       } catch (err) {
+        if (isAbortError(err)) {
+          console.warn('[Query] Aborted, returning cached tenant');
+          return offline.getCachedTenant() as Tenant | null;
+        }
         if (!offline.isOnline()) {
           console.warn('[Offline] Using cached tenant');
           return offline.getCachedTenant() as Tenant | null;
@@ -174,6 +200,10 @@ export const useMultiTenant = () => {
       }
     },
     enabled: !!session?.user?.id && (!profileLoading || !!profile),
+    retry: (failureCount, error) => {
+      if (isAbortError(error)) return false;
+      return failureCount < 3;
+    },
   });
 
   // Default fallback for single-tenant mode or when tenant data is loading

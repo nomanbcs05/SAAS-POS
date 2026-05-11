@@ -15,3 +15,11 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   }
 });
+
+supabase.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'TOKEN_REFRESHED') {
+    console.log('[Auth] Token refreshed successfully');
+  } else if (event === 'SIGNED_OUT') {
+    console.log('[Auth] User signed out');
+  }
+});
