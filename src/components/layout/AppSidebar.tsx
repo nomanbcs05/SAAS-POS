@@ -107,8 +107,8 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
     { name: 'Orders', href: '/orders', icon: ClipboardList },
     { name: 'Products', href: '/products', icon: Package, adminOnly: true, management: true },
     { name: 'Customers', href: '/customers', icon: Users, adminOnly: true, management: true },
+    { name: 'Credit Ledger', href: '/credit', icon: Wallet, adminOnly: true, management: true },
     { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true, management: true },
-
     { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true, management: true },
   ].filter(item => {
     if (item.superAdminOnly) return profile?.role === 'super-admin';

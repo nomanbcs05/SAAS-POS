@@ -14,6 +14,7 @@ import ProductsPage from "./pages/ProductsPage";
 import CustomersPage from "./pages/CustomersPage";
 import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
+import CreditPage from "./pages/CreditPage";
 
 import Welcome from "./pages/Welcome";
 import LoginPage from "./pages/LoginPage";
@@ -108,6 +109,12 @@ const AppContent = () => {
           <Route path="/settings" element={
             <ProtectedRoute adminOnly={true}>
               <SettingsPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/credit" element={
+            <ProtectedRoute adminOnly={true}>
+              <CreditPage />
             </ProtectedRoute>
           } />
 

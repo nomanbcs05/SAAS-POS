@@ -16,6 +16,7 @@ import Receipt from './Receipt';
 import KOT from './KOT';
 import Bill from './Bill';
 import RiderSelectionModal from './RiderSelectionModal';
+import { CreditCustomerModal } from './CreditCustomerModal';
 import { useReactToPrint } from 'react-to-print';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -66,6 +67,7 @@ const CartPanel = () => {
   const [serviceChargesInput, setServiceChargesInput] = useState('');
   const [showTableModal, setShowTableModal] = useState(false);
   const [showRiderModal, setShowRiderModal] = useState(false);
+  const [showCreditModal, setShowCreditModal] = useState(false);
   const [pendingAfterRider, setPendingAfterRider] = useState<'none' | 'bill' | 'complete'>('none');
   const [lastOrder, setLastOrder] = useState<any>(null);
   const [previewActive, setPreviewActive] = useState<'none' | 'receipt' | 'kot' | 'bill'>('none');
@@ -664,7 +666,7 @@ const CartPanel = () => {
                         </div>
                         
                         {item.product.name.toLowerCase().includes('kg') && (
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 items-center mt-1">
                             {[0.25, 0.5, 0.75, 1].map((val) => (
                               <Button
                                 key={val}
@@ -679,6 +681,38 @@ const CartPanel = () => {
                                 {val}kg
                               </Button>
                             ))}
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-6 px-1.5 text-[9px] font-black transition-all text-blue-600 border-blue-200 hover:bg-blue-50"
+                                >
+                                  Rs Amt
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-48 p-2" align="center">
+                                <div className="space-y-2">
+                                  <h4 className="font-medium text-xs leading-none">Enter Rupee Amount</h4>
+                                  <div className="flex gap-2">
+                                    <Input
+                                      type="number"
+                                      placeholder="e.g. 500"
+                                      className="h-8 text-sm"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          const val = Number((e.currentTarget).value);
+                                          if (val > 0) {
+                                            updateQuantity(item.product.id, val / item.product.price);
+                                          }
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground">Press Enter to apply</p>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                           </div>
                         )}
                       </div>
@@ -853,7 +887,10 @@ const CartPanel = () => {
           <Button
             variant={paymentMethod === 'credit' ? 'default' : 'outline'}
             className={cn("h-10 font-black font-heading uppercase tracking-widest text-xs", paymentMethod === 'credit' && "bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20")}
-            onClick={() => setPaymentMethod('credit')}
+            onClick={() => {
+              setPaymentMethod('credit');
+              setShowCreditModal(true);
+            }}
           >
             <User className="w-4 h-4 mr-2" /> Credit
           </Button>
@@ -913,6 +950,21 @@ const CartPanel = () => {
       <RiderSelectionModal
         isOpen={showRiderModal}
         onClose={() => setShowRiderModal(false)}
+      />
+      <CreditCustomerModal
+        isOpen={showCreditModal}
+        onClose={() => setShowCreditModal(false)}
+        customers={customers}
+        selectedCustomer={customer}
+        onSelectCustomer={setCustomer}
+        onPrintBill={async () => {
+          if (items.length > 0) await handleShowBill();
+          else toast.error('Cart is empty');
+        }}
+        onCompleteSale={async () => {
+          if (items.length > 0) await handleCompleteSale();
+          else toast.error('Cart is empty');
+        }}
       />
       <TableSelectionModal
         isOpen={showTableModal}
