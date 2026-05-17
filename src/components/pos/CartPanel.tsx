@@ -908,16 +908,6 @@ const CartPanel = () => {
               Bill
             </Button>
           </div>
-          <div className="flex gap-1.5">
-            <Button
-              className="w-full btn-success font-black font-heading uppercase tracking-widest text-xs h-11 shadow-lg shadow-emerald-500/20"
-              onClick={handleCompleteSale}
-              disabled={items.length === 0}
-            >
-              <Printer className="h-5 w-5 mr-2" />
-              Complete Sale
-            </Button>
-          </div>
         </div>
       </div>
 
