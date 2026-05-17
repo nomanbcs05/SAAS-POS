@@ -61,7 +61,7 @@ const CartPanel = () => {
     editingOrderId
   } = useCartStore();
 
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'wallet'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'wallet' | 'credit'>('cash');
   const [discountInput, setDiscountInput] = useState('');
   const [serviceChargesInput, setServiceChargesInput] = useState('');
   const [showTableModal, setShowTableModal] = useState(false);
@@ -111,7 +111,8 @@ const CartPanel = () => {
       email: c.email,
       loyaltyPoints: c.loyalty_points || 0,
       totalSpent: Number(c.total_spent) || 0,
-      visitCount: c.total_orders || 0
+      visitCount: c.total_orders || 0,
+      creditBalance: Number(c.credit_balance) || 0
     }));
   }, [dbCustomers]);
 
@@ -486,6 +487,12 @@ const CartPanel = () => {
       toast.error('Cart is empty');
       return;
     }
+    if (paymentMethod === 'credit' && !customer) {
+      toast.error('Customer selection is required for credit sales', {
+        style: { background: '#ef4444', color: 'white', border: 'none' }
+      });
+      return;
+    }
     if (orderType === 'delivery' && !rider) {
       setPendingAfterRider('complete');
       setShowRiderModal(true);
@@ -810,10 +817,46 @@ const CartPanel = () => {
           )}
 
           <Separator className="bg-slate-200" />
-          <div className="flex justify-between text-xl font-black font-heading tracking-tighter uppercase text-slate-900">
-            <span>Total</span>
-            <span>Rs {total.toLocaleString()}</span>
-          </div>
+          
+          {customer && (customer.creditBalance || 0) > 0 && (
+            <div className="flex flex-col gap-1 mt-1">
+              <div className="flex justify-between text-sm font-bold font-heading text-red-500 uppercase tracking-wider">
+                <span>Previous Due</span>
+                <span>Rs {(customer.creditBalance || 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-xl font-black font-heading tracking-tighter uppercase text-slate-900 mt-1">
+                <span>Total Payable</span>
+                <span>Rs {(total + (customer.creditBalance || 0)).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-[10px] font-bold font-heading text-slate-500 mb-1">
+                <span>(Current Bill: Rs {total.toLocaleString()})</span>
+              </div>
+            </div>
+          )}
+          {(!customer || (customer.creditBalance || 0) <= 0) && (
+            <div className="flex justify-between text-xl font-black font-heading tracking-tighter uppercase text-slate-900">
+              <span>Total</span>
+              <span>Rs {total.toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Payment Toggles */}
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <Button
+            variant={paymentMethod === 'cash' ? 'default' : 'outline'}
+            className={cn("h-10 font-black font-heading uppercase tracking-widest text-xs", paymentMethod === 'cash' && "bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-500/20")}
+            onClick={() => setPaymentMethod('cash')}
+          >
+            <Wallet className="w-4 h-4 mr-2" /> Cash
+          </Button>
+          <Button
+            variant={paymentMethod === 'credit' ? 'default' : 'outline'}
+            className={cn("h-10 font-black font-heading uppercase tracking-widest text-xs", paymentMethod === 'credit' && "bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20")}
+            onClick={() => setPaymentMethod('credit')}
+          >
+            <User className="w-4 h-4 mr-2" /> Credit
+          </Button>
         </div>
 
         {/* Action Buttons */}

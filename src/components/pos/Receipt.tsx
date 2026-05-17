@@ -14,7 +14,7 @@ interface Order {
   serviceChargesAmount?: number;
   deliveryFee?: number;
   total: number;
-  paymentMethod: 'cash' | 'card' | 'wallet';
+  paymentMethod: 'cash' | 'card' | 'wallet' | 'credit';
   orderType?: 'dine_in' | 'take_away' | 'delivery';
   createdAt: Date;
   cashierName: string;
@@ -43,10 +43,11 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
     tenant?.bill_footer ||
     '!!!!FOR THE LOVE OF FOOD !!!!';
 
-  const paymentMethodLabel = {
+  const paymentMethodLabel: Record<string, string> = {
     cash: 'Cash',
     card: 'Card',
     wallet: 'Digital Wallet',
+    credit: 'Credit',
   };
 
   return (
@@ -209,10 +210,22 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
             <span>{order.deliveryFee}</span>
           </div>
         )}
+        {order.customer && order.customer.creditBalance > 0 && (
+          <div className="flex justify-between font-medium text-red-600 mt-1">
+            <span>Previous Due :</span>
+            <span>{Number(order.customer.creditBalance).toLocaleString()}</span>
+          </div>
+        )}
         <div className="flex justify-between font-bold text-base mt-1 bg-gray-100 p-1 border border-black/10">
           <span>Net Bill :</span>
-          <span>{(order.total || 0).toFixed(0)}</span>
+          <span>{(order.total || 0).toLocaleString()}</span>
         </div>
+        {order.customer && order.customer.creditBalance > 0 && (
+          <div className="flex justify-between font-black text-lg mt-1 p-1 border-t border-black">
+            <span>Total Payable :</span>
+            <span>{((order.total || 0) + (order.customer.creditBalance || 0)).toLocaleString()}</span>
+          </div>
+        )}
       </div>
       
       {/* Payment Info */}

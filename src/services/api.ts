@@ -855,6 +855,36 @@ export const api = {
         }
       }
 
+      if (safeOrder.payment_method === 'credit' && safeOrder.customer_id) {
+        try {
+          const { data: customerData } = await supabase
+            .from('customers')
+            .select('credit_balance')
+            .eq('id', safeOrder.customer_id)
+            .single();
+            
+          const currentBalance = customerData?.credit_balance || 0;
+          await supabase
+            .from('customers')
+            .update({ credit_balance: Number(currentBalance) + Number(safeOrder.total_amount) })
+            .eq('id', safeOrder.customer_id);
+            
+          // Add ledger entry
+          await supabase
+            .from('ledger_entries')
+            .insert({
+              entity_type: 'customer',
+              customer_id: safeOrder.customer_id,
+              type: 'credit',
+              amount: Number(safeOrder.total_amount),
+              description: `Credit purchase (Order #${safeOrder.daily_id || newOrder.id.substring(0, 8)})`,
+              tenant_id: safeOrder.tenant_id || null
+            });
+        } catch (e) {
+          console.error('Failed to update customer credit balance', e);
+        }
+      }
+
       // Increment cached count if present
       if (cachedDailyCount && cachedDailyCount.registerId === safeOrder.register_id) {
         cachedDailyCount.count++;

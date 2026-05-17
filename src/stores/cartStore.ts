@@ -28,6 +28,7 @@ export interface Customer {
   loyaltyPoints: number;
   totalSpent: number;
   visitCount: number;
+  creditBalance: number;
 }
 
 interface CartState {
