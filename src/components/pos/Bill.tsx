@@ -43,6 +43,13 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
     tenant?.bill_footer ||
     '!!!!FOR THE LOVE OF FOOD !!!!';
 
+  const paymentMethodLabel: Record<string, string> = {
+    cash: 'Cash',
+    card: 'Card',
+    wallet: 'Digital Wallet',
+    credit: 'Credit',
+  };
+
   return (
     <div
       ref={ref}
@@ -219,6 +226,11 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
             <span>{((order.total || 0) + (order.customer.creditBalance || 0)).toLocaleString()}</span>
           </div>
         )}
+      </div>
+
+      {/* Payment Info */}
+      <div className="border border-black border-t-0 p-1 text-[12px] text-center bg-gray-50">
+        <span className="font-bold">Payment Method:</span> <span className="uppercase">{order.paymentMethod ? (paymentMethodLabel[order.paymentMethod] || order.paymentMethod) : 'CASH'}</span>
       </div>
 
       {/* Footer */}
