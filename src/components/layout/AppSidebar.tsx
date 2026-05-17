@@ -20,7 +20,8 @@ import {
   Building2,
   Download,
   CheckCircle2,
-  Utensils
+  Utensils,
+  Wallet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
