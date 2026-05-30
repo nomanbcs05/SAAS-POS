@@ -744,7 +744,7 @@ export const api = {
       }
 
       // Validate safeOrder object before inserting
-      if (!safeOrder.total_amount || typeof safeOrder.total_amount !== 'number') {
+      if (safeOrder.total_amount === undefined || safeOrder.total_amount === null || typeof safeOrder.total_amount !== 'number' || isNaN(safeOrder.total_amount) || safeOrder.total_amount < 0) {
         throw new Error('Invalid or missing total_amount');
       }
       if (!safeOrder.payment_method || typeof safeOrder.payment_method !== 'string') {
