@@ -955,6 +955,19 @@ export const api = {
         return enqueueOfflineUpdate();
       }
 
+      // Fetch previous order details before update to avoid duplicate crediting
+      let prevOrder: any = null;
+      try {
+        const { data } = await supabase
+          .from('orders')
+          .select('status, payment_method, total_amount, customer_id, tenant_id')
+          .eq('id', orderId)
+          .maybeSingle();
+        prevOrder = data;
+      } catch (err) {
+        console.warn('Failed to fetch previous order state:', err);
+      }
+
       // 1. Update order with fallback
       let orderError: any;
       try {
@@ -997,6 +1010,43 @@ export const api = {
         if (retryError) throw retryError;
       } else if (orderError) {
         throw orderError;
+      }
+
+      // 1.5 Handle credit purchase updates (update customer credit balance and add ledger entry)
+      const isBecomingCreditCompleted = 
+        safeOrder.status === 'completed' && 
+        safeOrder.payment_method === 'credit' && 
+        safeOrder.customer_id && 
+        (!prevOrder || prevOrder.status !== 'completed' || prevOrder.payment_method !== 'credit');
+
+      if (isBecomingCreditCompleted) {
+        try {
+          const { data: customerData } = await supabase
+            .from('customers')
+            .select('credit_balance')
+            .eq('id', safeOrder.customer_id)
+            .single();
+            
+          const currentBalance = customerData?.credit_balance || 0;
+          await supabase
+            .from('customers')
+            .update({ credit_balance: Number(currentBalance) + Number(safeOrder.total_amount) })
+            .eq('id', safeOrder.customer_id);
+            
+          // Add ledger entry
+          await supabase
+            .from('ledger_entries')
+            .insert({
+              entity_type: 'customer',
+              customer_id: safeOrder.customer_id,
+              type: 'credit',
+              amount: Number(safeOrder.total_amount),
+              description: `Credit purchase (Order #${safeOrder.daily_id || orderId.substring(0, 8)})`,
+              tenant_id: prevOrder?.tenant_id || safeOrder.tenant_id || null
+            });
+        } catch (e) {
+          console.error('Failed to update customer credit balance on update:', e);
+        }
       }
 
       // 2. Delete existing items
