@@ -30,6 +30,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/services/api';
 import { cn } from '@/lib/utils';
+import { DEFAULT_FRESHBASKET_DATA } from '@/components/pos/FreshBasketMenuModal';
 
 const ManageProductsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,6 +54,7 @@ const ManageProductsPage = () => {
     { id: 'fries', name: 'Fries', key: 'pos_menu_fries', icon: Package },
     { id: 'beverages', name: 'Beverages', key: 'pos_menu_beverages', icon: Package },
     { id: 'alacart', name: 'ALA CART', key: 'pos_menu_alacart', icon: Package },
+    { id: 'freshbasket_fruits', name: 'Fruits', key: 'pos_menu_freshbasket_fruits', icon: Package },
   ];
 
   const openVirtualMenuEditor = (category: any) => {
@@ -137,6 +139,11 @@ const ManageProductsPage = () => {
           { name: "Student Deal 1", price: 450, description: "Zinger + Fries + Drink" },
           { name: "Family Deal 1", price: 2500, description: "4 Zinger + 2 Fries + 1.5L Drink" },
         ];
+      } else if (category.id === 'freshbasket_fruits') {
+        defaults = DEFAULT_FRESHBASKET_DATA.map(item => ({
+          name: item.name,
+          price: item.price || 0
+        }));
       }
       setVirtualMenuItems(defaults);
     }

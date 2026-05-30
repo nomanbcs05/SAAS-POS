@@ -29,6 +29,7 @@ import BeveragesSelectionModal from './BeveragesSelectionModal';
 import AlaCartSelectionModal from './AlaCartSelectionModal';
 import IndusMenuModal, { DEFAULT_INDUS_DATA } from './IndusMenuModal';
 import KhanshinwariMenuModal, { DEFAULT_KHANSHINWARI_DATA } from './KhanshinwariMenuModal';
+import FreshBasketMenuModal, { DEFAULT_FRESHBASKET_DATA } from './FreshBasketMenuModal';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 
 const ProductGrid = () => {
@@ -52,8 +53,10 @@ const ProductGrid = () => {
   const [showAlaCartModal, setShowAlaCartModal] = useState(false);
   const [showIndusModal, setShowIndusModal] = useState(false);
   const [showKhanshinwariModal, setShowKhanshinwariModal] = useState(false);
+  const [showFreshBasketModal, setShowFreshBasketModal] = useState(false);
   const [selectedIndusCategory, setSelectedIndusCategory] = useState<string | undefined>(undefined);
   const [selectedKhanshinwariCategory, setSelectedKhanshinwariCategory] = useState<string | undefined>(undefined);
+  const [selectedFreshBasketCategory, setSelectedFreshBasketCategory] = useState<string | undefined>(undefined);
   
   const { data: openRegister } = useQuery({
     queryKey: ['open-register'],
@@ -141,6 +144,16 @@ const ProductGrid = () => {
       });
     }
     
+    if (tenant?.restaurant_name?.toLowerCase().includes('fresh basket')) {
+      const freshBasketCategories = Array.from(new Set(DEFAULT_FRESHBASKET_DATA.map(item => item.category)));
+      
+      freshBasketCategories.forEach(cat => {
+        if (!baseCategories.some(c => c.id === cat)) {
+          baseCategories.push({ id: cat, name: cat, icon: 'Apple' });
+        }
+      });
+    }
+    
     return baseCategories;
   }, [categories, tenant]);
 
@@ -158,10 +171,14 @@ const ProductGrid = () => {
     
     const isIndus = tenant?.restaurant_name?.toLowerCase().includes('indus');
     const isKhanshinwari = tenant?.restaurant_name?.toLowerCase().includes('khanshinwari') || tenant?.restaurant_name?.toLowerCase().includes('khan shinwari');
+    const isFreshBasket = tenant?.restaurant_name?.toLowerCase().includes('fresh basket');
     
     const isCardVisible = (id: string) => {
-      // Specifically hide these for Cafe Indus & Khanshinwari
+      // Specifically hide these for Cafe Indus, Khanshinwari & Fresh Basket
       if ((isIndus || isKhanshinwari) && ['pizza', 'burger', 'alacart', 'sauce', 'roll', 'broast'].includes(id)) {
+        return false;
+      }
+      if (isFreshBasket && ['pizza', 'burger', 'alacart', 'sauce', 'roll', 'broast', 'barbq', 'deals', 'fries', 'beverages'].includes(id)) {
         return false;
       }
       return cardVisibility[id] !== false;
@@ -552,6 +569,65 @@ const ProductGrid = () => {
         });
       }
 
+      // Special logic for Fresh Basket Categories:
+      if (isFreshBasket) {
+        const freshBasketCategories = [
+          { name: 'FRUITS', id: 'freshbasket_fruits', key: 'pos_menu_freshbasket_fruits' },
+        ];
+
+        freshBasketCategories.forEach(cat => {
+          const isCatSelected = selectedCategory === cat.name;
+          const isAllSelected = selectedCategory === 'all';
+          
+          if ((isAllSelected || isCatSelected) && isCardVisible(cat.id)) {
+            // 1. Add the Virtual Menu Card
+            const virtualCard = {
+              id: `virtual-freshbasket-card-${cat.name.toLowerCase().replace(/\s+/g, '-')}`,
+              name: `${cat.name} Menu`,
+              price: 0,
+              category: cat.name,
+              image: localStorage.getItem('pos_category_image_' + cat.id) || '🍎',
+              isVirtual: true,
+              modalType: 'freshbasket',
+              freshBasketCategory: cat.name
+            };
+            
+            if (!searchQuery.trim() || virtualCard.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+              products = [virtualCard as any, ...products];
+            }
+
+            // 2. Add individual items if category selected
+            if (isCatSelected) {
+              const saved = localStorage.getItem(cat.key);
+              let items = [];
+              if (saved) {
+                items = JSON.parse(saved);
+              } else {
+                items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === cat.name);
+              }
+
+              items.forEach((item: any, idx: number) => {
+                const productItem = {
+                  id: `freshbasket-item-${cat.name.toLowerCase()}-${idx}`,
+                  name: item.name,
+                  price: item.price || 0,
+                  category: cat.name,
+                  image: '🍎',
+                  isVirtual: true,
+                  modalType: 'simple',
+                  freshBasketCategory: cat.name,
+                  freshBasketItem: item
+                };
+
+                if (!searchQuery.trim() || productItem.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+                  products.push(productItem as any);
+                }
+              });
+            }
+          }
+        });
+      }
+
       // Then filter by search
     if (searchQuery.trim()) {
       const searchResults = fuse.search(searchQuery);
@@ -592,6 +668,9 @@ const ProductGrid = () => {
       } else if ((product as any).modalType === 'khanshinwari') {
         setSelectedKhanshinwariCategory((product as any).khanCategory);
         setShowKhanshinwariModal(true);
+      } else if ((product as any).modalType === 'freshbasket') {
+        setSelectedFreshBasketCategory((product as any).freshBasketCategory);
+        setShowFreshBasketModal(true);
       } else if ((product as any).modalType === 'simple') {
         // Handle individual virtual items that don't need a modal
         addItem(product, quantity);
@@ -865,6 +944,16 @@ const ProductGrid = () => {
             }}
             onAdd={handleAddToCart}
             category={selectedKhanshinwariCategory}
+          />
+
+          <FreshBasketMenuModal
+            isOpen={showFreshBasketModal}
+            onClose={() => {
+              setShowFreshBasketModal(false);
+              setSelectedFreshBasketCategory(undefined);
+            }}
+            onAdd={handleAddToCart}
+            category={selectedFreshBasketCategory}
           />
         </div>
     );

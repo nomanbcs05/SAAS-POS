@@ -34,6 +34,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { api, Category } from '@/services/api';
 import { DEFAULT_INDUS_DATA } from '@/components/pos/IndusMenuModal';
+import { DEFAULT_FRESHBASKET_DATA } from '@/components/pos/FreshBasketMenuModal';
 
 const ProductsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -116,6 +117,7 @@ const ProductsPage = () => {
     { id: 'indus_roti', name: 'NAAN_ROTI', key: 'pos_menu_indus_roti', filter: 'NAAN_ROTI', icon: Utensils },
     { id: 'indus_salads', name: 'SALADS', key: 'pos_menu_indus_salads', filter: 'SALADS', icon: Utensils },
     { id: 'indus_tea', name: 'TEA', key: 'pos_menu_indus_tea', filter: 'TEA', icon: Utensils },
+    { id: 'freshbasket_fruits', name: 'Fruits', key: 'pos_menu_freshbasket_fruits', icon: Package },
   ];
 
   const openVirtualMenuEditor = (category: any) => {
@@ -130,7 +132,14 @@ const ProductsPage = () => {
           .filter(item => item.category === category.filter)
           .map(item => ({
             name: item.name,
-            price: item.price || (item.sizes ? item.sizes.Full : 0), // Defaulting to Full price if sizes exist
+            price: item.price || (item.sizes ? item.sizes.Full : 0),
+            image: (item as any).image || ''
+          }));
+      } else if (category.key === 'pos_menu_freshbasket_fruits') {
+        defaults = DEFAULT_FRESHBASKET_DATA
+          .map(item => ({
+            name: item.name,
+            price: item.price || 0,
             image: (item as any).image || ''
           }));
       }
@@ -410,6 +419,11 @@ const ProductsPage = () => {
             name: item.name,
             price: item.price || (item.sizes ? item.sizes.Full : 0)
           }));
+      } else if (vCat.key === 'pos_menu_freshbasket_fruits') {
+        items = DEFAULT_FRESHBASKET_DATA.map(item => ({
+          name: item.name,
+          price: item.price || 0
+        }));
       }
 
       items.forEach((item: any, idx: number) => {
