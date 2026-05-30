@@ -55,6 +55,7 @@ const ManageProductsPage = () => {
     { id: 'beverages', name: 'Beverages', key: 'pos_menu_beverages', icon: Package },
     { id: 'alacart', name: 'ALA CART', key: 'pos_menu_alacart', icon: Package },
     { id: 'freshbasket_fruits', name: 'Fruits', key: 'pos_menu_freshbasket_fruits', icon: Package },
+    { id: 'freshbasket_vegetables', name: 'Vegetables', key: 'pos_menu_freshbasket_vegetables', icon: Package },
   ];
 
   const openVirtualMenuEditor = (category: any) => {
@@ -140,10 +141,19 @@ const ManageProductsPage = () => {
           { name: "Family Deal 1", price: 2500, description: "4 Zinger + 2 Fries + 1.5L Drink" },
         ];
       } else if (category.id === 'freshbasket_fruits') {
-        defaults = DEFAULT_FRESHBASKET_DATA.map(item => ({
-          name: item.name,
-          price: item.price || 0
-        }));
+        defaults = DEFAULT_FRESHBASKET_DATA
+          .filter(item => item.category === 'FRUITS')
+          .map(item => ({
+            name: item.name,
+            price: item.price || 0
+          }));
+      } else if (category.id === 'freshbasket_vegetables') {
+        defaults = DEFAULT_FRESHBASKET_DATA
+          .filter(item => item.category === 'VEGETABLES')
+          .map(item => ({
+            name: item.name,
+            price: item.price || 0
+          }));
       }
       setVirtualMenuItems(defaults);
     }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, Utensils, Edit2, Trash2, ImagePlus, Loader2, Save, X, Apple } from 'lucide-react';
+import { Search, Plus, Utensils, Edit2, Trash2, ImagePlus, Loader2, Save, X, Apple, Package } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { api } from '@/services/api';
 import { useMutation } from '@tanstack/react-query';
@@ -53,6 +53,35 @@ export const DEFAULT_FRESHBASKET_DATA: MenuItem[] = [
   { name: "Jamun / جامن", category: "FRUITS", price: 0 },
   { name: "Kiwi / کیوی", category: "FRUITS", price: 0 },
   { name: "Sapodilla / Chikoo / چیکو", category: "FRUITS", price: 0 },
+  // VEGETABLES
+  { name: "Potato / آلو", category: "VEGETABLES", price: 0 },
+  { name: "Onion / پیاز", category: "VEGETABLES", price: 0 },
+  { name: "Tomato / ٹماٹر", category: "VEGETABLES", price: 0 },
+  { name: "Garlic / لہسن", category: "VEGETABLES", price: 0 },
+  { name: "Ginger / ادرک", category: "VEGETABLES", price: 0 },
+  { name: "Green Chili / ہری مرچ", category: "VEGETABLES", price: 0 },
+  { name: "Capsicum / شملہ مرچ", category: "VEGETABLES", price: 0 },
+  { name: "Carrot / گاجر", category: "VEGETABLES", price: 0 },
+  { name: "Radish / مولی", category: "VEGETABLES", price: 0 },
+  { name: "Turnip / شلجم", category: "VEGETABLES", price: 0 },
+  { name: "Beetroot / چقندر", category: "VEGETABLES", price: 0 },
+  { name: "Cucumber / کھیرہ", category: "VEGETABLES", price: 0 },
+  { name: "Bitter Gourd / کریلا", category: "VEGETABLES", price: 0 },
+  { name: "Bottle Gourd / لوکی", category: "VEGETABLES", price: 0 },
+  { name: "Ridge Gourd / توری", category: "VEGETABLES", price: 0 },
+  { name: "Pumpkin / کدو", category: "VEGETABLES", price: 0 },
+  { name: "Brinjal / Eggplant / بینگن", category: "VEGETABLES", price: 0 },
+  { name: "Lady Finger / بھنڈی", category: "VEGETABLES", price: 0 },
+  { name: "Peas / مٹر", category: "VEGETABLES", price: 0 },
+  { name: "Cabbage / بند گوبھی", category: "VEGETABLES", price: 0 },
+  { name: "Cauliflower / پھول گوبھی", category: "VEGETABLES", price: 0 },
+  { name: "Spinach / پالک", category: "VEGETABLES", price: 0 },
+  { name: "Coriander / دھنیا", category: "VEGETABLES", price: 0 },
+  { name: "Mint / پودینہ", category: "VEGETABLES", price: 0 },
+  { name: "Fenugreek / میتھی", category: "VEGETABLES", price: 0 },
+  { name: "Green Beans / پھلیاں", category: "VEGETABLES", price: 0 },
+  { name: "Lettuce / سلاد پتا", category: "VEGETABLES", price: 0 },
+  { name: "Spring Onion / ہرا پیاز", category: "VEGETABLES", price: 0 },
 ];
 
 export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category: initialCategory }: FreshBasketMenuModalProps) {
@@ -207,6 +236,8 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
               <div className="p-2 bg-white/10 rounded-lg relative overflow-hidden group">
                 {categoryImage ? (
                   <img src={categoryImage} alt="Category" className="h-7 w-7 object-cover rounded-md" />
+                ) : selectedCategory?.toLowerCase() === 'vegetables' ? (
+                  <Package className="h-7 w-7 text-green-300" />
                 ) : (
                   <Apple className="h-7 w-7 text-green-300" />
                 )}
