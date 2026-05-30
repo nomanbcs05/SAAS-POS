@@ -56,6 +56,7 @@ const ManageProductsPage = () => {
     { id: 'alacart', name: 'ALA CART', key: 'pos_menu_alacart', icon: Package },
     { id: 'freshbasket_fruits', name: 'Fruits', key: 'pos_menu_freshbasket_fruits', icon: Package },
     { id: 'freshbasket_vegetables', name: 'Vegetables', key: 'pos_menu_freshbasket_vegetables', icon: Package },
+    { id: 'freshbasket_essentials', name: 'Daily Essentials', key: 'pos_menu_freshbasket_essentials', icon: Package },
   ];
 
   const openVirtualMenuEditor = (category: any) => {
@@ -150,6 +151,13 @@ const ManageProductsPage = () => {
       } else if (category.id === 'freshbasket_vegetables') {
         defaults = DEFAULT_FRESHBASKET_DATA
           .filter(item => item.category === 'VEGETABLES')
+          .map(item => ({
+            name: item.name,
+            price: item.price || 0
+          }));
+      } else if (category.id === 'freshbasket_essentials') {
+        defaults = DEFAULT_FRESHBASKET_DATA
+          .filter(item => item.category === 'DAILY ESSENTIALS')
           .map(item => ({
             name: item.name,
             price: item.price || 0

@@ -119,6 +119,7 @@ const ProductsPage = () => {
     { id: 'indus_tea', name: 'TEA', key: 'pos_menu_indus_tea', filter: 'TEA', icon: Utensils },
     { id: 'freshbasket_fruits', name: 'Fruits', key: 'pos_menu_freshbasket_fruits', icon: Package },
     { id: 'freshbasket_vegetables', name: 'Vegetables', key: 'pos_menu_freshbasket_vegetables', icon: Package },
+    { id: 'freshbasket_essentials', name: 'Daily Essentials', key: 'pos_menu_freshbasket_essentials', icon: Package },
   ];
 
   const openVirtualMenuEditor = (category: any) => {
@@ -147,6 +148,14 @@ const ProductsPage = () => {
       } else if (category.key === 'pos_menu_freshbasket_vegetables') {
         defaults = DEFAULT_FRESHBASKET_DATA
           .filter(item => item.category === 'VEGETABLES')
+          .map(item => ({
+            name: item.name,
+            price: item.price || 0,
+            image: (item as any).image || ''
+          }));
+      } else if (category.key === 'pos_menu_freshbasket_essentials') {
+        defaults = DEFAULT_FRESHBASKET_DATA
+          .filter(item => item.category === 'DAILY ESSENTIALS')
           .map(item => ({
             name: item.name,
             price: item.price || 0,
@@ -439,6 +448,13 @@ const ProductsPage = () => {
       } else if (vCat.key === 'pos_menu_freshbasket_vegetables') {
         items = DEFAULT_FRESHBASKET_DATA
           .filter(item => item.category === 'VEGETABLES')
+          .map(item => ({
+            name: item.name,
+            price: item.price || 0
+          }));
+      } else if (vCat.key === 'pos_menu_freshbasket_essentials') {
+        items = DEFAULT_FRESHBASKET_DATA
+          .filter(item => item.category === 'DAILY ESSENTIALS')
           .map(item => ({
             name: item.name,
             price: item.price || 0

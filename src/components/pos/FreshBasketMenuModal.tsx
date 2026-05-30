@@ -82,6 +82,12 @@ export const DEFAULT_FRESHBASKET_DATA: MenuItem[] = [
   { name: "Green Beans / پھلیاں", category: "VEGETABLES", price: 0 },
   { name: "Lettuce / سلاد پتا", category: "VEGETABLES", price: 0 },
   { name: "Spring Onion / ہرا پیاز", category: "VEGETABLES", price: 0 },
+  // DAILY ESSENTIALS
+  { name: "Chicken / چکن", category: "DAILY ESSENTIALS", price: 0 },
+  { name: "Fish / مچھلی", category: "DAILY ESSENTIALS", price: 0 },
+  { name: "Eggs / انڈے", category: "DAILY ESSENTIALS", price: 0 },
+  { name: "Dawn Bread / ڈان بریڈ", category: "DAILY ESSENTIALS", price: 0 },
+  { name: "Jam / جیم", category: "DAILY ESSENTIALS", price: 0 },
 ];
 
 export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category: initialCategory }: FreshBasketMenuModalProps) {
@@ -237,6 +243,8 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
                 {categoryImage ? (
                   <img src={categoryImage} alt="Category" className="h-7 w-7 object-cover rounded-md" />
                 ) : selectedCategory?.toLowerCase() === 'vegetables' ? (
+                  <Package className="h-7 w-7 text-green-300" />
+                ) : selectedCategory?.toLowerCase() === 'daily essentials' ? (
                   <Package className="h-7 w-7 text-green-300" />
                 ) : (
                   <Apple className="h-7 w-7 text-green-300" />

@@ -574,6 +574,7 @@ const ProductGrid = () => {
         const freshBasketCategories = [
           { name: 'FRUITS', id: 'freshbasket_fruits', key: 'pos_menu_freshbasket_fruits' },
           { name: 'VEGETABLES', id: 'freshbasket_vegetables', key: 'pos_menu_freshbasket_vegetables' },
+          { name: 'DAILY ESSENTIALS', id: 'freshbasket_essentials', key: 'pos_menu_freshbasket_essentials' },
         ];
 
         freshBasketCategories.forEach(cat => {
@@ -587,7 +588,7 @@ const ProductGrid = () => {
               name: `${cat.name} Menu`,
               price: 0,
               category: cat.name,
-              image: localStorage.getItem('pos_category_image_' + cat.id) || (cat.name === 'VEGETABLES' ? '🥦' : '🍎'),
+              image: localStorage.getItem('pos_category_image_' + cat.id) || (cat.name === 'VEGETABLES' ? '🥦' : cat.name === 'DAILY ESSENTIALS' ? '🍞' : '🍎'),
               isVirtual: true,
               modalType: 'freshbasket',
               freshBasketCategory: cat.name
@@ -613,7 +614,7 @@ const ProductGrid = () => {
                   name: item.name,
                   price: item.price || 0,
                   category: cat.name,
-                  image: cat.name === 'VEGETABLES' ? '🥦' : '🍎',
+                  image: cat.name === 'VEGETABLES' ? '🥦' : cat.name === 'DAILY ESSENTIALS' ? '🍞' : '🍎',
                   isVirtual: true,
                   modalType: 'simple',
                   freshBasketCategory: cat.name,
