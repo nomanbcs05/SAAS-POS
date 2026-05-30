@@ -96,7 +96,50 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [customInputIndex, setCustomInputIndex] = useState<number | null>(null);
+  const [customRate, setCustomRate] = useState<string>('');
+  const [customAmount, setCustomAmount] = useState<string>('');
   const { isAdmin } = useMultiTenant();
+
+  const calculateQty = (rate: string, amount: string) => {
+    const r = Number(rate);
+    const a = Number(amount);
+    if (!r || !a || r <= 0) return '0.000';
+    return (a / r).toFixed(3);
+  };
+
+  const handleAddCustomItem = (item: MenuItem) => {
+    const rate = Number(customRate);
+    const amount = Number(customAmount);
+    if (!rate || rate <= 0) {
+      toast.error("Please enter a valid rate");
+      return;
+    }
+    if (!amount || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    const calculatedQty = amount / rate;
+    const name = item.name;
+
+    const product = {
+      id: `freshbasket-${item.category.toLowerCase().replace(/\s+/g, '-')}-${item.name.toLowerCase().replace(/\s+/g, '-')}-custom-${rate}`,
+      name,
+      price: rate,
+      category: item.category,
+      image: item.image || '🍎',
+      sku: `FB-${item.name.substring(0, 3).toUpperCase()}-custom`,
+    };
+
+    onAdd(product, calculatedQty);
+    toast.success(`${name} added for Rs. ${amount} (Qty: ${calculatedQty.toFixed(3)})`);
+    
+    // Reset states
+    setCustomInputIndex(null);
+    setCustomRate('');
+    setCustomAmount('');
+  };
 
   const categoryKey = initialCategory 
     ? `freshbasket_${initialCategory.toLowerCase().replace(/\s+/g, '_').replace(/[()]/g, '')}`
@@ -392,10 +435,10 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
                       />
                     ) : (
                       <h3 className="text-base font-bold text-slate-900 mb-4">{item.name}</h3>
-                    )}
+                     )}
                   </div>
 
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 flex-wrap w-full">
                     {isEditingMode ? (
                       <div className="w-full space-y-2">
                         {item.sizes ? (
@@ -433,6 +476,58 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
                           ))}
                         </select>
                       </div>
+                    ) : customInputIndex === originalIndex ? (
+                      <div className="w-full space-y-2 bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[9px] font-black text-emerald-800 uppercase tracking-wider block mb-0.5">Rate (Rs)</label>
+                            <Input
+                              type="number"
+                              placeholder="Rate"
+                              value={customRate}
+                              onChange={(e) => setCustomRate(e.target.value)}
+                              className="h-8 text-xs font-bold bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-black text-emerald-800 uppercase tracking-wider block mb-0.5">Amount (Rs)</label>
+                            <Input
+                              type="number"
+                              placeholder="Amount"
+                              value={customAmount}
+                              onChange={(e) => setCustomAmount(e.target.value)}
+                              className="h-8 text-xs font-bold bg-white"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleAddCustomItem(item);
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="flex-1 h-8 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs"
+                            onClick={() => handleAddCustomItem(item)}
+                          >
+                            Add ({calculateQty(customRate, customAmount)} qty)
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2 text-slate-500 hover:text-slate-700"
+                            onClick={() => {
+                              setCustomInputIndex(null);
+                              setCustomRate('');
+                              setCustomAmount('');
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
                     ) : item.sizes ? (
                       <>
                         {Object.entries(item.sizes).map(([size, price]) => (
@@ -446,12 +541,24 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
                         ))}
                       </>
                     ) : (
-                      <Button 
-                        onClick={() => handleAddItem(item)}
-                        className="w-full bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-900 border-none rounded-xl h-10 font-bold transition-all"
-                      >
-                        Add to Cart
-                      </Button>
+                      <div className="flex gap-1.5 w-full">
+                        <Button 
+                          onClick={() => handleAddItem(item)}
+                          className="flex-1 bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-900 border-none rounded-xl h-10 font-bold transition-all text-xs"
+                        >
+                          Add Qty ({selectedQuantity})
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setCustomInputIndex(originalIndex);
+                            setCustomRate(item.price ? String(item.price) : '');
+                            setCustomAmount('');
+                          }}
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-none rounded-xl h-10 font-black px-3 transition-all text-xs"
+                        >
+                          Rs Amt
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </motion.div>
