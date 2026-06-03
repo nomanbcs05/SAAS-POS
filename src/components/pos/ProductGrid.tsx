@@ -115,7 +115,7 @@ const ProductGrid = () => {
 
   // Combine default "All" category with fetched categories
   const allCategories = useMemo(() => {
-    const baseCategories = [
+    let baseCategories = [
       { id: 'all', name: 'All Category', icon: 'Grid3x3' },
       ...categories.map(c => ({ id: c.name, name: c.name, icon: c.icon }))
     ];
@@ -145,10 +145,20 @@ const ProductGrid = () => {
     }
     
     if (tenant?.restaurant_name?.toLowerCase().includes('fresh basket')) {
+      baseCategories = baseCategories.filter(c => 
+        c.id === 'all' || 
+        c.name.toLowerCase() === 'fruits' || 
+        c.name.toLowerCase() === 'vegetables' || 
+        c.name.toLowerCase() === 'daily essentials' ||
+        c.name.toUpperCase() === 'FRUITS' || 
+        c.name.toUpperCase() === 'VEGETABLES' || 
+        c.name.toUpperCase() === 'DAILY ESSENTIALS'
+      );
+
       const freshBasketCategories = Array.from(new Set(DEFAULT_FRESHBASKET_DATA.map(item => item.category)));
       
       freshBasketCategories.forEach(cat => {
-        if (!baseCategories.some(c => c.id === cat)) {
+        if (!baseCategories.some(c => c.id === cat || c.name === cat)) {
           baseCategories.push({ id: cat, name: cat, icon: 'Apple' });
         }
       });
@@ -172,6 +182,14 @@ const ProductGrid = () => {
     const isIndus = tenant?.restaurant_name?.toLowerCase().includes('indus');
     const isKhanshinwari = tenant?.restaurant_name?.toLowerCase().includes('khanshinwari') || tenant?.restaurant_name?.toLowerCase().includes('khan shinwari');
     const isFreshBasket = tenant?.restaurant_name?.toLowerCase().includes('fresh basket');
+    
+    if (isFreshBasket) {
+      products = products.filter(p => {
+        const cat = p.category?.toLowerCase()?.trim();
+        return cat === 'fruits' || cat === 'vegetables' || cat === 'daily essentials' ||
+               cat === 'fruits menu' || cat === 'vegetables menu' || cat === 'daily essentials menu';
+      });
+    }
     
     const isCardVisible = (id: string) => {
       // Specifically hide these for Cafe Indus, Khanshinwari & Fresh Basket

@@ -208,7 +208,7 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
     setIsEditingMode(false);
   };
 
-  const categories = Array.from(new Set(menuItems.map(item => item.category)));
+  const categories = ["FRUITS", "VEGETABLES", "DAILY ESSENTIALS"];
 
   const filteredItems = menuItems.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());

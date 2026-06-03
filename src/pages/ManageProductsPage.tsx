@@ -44,16 +44,6 @@ const ManageProductsPage = () => {
   const [virtualMenuItems, setVirtualMenuItems] = useState<any[]>([]);
 
   const virtualCategories = [
-    { id: 'barbq', name: 'BAR BQ', key: 'pos_menu_barbq', icon: ChefHat },
-    { id: 'pizza', name: 'Pizzas', key: 'pos_menu_pizza', icon: Utensils },
-    { id: 'roll', name: 'Rolls', key: 'pos_menu_roll', icon: Package },
-    { id: 'burger', name: 'Burgers', key: 'pos_menu_burger', icon: Package },
-    { id: 'broast', name: 'Broast', key: 'pos_menu_broast', icon: ChefHat },
-    { id: 'sauce', name: 'Sauces', key: 'pos_menu_sauce', icon: Utensils },
-    { id: 'deals', name: 'Deals', key: 'pos_menu_deals', icon: Tag },
-    { id: 'fries', name: 'Fries', key: 'pos_menu_fries', icon: Package },
-    { id: 'beverages', name: 'Beverages', key: 'pos_menu_beverages', icon: Package },
-    { id: 'alacart', name: 'ALA CART', key: 'pos_menu_alacart', icon: Package },
     { id: 'freshbasket_fruits', name: 'Fruits', key: 'pos_menu_freshbasket_fruits', icon: Package },
     { id: 'freshbasket_vegetables', name: 'Vegetables', key: 'pos_menu_freshbasket_vegetables', icon: Package },
     { id: 'freshbasket_essentials', name: 'Daily Essentials', key: 'pos_menu_freshbasket_essentials', icon: Package },
@@ -417,9 +407,15 @@ const ManageProductsPage = () => {
     setIsProductModalOpen(true);
   };
 
-  const filteredProducts = products.filter((p: any) => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProducts = products.filter((p: any) => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = p.category && (
+      p.category.toLowerCase().trim() === 'fruits' ||
+      p.category.toLowerCase().trim() === 'vegetables' ||
+      p.category.toLowerCase().trim() === 'daily essentials'
+    );
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <MainLayout>
@@ -536,7 +532,12 @@ const ManageProductsPage = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {categories.map((category: any) => (
+                     {categories
+                      .filter((category: any) => {
+                        const name = category.name.toLowerCase().trim();
+                        return name === 'fruits' || name === 'vegetables' || name === 'daily essentials';
+                      })
+                      .map((category: any) => (
                       <TableRow key={category.id} className="hover:bg-slate-50/50 border-slate-100">
                         <TableCell className="font-bold text-slate-700 py-4">{category.name}</TableCell>
                         <TableCell className="text-slate-500 py-4">{category.icon}</TableCell>
@@ -897,7 +898,12 @@ const ManageProductsPage = () => {
                       className="w-full h-12 bg-slate-50 border-none rounded-xl px-4 text-sm outline-none"
                     >
                       <option value="">Select category</option>
-                      {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {categories
+                        .filter((c: any) => {
+                          const name = c.name.toLowerCase().trim();
+                          return name === 'fruits' || name === 'vegetables' || name === 'daily essentials';
+                        })
+                        .map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                     <div className="flex flex-wrap gap-2">
                       {productForm.category_id && (

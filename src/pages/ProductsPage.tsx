@@ -95,28 +95,6 @@ const ProductsPage = () => {
   };
 
   const virtualCategories = [
-    { id: 'barbq', name: 'BAR BQ', key: 'pos_menu_barbq', icon: ChefHat },
-    { id: 'pizza', name: 'Pizzas', key: 'pos_menu_pizza', icon: Utensils },
-    { id: 'roll', name: 'Rolls', key: 'pos_menu_roll', icon: Package },
-    { id: 'burger', name: 'Burgers', key: 'pos_menu_burger', icon: Package },
-    { id: 'broast', name: 'Broast', key: 'pos_menu_broast', icon: ChefHat },
-    { id: 'sauce', name: 'Sauces', key: 'pos_menu_sauce', icon: Utensils },
-    { id: 'deals', name: 'Deals', key: 'pos_menu_deals', icon: Tag },
-    { id: 'fries', name: 'Fries', key: 'pos_menu_fries', icon: Package },
-    { id: 'beverages', name: 'Beverages', key: 'pos_menu_beverages', icon: Package },
-    { id: 'alacart', name: 'ALA CART', key: 'pos_menu_alacart', icon: Package },
-    { id: 'indus_rice', name: 'RICE', key: 'pos_menu_indus_rice', filter: 'RICE', icon: Utensils },
-    { id: 'indus_chicken_karahi', name: 'CHICKEN (Karahi)', key: 'pos_menu_indus_chicken_karahi', filter: 'CHICKEN (Karahi)', icon: Utensils },
-    { id: 'indus_handi', name: 'HANDI (Chicken)', key: 'pos_menu_indus_handi_chicken', filter: 'HANDI (Chicken)', icon: Utensils },
-    { id: 'indus_mutton_karahi', name: 'MUTTON (Karahi)', key: 'pos_menu_indus_mutton_karahi', filter: 'MUTTON (Karahi)', icon: Utensils },
-    { id: 'indus_mutton_handi', name: 'MUTTON HANDI', key: 'pos_menu_indus_mutton_handi', filter: 'MUTTON HANDI', icon: Utensils },
-    { id: 'indus_veg', name: 'VEGETARIAN', key: 'pos_menu_indus_veg', filter: 'VEGETARIAN', icon: Utensils },
-    { id: 'indus_fried', name: 'FRIED', key: 'pos_menu_indus_fried', filter: 'FRIED', icon: Utensils },
-    { id: 'indus_joints', name: 'JOINTS', key: 'pos_menu_indus_joints', filter: 'JOINTS', icon: Utensils },
-    { id: 'indus_bbq', name: 'BBQ', key: 'pos_menu_indus_bbq', filter: 'BBQ', icon: ChefHat },
-    { id: 'indus_roti', name: 'NAAN_ROTI', key: 'pos_menu_indus_roti', filter: 'NAAN_ROTI', icon: Utensils },
-    { id: 'indus_salads', name: 'SALADS', key: 'pos_menu_indus_salads', filter: 'SALADS', icon: Utensils },
-    { id: 'indus_tea', name: 'TEA', key: 'pos_menu_indus_tea', filter: 'TEA', icon: Utensils },
     { id: 'freshbasket_fruits', name: 'Fruits', key: 'pos_menu_freshbasket_fruits', icon: Package },
     { id: 'freshbasket_vegetables', name: 'Vegetables', key: 'pos_menu_freshbasket_vegetables', icon: Package },
     { id: 'freshbasket_essentials', name: 'Daily Essentials', key: 'pos_menu_freshbasket_essentials', icon: Package },
@@ -423,7 +401,13 @@ const ProductsPage = () => {
   };
 
   const filteredProducts = useMemo(() => {
-    let allDisplayProducts = [...products];
+    const isAllowedCategory = (catName?: string) => {
+      if (!catName) return false;
+      const name = catName.toLowerCase().trim();
+      return name === 'fruits' || name === 'vegetables' || name === 'daily essentials';
+    };
+
+    let allDisplayProducts = products.filter(p => isAllowedCategory(p.category));
 
     // Add virtual products to the display list
     virtualCategories.forEach(vCat => {
@@ -431,13 +415,6 @@ const ProductsPage = () => {
       let items = [];
       if (saved) {
         items = JSON.parse(saved);
-      } else if (vCat.key.startsWith('pos_menu_indus')) {
-        items = DEFAULT_INDUS_DATA
-          .filter(item => item.category === vCat.filter)
-          .map(item => ({
-            name: item.name,
-            price: item.price || (item.sizes ? item.sizes.Full : 0)
-          }));
       } else if (vCat.key === 'pos_menu_freshbasket_fruits') {
         items = DEFAULT_FRESHBASKET_DATA
           .filter(item => item.category === 'FRUITS')
@@ -809,9 +786,14 @@ const ProductsPage = () => {
                           onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
                         >
                           <option value="">Select a category</option>
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
+                           {categories
+                            .filter(category => {
+                              const name = category.name.toLowerCase().trim();
+                              return name === 'fruits' || name === 'vegetables' || name === 'daily essentials';
+                            })
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
                         </select>
                       </div>
                     </div>
@@ -874,7 +856,12 @@ const ProductsPage = () => {
                 All
               </Button>
               {/* Only show categories that have items in them or are from the DB */}
-              {categories.map((category) => (
+              {categories
+                .filter(category => {
+                  const name = category.name.toLowerCase().trim();
+                  return name === 'fruits' || name === 'vegetables' || name === 'daily essentials';
+                })
+                .map((category) => (
                 <Button
                   key={category.id}
                   variant={selectedCategory === category.id ? 'default' : 'outline'}
