@@ -62,7 +62,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
           <img
             src={logoSrc}
             alt="Logo"
-            className="mx-auto mb-2 object-contain h-32 max-w-[220px] w-auto"
+            className="mx-auto mb-2 object-contain h-44 max-w-[300px] w-auto"
             onError={() => setLogoError(true)}
           />
         ) : (
