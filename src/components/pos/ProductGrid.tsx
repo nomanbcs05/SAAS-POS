@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Search, X, Grid3x3, Package, Coffee, UtensilsCrossed, Gift, IceCream, Utensils, ShoppingBag, Truck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, X, Grid3x3, Package, Coffee, UtensilsCrossed, Gift, IceCream, Utensils, ShoppingBag, Truck, ChevronLeft, ChevronRight, ImagePlus, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -57,6 +57,7 @@ const ProductGrid = () => {
   const [selectedIndusCategory, setSelectedIndusCategory] = useState<string | undefined>(undefined);
   const [selectedKhanshinwariCategory, setSelectedKhanshinwariCategory] = useState<string | undefined>(undefined);
   const [selectedFreshBasketCategory, setSelectedFreshBasketCategory] = useState<string | undefined>(undefined);
+  const [localUpdateTrigger, setLocalUpdateTrigger] = useState(0);
   
   const { data: openRegister } = useQuery({
     queryKey: ['open-register'],
@@ -632,7 +633,7 @@ const ProductGrid = () => {
                   name: item.name,
                   price: item.price || 0,
                   category: cat.name,
-                  image: cat.name === 'VEGETABLES' ? '🥦' : cat.name === 'DAILY ESSENTIALS' ? '🍞' : '🍎',
+                  image: item.image || (cat.name === 'VEGETABLES' ? '🥦' : cat.name === 'DAILY ESSENTIALS' ? '🍞' : '🍎'),
                   isVirtual: true,
                   modalType: 'simple',
                   freshBasketCategory: cat.name,
@@ -656,7 +657,49 @@ const ProductGrid = () => {
     }
 
     return products;
-  }, [searchQuery, selectedCategory, fuse, allProducts, tenant]);
+  }, [searchQuery, selectedCategory, fuse, allProducts, tenant, localUpdateTrigger]);
+
+  const handleUpdateProductImage = useCallback(async (productId: string, imageUrl: string) => {
+    try {
+      if (productId.startsWith('freshbasket-item-')) {
+        const prefix = 'freshbasket-item-';
+        const withoutPrefix = productId.substring(prefix.length);
+        const lastDashIndex = withoutPrefix.lastIndexOf('-');
+        const catName = withoutPrefix.substring(0, lastDashIndex).toUpperCase();
+        const idx = parseInt(withoutPrefix.substring(lastDashIndex + 1), 10);
+        
+        if (catName && !isNaN(idx)) {
+          const freshBasketCategories = [
+            { name: 'FRUITS', id: 'freshbasket_fruits', key: 'pos_menu_freshbasket_fruits' },
+            { name: 'VEGETABLES', id: 'freshbasket_vegetables', key: 'pos_menu_freshbasket_vegetables' },
+            { name: 'DAILY ESSENTIALS', id: 'freshbasket_essentials', key: 'pos_menu_freshbasket_essentials' },
+          ];
+          const matchedCat = freshBasketCategories.find(c => c.name === catName);
+          if (matchedCat) {
+            const saved = localStorage.getItem(matchedCat.key);
+            let items = [];
+            if (saved) {
+              items = JSON.parse(saved);
+            } else {
+              items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === catName);
+            }
+            
+            if (items[idx]) {
+              items[idx].image = imageUrl;
+              localStorage.setItem(matchedCat.key, JSON.stringify(items));
+              setLocalUpdateTrigger(prev => prev + 1);
+            }
+          }
+        }
+      } else {
+        await api.products.update(productId, { image: imageUrl });
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+      }
+    } catch (error: any) {
+      console.error("Failed to update product image:", error);
+      toast.error(error.message || "Failed to update product image");
+    }
+  }, [queryClient]);
 
   const handleAddToCart = useCallback((product: Product, quantity?: number) => {
     if ((product as any).isVirtual) {
@@ -845,6 +888,7 @@ const ProductGrid = () => {
                 key={product.id} 
                 product={product} 
                 onAdd={handleAddToCart} 
+                onUpdateImage={handleUpdateProductImage}
               />
             ))
           )}
@@ -982,9 +1026,10 @@ const ProductGrid = () => {
 interface ProductCardProps {
   product: Product;
   onAdd: (product: Product) => void;
+  onUpdateImage: (productId: string, imageUrl: string) => void;
 }
 
-const ProductCard = ({ product, onAdd }: ProductCardProps) => {
+const ProductCard = ({ product, onAdd, onUpdateImage }: ProductCardProps) => {
   const isNoImageCategory = product.category === 'Arabic Broast' || product.category === 'ALA CART' || product.category === 'Snacks' || product.category === 'Beverages' || product.category === 'Pizzas' || product.category === 'Rolls' || product.category === 'Broast' || product.category === 'Burgers' || product.category === 'BAR BQ' || product.category === 'Sauces' || product.category === 'Toppings' || product.category === 'DRY' || product.category === 'CHINESE GRAVY' || product.category === 'RICE' || product.category === 'CHICKEN (Karahi)' || product.category === 'HANDI (Chicken)' || product.category === 'MUTTON (Karahi)' || product.category === 'MUTTON HANDI' || product.category === 'CHAI' || product.category === 'ROTI';
   const isVirtualSauce = (product as any).id === 'virtual-sauce-topping-menu';
   const isVirtualBarbq = (product as any).id === 'virtual-barbq-menu';
@@ -1003,9 +1048,35 @@ const ProductCard = ({ product, onAdd }: ProductCardProps) => {
   const [fallbackIndex, setFallbackIndex] = useState(0);
   const fallbacks: string[] = (product as any).imageFallbacks || (isLoadedFries ? ['/LoadedFries.jpg', '/loadedfries.png', '/loadedfries.jpg'] : []);
   const imageHeightClass = forceShowImage ? "h-24 md:h-28" : "h-14";
+  const [uploading, setUploading] = useState(false);
+  const isIndividualProduct = !product.isVirtual || (product as any).modalType === 'simple';
+
+  useEffect(() => {
+    setCurrentSrc(product.image);
+    setImageLoaded(false);
+    setImageError(false);
+  }, [product.image]);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    try {
+      setUploading(true);
+      toast.loading("Uploading image...", { id: `upload-${product.id}` });
+      const url = await api.products.uploadImage(file);
+      onUpdateImage(product.id, url);
+      toast.success("Image uploaded successfully!", { id: `upload-${product.id}` });
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Failed to upload image", { id: `upload-${product.id}` });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
-    <motion.button
+    <motion.div
       whileHover={{ scale: 1.02, translateY: -2 }}
       whileTap={{ scale: 0.98 }}
       onClick={() => onAdd(product)}
@@ -1013,9 +1084,31 @@ const ProductCard = ({ product, onAdd }: ProductCardProps) => {
         "relative w-full aspect-square p-3 bg-white rounded-xl border border-slate-100 shadow-sm transition-all",
         "hover:shadow-md hover:border-blue-200 hover:bg-blue-50/30",
         "focus:outline-none focus:ring-2 focus:ring-blue-500/20",
-        "flex flex-col items-center justify-center text-center gap-1.5 group"
+        "flex flex-col items-center justify-center text-center gap-1.5 group cursor-pointer"
       )}
     >
+      {isIndividualProduct && (
+        <div 
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <label className="flex items-center justify-center h-7 w-7 rounded-full bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 shadow-sm cursor-pointer transition-all active:scale-95">
+            {uploading ? (
+              <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" />
+            ) : (
+              <ImagePlus className="h-3.5 w-3.5 text-slate-500 hover:text-blue-500" />
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleUpload}
+              disabled={uploading}
+            />
+          </label>
+        </div>
+      )}
+
       {(product.image && (!isNoImageCategory || forceShowImage)) && (
         <div className={cn(
           "relative mb-2 w-full flex items-center justify-center overflow-hidden rounded-lg bg-slate-50/50",
@@ -1032,22 +1125,22 @@ const ProductCard = ({ product, onAdd }: ProductCardProps) => {
                 <span className="text-xl opacity-50">📦</span>
               ) : (
                 <img 
-                  src={currentSrc} 
-                  alt={product.name} 
-                  onLoad={() => setImageLoaded(true)}
-                  onError={() => {
-                    if (fallbackIndex < fallbacks.length) {
-                      setCurrentSrc(fallbacks[fallbackIndex]);
-                      setFallbackIndex(fallbackIndex + 1);
-                    } else {
-                      setImageError(true);
-                    }
-                  }}
-                  className={cn(
-                    "h-full w-full p-0.5 transition-all duration-500",
-                    (isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isVirtualDeals) ? "object-cover" : "object-contain",
-                    imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95"
-                  )}
+                   src={currentSrc} 
+                   alt={product.name} 
+                   onLoad={() => setImageLoaded(true)}
+                   onError={() => {
+                     if (fallbackIndex < fallbacks.length) {
+                       setCurrentSrc(fallbacks[fallbackIndex]);
+                       setFallbackIndex(fallbackIndex + 1);
+                     } else {
+                       setImageError(true);
+                     }
+                   }}
+                   className={cn(
+                     "h-full w-full p-0.5 transition-all duration-500",
+                     (isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isVirtualDeals) ? "object-cover" : "object-contain",
+                     imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95"
+                   )}
                 />
               )}
             </>
@@ -1065,7 +1158,7 @@ const ProductCard = ({ product, onAdd }: ProductCardProps) => {
       )}>
         {product.name}
       </h3>
-    </motion.button>
+    </motion.div>
   );
 };
 
