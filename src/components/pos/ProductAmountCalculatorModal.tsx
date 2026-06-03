@@ -212,27 +212,27 @@ export default function ProductAmountCalculatorModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl rounded-3xl p-0 overflow-hidden bg-slate-900 border border-slate-800 text-white shadow-2xl flex flex-col md:flex-row max-h-[90vh]">
+      <DialogContent className="max-w-4xl rounded-3xl p-0 overflow-hidden bg-white border border-gray-200 text-black shadow-2xl flex flex-col md:flex-row max-h-[90vh]">
         {/* Left Section: Inputs, Config, and Details */}
-        <div className="flex-1 p-6 flex flex-col justify-between overflow-y-auto space-y-4">
+        <div className="flex-1 p-6 flex flex-col justify-between overflow-y-auto space-y-4 bg-white">
           <div>
             <div className="flex justify-between items-start">
               <div>
-                <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">
+                <span className="text-[10px] font-black uppercase text-emerald-600 tracking-wider">
                   {product.category}
                 </span>
-                <DialogTitle className="text-2xl font-black font-heading uppercase tracking-tight text-white mt-0.5">
+                <DialogTitle className="text-2xl font-black font-heading uppercase tracking-tight text-black mt-0.5">
                   {product.name}
                 </DialogTitle>
-                <div className="text-xs text-slate-400 font-bold mt-1">
-                  Base Rate: <span className="text-white font-black">Rs {product.price.toLocaleString()}</span>
+                <div className="text-xs text-gray-500 font-bold mt-1">
+                  Base Rate: <span className="text-black font-black">Rs {product.price.toLocaleString()}</span>
                 </div>
               </div>
               <Button 
                 variant="ghost" 
                 size="icon" 
                 onClick={onClose}
-                className="text-slate-400 hover:text-white hover:bg-white/10 rounded-full h-8 w-8"
+                className="text-gray-400 hover:text-black hover:bg-gray-100 rounded-full h-8 w-8"
               >
                 <X className="h-5 w-5" />
               </Button>
@@ -240,8 +240,8 @@ export default function ProductAmountCalculatorModal({
 
             {/* Quick Quantity Measure Buttons (If Configured) */}
             {qtyPricing && qtyPricing.measures.length > 0 && (
-              <div className="mt-4 p-3 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-2">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">
+              <div className="mt-4 p-3 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
+                <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block">
                   Select Predefined Quantity Measure
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -252,8 +252,8 @@ export default function ProductAmountCalculatorModal({
                       variant="outline"
                       onClick={() => handleSelectMeasure(m.label, m.qty, m.price)}
                       className={cn(
-                        "h-10 px-3 text-xs font-black rounded-xl border-slate-700 bg-slate-900 hover:bg-emerald-600 hover:text-white transition-all uppercase",
-                        selectedLabel === m.label ? "border-emerald-500 bg-emerald-600/20 text-emerald-400" : "text-slate-200"
+                        "h-10 px-3 text-xs font-black rounded-xl border-gray-300 bg-white hover:bg-emerald-600 hover:text-white transition-all uppercase",
+                        selectedLabel === m.label ? "border-emerald-500 bg-emerald-100 text-emerald-700" : "text-gray-700"
                       )}
                     >
                       {m.label} ({m.qty}{qtyPricing.unit}) • Rs {m.price}
@@ -266,21 +266,21 @@ export default function ProductAmountCalculatorModal({
             {/* Main Form Fields */}
             <div className="grid grid-cols-3 gap-3 mt-4">
               <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block ml-1">
+                <Label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block ml-1">
                   Rate / Unit (Rs)
                 </Label>
                 <div 
                   onClick={() => setFocusedField('rate')}
                   className={cn(
-                    "flex items-center bg-slate-950 border rounded-2xl px-2.5 h-12 transition-all cursor-pointer",
-                    focusedField === 'rate' ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-slate-800 hover:border-slate-700"
+                    "flex items-center bg-gray-50 border rounded-2xl px-2.5 h-12 transition-all cursor-pointer",
+                    focusedField === 'rate' ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-gray-300 hover:border-gray-400"
                   )}
                 >
-                  <span className="text-slate-400 font-bold mr-1 text-xs">Rs</span>
+                  <span className="text-gray-400 font-bold mr-1 text-xs">Rs</span>
                   <input
                     type="text"
                     value={rateStr}
-                    className="w-full bg-transparent border-none text-white font-black text-sm focus:outline-none placeholder-slate-600"
+                    className="w-full bg-transparent border-none text-black font-black text-sm focus:outline-none placeholder-gray-400"
                     placeholder="0.00"
                     readOnly
                   />
@@ -288,20 +288,20 @@ export default function ProductAmountCalculatorModal({
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block ml-1">
+                <Label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block ml-1">
                   Quantity ({qtyPricing?.unit || 'units'})
                 </Label>
                 <div 
                   onClick={() => setFocusedField('quantity')}
                   className={cn(
-                    "flex items-center bg-slate-950 border rounded-2xl px-2.5 h-12 transition-all cursor-pointer",
-                    focusedField === 'quantity' ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-slate-800 hover:border-slate-700"
+                    "flex items-center bg-gray-50 border rounded-2xl px-2.5 h-12 transition-all cursor-pointer",
+                    focusedField === 'quantity' ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-gray-300 hover:border-gray-400"
                   )}
                 >
                   <input
                     type="text"
                     value={quantity}
-                    className="w-full bg-transparent border-none text-white font-black text-sm focus:outline-none placeholder-slate-600 text-right"
+                    className="w-full bg-transparent border-none text-black font-black text-sm focus:outline-none placeholder-gray-400 text-right"
                     placeholder="1.0"
                     readOnly
                   />
@@ -309,21 +309,21 @@ export default function ProductAmountCalculatorModal({
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block ml-1">
+                <Label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block ml-1">
                   Desired Amt (Rs)
                 </Label>
                 <div 
                   onClick={() => setFocusedField('desiredAmount')}
                   className={cn(
-                    "flex items-center bg-slate-950 border rounded-2xl px-2.5 h-12 transition-all cursor-pointer",
-                    focusedField === 'desiredAmount' ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-slate-800 hover:border-slate-700"
+                    "flex items-center bg-gray-50 border rounded-2xl px-2.5 h-12 transition-all cursor-pointer",
+                    focusedField === 'desiredAmount' ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-gray-300 hover:border-gray-400"
                   )}
                 >
-                  <span className="text-slate-400 font-bold mr-1 text-xs">Rs</span>
+                  <span className="text-gray-400 font-bold mr-1 text-xs">Rs</span>
                   <input
                     type="text"
                     value={desiredAmount}
-                    className="w-full bg-transparent border-none text-white font-black text-sm focus:outline-none placeholder-slate-600"
+                    className="w-full bg-transparent border-none text-black font-black text-sm focus:outline-none placeholder-gray-400"
                     placeholder="0.00"
                     readOnly
                   />
@@ -331,21 +331,21 @@ export default function ProductAmountCalculatorModal({
               </div>
 
               <div className="space-y-1.5 col-span-3">
-                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block ml-1">
+                <Label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block ml-1">
                   Received Cash (Rs)
                 </Label>
                 <div 
                   onClick={() => setFocusedField('receivedCash')}
                   className={cn(
-                    "flex items-center bg-slate-950 border rounded-2xl px-3 h-12 transition-all cursor-pointer",
-                    focusedField === 'receivedCash' ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-slate-800 hover:border-slate-700"
+                    "flex items-center bg-gray-50 border rounded-2xl px-3 h-12 transition-all cursor-pointer",
+                    focusedField === 'receivedCash' ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-gray-300 hover:border-gray-400"
                   )}
                 >
-                  <span className="text-slate-400 font-bold mr-1.5 text-sm">Rs</span>
+                  <span className="text-gray-400 font-bold mr-1.5 text-sm">Rs</span>
                   <input
                     type="text"
                     value={receivedCash}
-                    className="w-full bg-transparent border-none text-white font-black text-lg focus:outline-none placeholder-slate-600"
+                    className="w-full bg-transparent border-none text-black font-black text-lg focus:outline-none placeholder-gray-400"
                     placeholder="Enter cash received"
                     readOnly
                   />
@@ -355,7 +355,7 @@ export default function ProductAmountCalculatorModal({
 
             {/* Quick Cash Notes */}
             <div className="mt-3 space-y-1.5">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+              <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block ml-1">
                 Quick Cash Select
               </span>
               <div className="flex gap-1.5 flex-wrap">
@@ -365,7 +365,7 @@ export default function ProductAmountCalculatorModal({
                     type="button"
                     variant="outline"
                     onClick={() => handleQuickCash(note)}
-                    className="h-10 flex-1 min-w-[60px] text-xs font-black rounded-xl border-slate-800 bg-slate-950 hover:bg-slate-800 hover:text-white text-slate-300"
+                    className="h-10 flex-1 min-w-[60px] text-xs font-black rounded-xl border-gray-300 bg-gray-50 hover:bg-emerald-600 hover:text-white text-gray-700"
                   >
                     Rs {note}
                   </Button>
@@ -375,25 +375,25 @@ export default function ProductAmountCalculatorModal({
           </div>
 
           {/* Change Display Panel */}
-          <div className="bg-slate-950/80 rounded-3xl p-5 border border-slate-800/80 flex items-center justify-between shadow-inner">
+          <div className="bg-gray-50 rounded-3xl p-5 border border-gray-200 flex items-center justify-between shadow-inner">
             <div>
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+              <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">
                 Remaining Change (Return)
               </span>
-              <span className="text-2xl font-black tracking-tight text-emerald-400 mt-1 block">
+              <span className="text-2xl font-black tracking-tight text-emerald-600 mt-1 block">
                 Rs {remainingCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
-            <div className="bg-emerald-500/10 text-emerald-400 rounded-full h-12 w-12 flex items-center justify-center border border-emerald-500/20 font-black">
+            <div className="bg-emerald-100 text-emerald-600 rounded-full h-12 w-12 flex items-center justify-center border border-emerald-200 font-black">
               Rs
             </div>
           </div>
         </div>
 
         {/* Right Section: Numerical Touch Keypad */}
-        <div className="w-full md:w-80 bg-slate-950 p-6 border-t md:border-t-0 md:border-l border-slate-800 flex flex-col justify-between shrink-0">
+        <div className="w-full md:w-80 bg-gray-100 p-6 border-t md:border-t-0 md:border-l border-gray-200 flex flex-col justify-between shrink-0">
           <div className="space-y-4">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1 text-center md:text-left">
+            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block ml-1 text-center md:text-left">
               POS Calculator Input Keyboard
             </span>
 
@@ -405,10 +405,10 @@ export default function ProductAmountCalculatorModal({
                   type="button"
                   onClick={() => handleKeyPress(key)}
                   className={cn(
-                    "h-14 font-black text-lg rounded-2xl transition-all shadow-sm border border-slate-850",
+                    "h-14 font-black text-lg rounded-2xl transition-all shadow-sm",
                     key === 'C' 
-                      ? "bg-red-500/15 border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white" 
-                      : "bg-slate-900 border-slate-800 text-white hover:bg-slate-800 active:scale-95"
+                      ? "bg-red-50 border border-red-200 text-red-500 hover:bg-red-500 hover:text-white" 
+                      : "bg-white border border-gray-300 text-black hover:bg-gray-200 active:scale-95"
                   )}
                 >
                   {key}
@@ -417,7 +417,7 @@ export default function ProductAmountCalculatorModal({
               <Button
                 type="button"
                 onClick={() => handleKeyPress('backspace')}
-                className="col-span-3 h-12 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 rounded-2xl font-black text-xs uppercase"
+                className="col-span-3 h-12 bg-white border border-gray-300 text-gray-500 hover:text-black hover:bg-gray-200 rounded-2xl font-black text-xs uppercase"
               >
                 <Delete className="h-4 w-4 mr-2 inline" /> Backspace
               </Button>
@@ -429,7 +429,7 @@ export default function ProductAmountCalculatorModal({
               type="button"
               variant="outline"
               onClick={onClose}
-              className="flex-1 h-14 font-bold border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-2xl"
+              className="flex-1 h-14 font-bold border-gray-300 bg-white hover:bg-gray-100 text-gray-600 rounded-2xl"
             >
               Cancel
             </Button>
