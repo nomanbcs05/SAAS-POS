@@ -26,6 +26,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/services/api';
@@ -42,6 +48,49 @@ const ManageProductsPage = () => {
   const [isVirtualMenuModalOpen, setIsVirtualMenuModalOpen] = useState(false);
   const [selectedVirtualCategory, setSelectedVirtualCategory] = useState<string | null>(null);
   const [virtualMenuItems, setVirtualMenuItems] = useState<any[]>([]);
+
+  // Quantity Pricing State
+  const [selectedProductForQtyPricing, setSelectedProductForQtyPricing] = useState<any>(null);
+  const [isQtyPricingModalOpen, setIsQtyPricingModalOpen] = useState(false);
+  const [qtyPricingForm, setQtyPricingForm] = useState<{
+    enabled: boolean;
+    unit: string;
+    measures: Array<{ label: string; qty: number; price: number }>;
+  }>({
+    enabled: false,
+    unit: 'kg',
+    measures: []
+  });
+
+  const handleOpenQuantityPricing = (product: any) => {
+    setSelectedProductForQtyPricing(product);
+    const saved = localStorage.getItem(`qty_measure_pricing_${product.id}`);
+    if (saved) {
+      setQtyPricingForm(JSON.parse(saved));
+    } else {
+      setQtyPricingForm({
+        enabled: false,
+        unit: 'kg',
+        measures: [
+          { label: 'Quarter', qty: 0.25, price: Math.round(product.price * 0.25) },
+          { label: 'Half', qty: 0.5, price: Math.round(product.price * 0.5) },
+          { label: 'Full', qty: 1.0, price: product.price }
+        ]
+      });
+    }
+    setIsQtyPricingModalOpen(true);
+  };
+
+  const handleSaveQuantityPricing = () => {
+    if (selectedProductForQtyPricing) {
+      localStorage.setItem(`qty_measure_pricing_${selectedProductForQtyPricing.id}`, JSON.stringify(qtyPricingForm));
+      toast({
+        title: "Success",
+        description: `Quantity Pricing updated for ${selectedProductForQtyPricing.name}`
+      });
+      setIsQtyPricingModalOpen(false);
+    }
+  };
 
   const virtualCategories = [
     { id: 'freshbasket_fruits', name: 'Fruits', key: 'pos_menu_freshbasket_fruits', icon: Package },
@@ -649,27 +698,45 @@ const ManageProductsPage = () => {
                           </Badge>
                         </TableCell>
                         <TableCell className="py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              onClick={() => handleEditProduct(product)}
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-slate-400 hover:text-indigo-600"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              onClick={() => {
-                                if (window.confirm('Are you sure you want to delete this product?')) {
-                                  deleteProductMutation.mutate(product.id);
-                                }
-                              }}
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-slate-400 hover:text-red-500"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                          <div className="flex justify-end">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-slate-500 hover:bg-slate-100 rounded-full"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48 bg-white border border-slate-150 shadow-xl rounded-xl p-1.5 z-50">
+                                <DropdownMenuItem 
+                                  onClick={() => handleEditProduct(product)}
+                                  className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-lg cursor-pointer transition-colors"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                  Edit Product
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleOpenQuantityPricing(product)}
+                                  className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 rounded-lg cursor-pointer transition-colors"
+                                >
+                                  <Tag className="h-3.5 w-3.5" />
+                                  Quantity Pricing
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => {
+                                    if (window.confirm('Are you sure you want to delete this product?')) {
+                                      deleteProductMutation.mutate(product.id);
+                                    }
+                                  }}
+                                  className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Delete Product
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -774,6 +841,154 @@ const ManageProductsPage = () => {
                 >
                   <Save className="h-4 w-4 mr-2" />
                   Save {selectedVirtualCategory} Menu
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Quantity pricing dialog */}
+        <Dialog open={isQtyPricingModalOpen} onOpenChange={setIsQtyPricingModalOpen}>
+          <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden bg-white border-none flex flex-col max-h-[85vh]">
+            <DialogHeader className="p-6 bg-slate-950 text-white shrink-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogTitle className="text-2xl font-black font-heading uppercase tracking-tight">
+                    Quantity Measure Pricing
+                  </DialogTitle>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mt-1">
+                    Configure pricing rules by quantity measure for: {selectedProductForQtyPricing?.name}
+                  </p>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => setIsQtyPricingModalOpen(false)}
+                  className="text-white/50 hover:text-white hover:bg-white/10 rounded-full h-10 w-10"
+                >
+                  <X className="h-6 w-6" />
+                </Button>
+              </div>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar space-y-6">
+              <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div>
+                  <Label className="text-sm font-black text-slate-800">Enable Quantity Pricing Options</Label>
+                  <p className="text-xs text-slate-500 font-bold mt-0.5">Allow custom quantity measure selections at cart entry</p>
+                </div>
+                <Switch 
+                  checked={qtyPricingForm.enabled} 
+                  onCheckedChange={(checked) => setQtyPricingForm(prev => ({ ...prev, enabled: checked }))} 
+                />
+              </div>
+
+              {qtyPricingForm.enabled && (
+                <div className="space-y-4">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div>
+                      <Label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Unit of Measure (e.g. kg, dz, pcs)</Label>
+                      <Input 
+                        value={qtyPricingForm.unit}
+                        onChange={(e) => setQtyPricingForm(prev => ({ ...prev, unit: e.target.value }))}
+                        className="h-11 font-bold border-slate-200 rounded-xl"
+                        placeholder="e.g. kg"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-xs font-black text-slate-700 uppercase tracking-wider block ml-1">Predefined Measures & Prices</Label>
+                    {qtyPricingForm.measures.map((m, index) => (
+                      <div key={index} className="flex gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm items-center">
+                        <div className="flex-1">
+                          <Label className="text-[9px] font-black uppercase text-slate-400 mb-1 block ml-1">Label (e.g. Half)</Label>
+                          <Input 
+                            value={m.label}
+                            onChange={(e) => {
+                              const updated = [...qtyPricingForm.measures];
+                              updated[index] = { ...m, label: e.target.value };
+                              setQtyPricingForm(prev => ({ ...prev, measures: updated }));
+                            }}
+                            className="h-10 font-bold border-slate-100 rounded-xl"
+                          />
+                        </div>
+                        <div className="w-28">
+                          <Label className="text-[9px] font-black uppercase text-slate-400 mb-1 block ml-1">Qty ({qtyPricingForm.unit})</Label>
+                          <Input 
+                            type="number"
+                            step="0.01"
+                            value={m.qty}
+                            onChange={(e) => {
+                              const updated = [...qtyPricingForm.measures];
+                              updated[index] = { ...m, qty: Number(e.target.value) };
+                              setQtyPricingForm(prev => ({ ...prev, measures: updated }));
+                            }}
+                            className="h-10 font-black border-slate-100 rounded-xl"
+                          />
+                        </div>
+                        <div className="w-32">
+                          <Label className="text-[9px] font-black uppercase text-slate-400 mb-1 block ml-1">Price (Rs)</Label>
+                          <Input 
+                            type="number"
+                            value={m.price}
+                            onChange={(e) => {
+                              const updated = [...qtyPricingForm.measures];
+                              updated[index] = { ...m, price: Number(e.target.value) };
+                              setQtyPricingForm(prev => ({ ...prev, measures: updated }));
+                            }}
+                            className="h-10 font-black border-slate-100 rounded-xl"
+                          />
+                        </div>
+                        <Button 
+                          type="button"
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => {
+                            const updated = qtyPricingForm.measures.filter((_, i) => i !== index);
+                            setQtyPricingForm(prev => ({ ...prev, measures: updated }));
+                          }}
+                          className="mt-4 h-10 w-10 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      onClick={() => setQtyPricingForm(prev => ({ 
+                        ...prev, 
+                        measures: [...prev.measures, { label: 'New Option', qty: 1.0, price: selectedProductForQtyPricing?.price || 0 }] 
+                      }))}
+                      className="w-full h-12 border-dashed border-2 rounded-2xl text-slate-400 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 font-bold mt-2"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Measure Option
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="p-6 bg-white border-t shrink-0">
+              <div className="flex gap-3 w-full">
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  onClick={() => setIsQtyPricingModalOpen(false)}
+                  className="flex-1 h-12 font-bold rounded-xl border-slate-200"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="button"
+                  onClick={handleSaveQuantityPricing}
+                  className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-100"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Quantity Pricing
                 </Button>
               </div>
             </DialogFooter>

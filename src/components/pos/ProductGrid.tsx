@@ -31,6 +31,7 @@ import IndusMenuModal, { DEFAULT_INDUS_DATA } from './IndusMenuModal';
 import KhanshinwariMenuModal, { DEFAULT_KHANSHINWARI_DATA } from './KhanshinwariMenuModal';
 import FreshBasketMenuModal, { DEFAULT_FRESHBASKET_DATA } from './FreshBasketMenuModal';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
+import ProductAmountCalculatorModal from './ProductAmountCalculatorModal';
 
 const ProductGrid = () => {
   const navigate = useNavigate();
@@ -58,6 +59,8 @@ const ProductGrid = () => {
   const [selectedKhanshinwariCategory, setSelectedKhanshinwariCategory] = useState<string | undefined>(undefined);
   const [selectedFreshBasketCategory, setSelectedFreshBasketCategory] = useState<string | undefined>(undefined);
   const [localUpdateTrigger, setLocalUpdateTrigger] = useState(0);
+  const [isCalculatorModalOpen, setIsCalculatorModalOpen] = useState(false);
+  const [selectedCalculatorProduct, setSelectedCalculatorProduct] = useState<Product | null>(null);
   
   const { data: openRegister } = useQuery({
     queryKey: ['open-register'],
@@ -701,7 +704,21 @@ const ProductGrid = () => {
     }
   }, [queryClient]);
 
-  const handleAddToCart = useCallback((product: Product, quantity?: number) => {
+  const handleAddToCart = useCallback((
+    product: Product, 
+    quantity?: number, 
+    calcDetails?: {
+      desiredAmount?: number;
+      receivedCash?: number;
+      remainingCash?: number;
+      qtyMeasureLabel?: string;
+    }
+  ) => {
+    if (calcDetails) {
+      addItem(product, quantity, calcDetails);
+      return;
+    }
+
     if ((product as any).isVirtual) {
       if ((product as any).modalType === 'broast') {
         setShowBroastModal(true);
@@ -735,12 +752,13 @@ const ProductGrid = () => {
         setSelectedFreshBasketCategory((product as any).freshBasketCategory);
         setShowFreshBasketModal(true);
       } else if ((product as any).modalType === 'simple') {
-        // Handle individual virtual items that don't need a modal
-        addItem(product, quantity);
+        setSelectedCalculatorProduct(product);
+        setIsCalculatorModalOpen(true);
       }
       return;
     }
-    addItem(product, quantity);
+    setSelectedCalculatorProduct(product);
+    setIsCalculatorModalOpen(true);
   }, [addItem]);
 
   const handleClearSearch = () => {
@@ -1018,6 +1036,16 @@ const ProductGrid = () => {
             }}
             onAdd={handleAddToCart}
             category={selectedFreshBasketCategory}
+          />
+
+          <ProductAmountCalculatorModal
+            isOpen={isCalculatorModalOpen}
+            onClose={() => {
+              setIsCalculatorModalOpen(false);
+              setSelectedCalculatorProduct(null);
+            }}
+            product={selectedCalculatorProduct}
+            onAdd={handleAddToCart}
           />
         </div>
     );

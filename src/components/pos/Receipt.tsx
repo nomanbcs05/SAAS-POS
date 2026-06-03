@@ -177,6 +177,16 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
                 <td className="py-1 pl-1 align-top font-medium text-[11px]">{item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)}</td>
                 <td className="py-1 align-top uppercase break-words font-medium text-[11px]">
                   {item.product.name}
+                  {item.qtyMeasureLabel && (
+                    <span className="block text-[9px] text-gray-500 font-bold italic">({item.qtyMeasureLabel})</span>
+                  )}
+                  {item.desiredAmount !== undefined && (
+                    <div className="text-[9px] text-gray-600 font-bold leading-none mt-0.5 lowercase">
+                      <span>amt: rs {item.desiredAmount.toLocaleString()}</span>
+                      {item.receivedCash !== undefined && <span> | recv: rs {item.receivedCash.toLocaleString()}</span>}
+                      {item.remainingCash !== undefined && <span> | change: rs {item.remainingCash.toLocaleString()}</span>}
+                    </div>
+                  )}
                 </td>
                 <td className="text-right py-1 align-top font-medium text-[11px]">{item.product.price}</td>
                 <td className="text-right py-1 pr-1 align-top font-bold text-[11px]">{(item.lineTotal || 0).toFixed(3)}</td>

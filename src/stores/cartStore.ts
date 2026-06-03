@@ -18,6 +18,10 @@ export interface CartItem {
   product: Product;
   quantity: number;
   lineTotal: number;
+  desiredAmount?: number;
+  receivedCash?: number;
+  remainingCash?: number;
+  qtyMeasureLabel?: string;
 }
 
 export interface Customer {
@@ -56,7 +60,7 @@ interface CartState {
   total: number;
   
   // Actions
-  addItem: (product: Product, quantity?: number) => void;
+  addItem: (product: Product, quantity?: number, calcDetails?: { desiredAmount?: number; receivedCash?: number; remainingCash?: number; qtyMeasureLabel?: string }) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   setCustomer: (customer: Customer | null) => void;
@@ -102,7 +106,7 @@ export const useCartStore = create<CartState>()(
         get().calculateTotals();
       },
       
-      addItem: (product, quantity) => {
+      addItem: (product, quantity, calcDetails) => {
         set((state) => {
           const existingItem = state.items.find(item => item.product.id === product.id);
           const isKgItem = product.name.toLowerCase().includes('kg');
@@ -114,13 +118,31 @@ export const useCartStore = create<CartState>()(
           
           let newItems: CartItem[];
           if (existingItem) {
+            // If it has calcDetails, replace the quantity and calculation details
+            // Otherwise, increment the quantity
             newItems = state.items.map(item =>
               item.product.id === product.id
-                ? { ...item, quantity: item.quantity + increment, lineTotal: (item.quantity + increment) * item.product.price }
+                ? calcDetails 
+                  ? { 
+                      ...item, 
+                      quantity: increment, 
+                      lineTotal: increment * item.product.price,
+                      ...calcDetails
+                    }
+                  : { 
+                      ...item, 
+                      quantity: item.quantity + increment, 
+                      lineTotal: (item.quantity + increment) * item.product.price 
+                    }
                 : item
             );
           } else {
-            newItems = [...state.items, { product, quantity: increment, lineTotal: product.price * increment }];
+            newItems = [...state.items, { 
+              product, 
+              quantity: increment, 
+              lineTotal: product.price * increment,
+              ...calcDetails
+            }];
           }
           
           const subtotal = newItems.reduce((sum, item) => sum + item.lineTotal, 0);
