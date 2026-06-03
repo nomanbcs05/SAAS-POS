@@ -179,13 +179,6 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
                   {item.qtyMeasureLabel && (
                     <span className="block text-[10px] text-gray-500 font-bold italic">({item.qtyMeasureLabel})</span>
                   )}
-                  {item.desiredAmount !== undefined && (
-                    <div className="text-[10px] text-gray-600 font-bold leading-none mt-0.5 lowercase">
-                      <span>amt: rs {item.desiredAmount.toLocaleString()}</span>
-                      {item.receivedCash !== undefined && <span> | recv: rs {item.receivedCash.toLocaleString()}</span>}
-                      {item.remainingCash !== undefined && <span> | change: rs {item.remainingCash.toLocaleString()}</span>}
-                    </div>
-                  )}
                 </td>
                 <td className="text-right py-0.5 align-top">{Number(item.product.price).toLocaleString()}</td>
                 <td className="text-right py-0.5 pr-1 align-top">{Number(item.lineTotal).toLocaleString()}</td>
@@ -233,6 +226,33 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
           <div className="flex justify-between font-black text-lg mt-1 p-1 border-t border-black">
             <span>Total Payable :</span>
             <span>{((order.total || 0) + (order.customer.creditBalance || 0)).toLocaleString()}</span>
+          </div>
+        )}
+        {order.items.some(item => item.desiredAmount !== undefined) && (
+          <div className="border-t border-dotted border-black mt-1 pt-1 space-y-0.5 text-[11px] font-bold">
+            {order.items.map((item, idx) => {
+              if (item.desiredAmount === undefined) return null;
+              return (
+                <div key={idx} className="space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>Desired Amount:</span>
+                    <span>Rs {item.desiredAmount.toLocaleString()}</span>
+                  </div>
+                  {item.receivedCash !== undefined && (
+                    <div className="flex justify-between">
+                      <span>Cash Received:</span>
+                      <span>Rs {item.receivedCash.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {item.remainingCash !== undefined && (
+                    <div className="flex justify-between">
+                      <span>Remaining Change:</span>
+                      <span>Rs {item.remainingCash.toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
