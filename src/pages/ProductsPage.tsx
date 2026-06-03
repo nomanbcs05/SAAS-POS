@@ -55,6 +55,7 @@ const ProductsPage = () => {
     name: '',
     icon: 'Package',
   });
+  const [localUpdateTrigger, setLocalUpdateTrigger] = useState(0);
 
   // Virtual Menu States
   const [isVirtualMenuModalOpen, setIsVirtualMenuModalOpen] = useState(false);
@@ -150,6 +151,7 @@ const ProductsPage = () => {
       const category = virtualCategories.find(c => c.name === selectedVirtualCategory);
       if (category) {
         localStorage.setItem(category.key, JSON.stringify(virtualMenuItems));
+        setLocalUpdateTrigger(prev => prev + 1);
         uiToast({ title: "Success", description: `${selectedVirtualCategory} menu updated` });
         setIsVirtualMenuModalOpen(false);
       }
@@ -358,8 +360,40 @@ const ProductsPage = () => {
     setIsProductDialogOpen(true);
   };
 
+  const handleDeleteVirtualProduct = (id: string) => {
+    const match = id.match(/^virtual-(.+)-(\d+)$/);
+    if (match) {
+      const catId = match[1];
+      const idx = parseInt(match[2], 10);
+      const vCat = virtualCategories.find(c => c.id === catId);
+      if (vCat) {
+        const saved = localStorage.getItem(vCat.key);
+        let items = [];
+        if (saved) {
+          items = JSON.parse(saved);
+        } else {
+          if (vCat.key === 'pos_menu_freshbasket_fruits') {
+            items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'FRUITS');
+          } else if (vCat.key === 'pos_menu_freshbasket_vegetables') {
+            items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'VEGETABLES');
+          } else if (vCat.key === 'pos_menu_freshbasket_essentials') {
+            items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'DAILY ESSENTIALS');
+          }
+        }
+        const updated = items.filter((_, i) => i !== idx);
+        localStorage.setItem(vCat.key, JSON.stringify(updated));
+        setLocalUpdateTrigger(prev => prev + 1);
+        uiToast({
+          title: "Success",
+          description: "Virtual product deleted successfully",
+        });
+      }
+    }
+  };
+
   const handleSaveProduct = () => {
-    if (!newProduct.name || !newProduct.sku || !newProduct.price || !newProduct.cost || !newProduct.category) {
+    const isVirtual = editingProduct?.isVirtual;
+    if (!newProduct.name || (!isVirtual && !newProduct.sku) || !newProduct.price || (!isVirtual && !newProduct.cost) || !newProduct.category) {
       uiToast({
         title: "Error",
         description: "Please fill in all required fields",
@@ -370,19 +404,56 @@ const ProductsPage = () => {
 
     const productData = {
       name: newProduct.name,
-      sku: newProduct.sku,
-      price: parseFloat(newProduct.price),
-      cost: parseFloat(newProduct.cost),
+      sku: newProduct.sku || `VIRTUAL-${newProduct.category.substring(0, 3).toUpperCase()}`,
+      price: parseFloat(newProduct.price) || 0,
+      cost: parseFloat(newProduct.cost) || 0,
       stock: parseInt(newProduct.stock) || 0,
       category: newProduct.category,
       image: newProduct.image,
     };
 
     if (editingProduct) {
-      updateProductMutation.mutate({
-        id: editingProduct.id,
-        product: productData,
-      });
+      if (editingProduct.isVirtual) {
+        const match = editingProduct.id.match(/^virtual-(.+)-(\d+)$/);
+        if (match) {
+          const catId = match[1];
+          const idx = parseInt(match[2], 10);
+          const vCat = virtualCategories.find(c => c.id === catId);
+          if (vCat) {
+            const saved = localStorage.getItem(vCat.key);
+            let items = [];
+            if (saved) {
+              items = JSON.parse(saved);
+            } else {
+              if (vCat.key === 'pos_menu_freshbasket_fruits') {
+                items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'FRUITS');
+              } else if (vCat.key === 'pos_menu_freshbasket_vegetables') {
+                items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'VEGETABLES');
+              } else if (vCat.key === 'pos_menu_freshbasket_essentials') {
+                items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'DAILY ESSENTIALS');
+              }
+            }
+            if (items[idx]) {
+              items[idx].name = productData.name;
+              items[idx].price = productData.price;
+              items[idx].image = productData.image;
+              localStorage.setItem(vCat.key, JSON.stringify(items));
+              setLocalUpdateTrigger(prev => prev + 1);
+              uiToast({
+                title: "Success",
+                description: "Virtual product updated successfully",
+              });
+              setIsProductDialogOpen(false);
+              resetProductForm();
+            }
+          }
+        }
+      } else {
+        updateProductMutation.mutate({
+          id: editingProduct.id,
+          product: productData,
+        });
+      }
     } else {
       addProductMutation.mutate(productData);
     }
@@ -459,7 +530,7 @@ const ProductsPage = () => {
       const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [products, searchQuery, selectedCategory]);
+  }, [products, searchQuery, selectedCategory, localUpdateTrigger]);
 
   const lowStockCount = products.filter(p => p.stock <= 10).length;
 
@@ -781,19 +852,26 @@ const ProductsPage = () => {
                         <Label htmlFor="category">Category</Label>
                         <select
                           id="category"
+                          disabled={editingProduct?.isVirtual}
                           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                           value={newProduct.category}
                           onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
                         >
-                          <option value="">Select a category</option>
-                           {categories
-                            .filter(category => {
-                              const name = category.name.toLowerCase().trim();
-                              return name === 'fruits' || name === 'vegetables' || name === 'daily essentials';
-                            })
-                            .map((c) => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
+                          {editingProduct?.isVirtual ? (
+                            <option value={newProduct.category}>{newProduct.category}</option>
+                          ) : (
+                            <>
+                              <option value="">Select a category</option>
+                              {categories
+                               .filter(category => {
+                                 const name = category.name.toLowerCase().trim();
+                                 return name === 'fruits' || name === 'vegetables' || name === 'daily essentials';
+                               })
+                               .map((c) => (
+                                 <option key={c.id} value={c.id}>{c.name}</option>
+                               ))}
+                            </>
+                          )}
                         </select>
                       </div>
                     </div>
@@ -970,10 +1048,19 @@ const ProductsPage = () => {
                                 </DropdownMenuItem>
                               </>
                             ) : (
-                              <DropdownMenuItem disabled>
-                                <AlertTriangle className="h-4 w-4 mr-2" />
-                                Managed via Virtual Menu
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuItem onClick={() => openEditDialog(product)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteVirtualProduct(product.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>

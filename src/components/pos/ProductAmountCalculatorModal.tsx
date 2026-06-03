@@ -29,13 +29,13 @@ export default function ProductAmountCalculatorModal({
   product,
   onAdd,
 }: ProductAmountCalculatorModalProps) {
-  const [rate, setRate] = useState<number>(0);
+  const [rateStr, setRateStr] = useState<string>('0');
   const [quantity, setQuantity] = useState<string>('1');
   const [desiredAmount, setDesiredAmount] = useState<string>('0');
   const [receivedCash, setReceivedCash] = useState<string>('');
   const [remainingCash, setRemainingCash] = useState<number>(0);
   const [selectedLabel, setSelectedLabel] = useState<string | undefined>(undefined);
-  const [focusedField, setFocusedField] = useState<'desiredAmount' | 'quantity' | 'receivedCash'>('desiredAmount');
+  const [focusedField, setFocusedField] = useState<'desiredAmount' | 'quantity' | 'receivedCash' | 'rate'>('desiredAmount');
 
   // Quantity Pricing measures loaded from localStorage
   const [qtyPricing, setQtyPricing] = useState<{
@@ -46,7 +46,7 @@ export default function ProductAmountCalculatorModal({
 
   useEffect(() => {
     if (isOpen && product) {
-      setRate(product.price);
+      setRateStr(product.price.toString());
       setQuantity('1');
       setDesiredAmount(product.price.toString());
       setReceivedCash('');
@@ -66,18 +66,20 @@ export default function ProductAmountCalculatorModal({
   }, [isOpen, product]);
 
   // Recalculations
-  const handleRateChange = (newRate: number) => {
-    setRate(newRate);
-    const qtyVal = parseFloat(quantity) || 0;
-    const newAmt = qtyVal * newRate;
+  const handleRateChange = (newRateStr: string) => {
+    setRateStr(newRateStr);
+    const rVal = parseFloat(newRateStr) || 0;
+    const qVal = parseFloat(quantity) || 0;
+    const newAmt = qVal * rVal;
     setDesiredAmount(newAmt.toFixed(2));
     recalcChange(newAmt, receivedCash);
   };
 
   const handleQtyChange = (qtyStr: string) => {
     setQuantity(qtyStr);
-    const qtyVal = parseFloat(qtyStr) || 0;
-    const newAmt = qtyVal * rate;
+    const qVal = parseFloat(qtyStr) || 0;
+    const rVal = parseFloat(rateStr) || 0;
+    const newAmt = qVal * rVal;
     setDesiredAmount(newAmt.toFixed(2));
     recalcChange(newAmt, receivedCash);
     setSelectedLabel(undefined);
@@ -86,9 +88,24 @@ export default function ProductAmountCalculatorModal({
   const handleAmountChange = (amtStr: string) => {
     setDesiredAmount(amtStr);
     const amtVal = parseFloat(amtStr) || 0;
-    if (rate > 0) {
-      const computedQty = amtVal / rate;
-      setQuantity(computedQty.toFixed(4));
+    
+    if (product && product.price === 0) {
+      // For flexible price products (base price is 0), we keep quantity unchanged
+      // and calculate the rate as desiredAmount / quantity.
+      const qVal = parseFloat(quantity) || 1;
+      const calculatedRate = qVal > 0 ? amtVal / qVal : amtVal;
+      setRateStr(calculatedRate.toString());
+    } else {
+      // For fixed price products, we calculate quantity based on the product price
+      const rVal = product ? product.price : 0;
+      if (rVal > 0) {
+        const computedQty = amtVal / rVal;
+        setQuantity(computedQty.toFixed(4));
+      } else {
+        // Fallback
+        setQuantity('1');
+        setRateStr(amtVal.toString());
+      }
     }
     recalcChange(amtVal, receivedCash);
     setSelectedLabel(undefined);
@@ -114,6 +131,8 @@ export default function ProductAmountCalculatorModal({
     setSelectedLabel(label);
     setQuantity(qty.toString());
     setDesiredAmount(price.toString());
+    const computedRate = qty > 0 ? price / qty : price;
+    setRateStr(computedRate.toString());
     recalcChange(price, receivedCash);
   };
 
@@ -131,6 +150,9 @@ export default function ProductAmountCalculatorModal({
     } else if (focusedField === 'receivedCash') {
       currentVal = receivedCash;
       setVal = handleReceivedCashChange;
+    } else if (focusedField === 'rate') {
+      currentVal = rateStr;
+      setVal = handleRateChange;
     }
 
     if (key === 'C') {
@@ -169,7 +191,9 @@ export default function ProductAmountCalculatorModal({
   const handleSubmit = () => {
     if (!product) return;
     const finalQty = parseFloat(quantity) || 1;
-    const finalAmt = parseFloat(desiredAmount) || (product.price * finalQty);
+    const rateVal = parseFloat(rateStr) || 0;
+    const amtVal = parseFloat(desiredAmount) || 0;
+    const finalAmt = amtVal > 0 ? amtVal : (rateVal || product.price) * finalQty;
     const finalRecv = parseFloat(receivedCash) || undefined;
     const finalChange = finalRecv !== undefined ? remainingCash : undefined;
 
@@ -240,24 +264,23 @@ export default function ProductAmountCalculatorModal({
             )}
 
             {/* Main Form Fields */}
-            <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-3 gap-3 mt-4">
               <div className="space-y-1.5">
                 <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block ml-1">
-                  Desired Amount (Rs)
+                  Rate / Unit (Rs)
                 </Label>
                 <div 
-                  onClick={() => setFocusedField('desiredAmount')}
+                  onClick={() => setFocusedField('rate')}
                   className={cn(
-                    "flex items-center bg-slate-950 border rounded-2xl px-3 h-12 transition-all cursor-pointer",
-                    focusedField === 'desiredAmount' ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-slate-800 hover:border-slate-700"
+                    "flex items-center bg-slate-950 border rounded-2xl px-2.5 h-12 transition-all cursor-pointer",
+                    focusedField === 'rate' ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-slate-800 hover:border-slate-700"
                   )}
                 >
-                  <span className="text-slate-400 font-bold mr-1.5 text-sm">Rs</span>
+                  <span className="text-slate-400 font-bold mr-1 text-xs">Rs</span>
                   <input
                     type="text"
-                    value={desiredAmount}
-                    onChange={(e) => handleAmountChange(e.target.value)}
-                    className="w-full bg-transparent border-none text-white font-black text-lg focus:outline-none placeholder-slate-600"
+                    value={rateStr}
+                    className="w-full bg-transparent border-none text-white font-black text-sm focus:outline-none placeholder-slate-600"
                     placeholder="0.00"
                     readOnly
                   />
@@ -271,22 +294,43 @@ export default function ProductAmountCalculatorModal({
                 <div 
                   onClick={() => setFocusedField('quantity')}
                   className={cn(
-                    "flex items-center bg-slate-950 border rounded-2xl px-3 h-12 transition-all cursor-pointer",
+                    "flex items-center bg-slate-950 border rounded-2xl px-2.5 h-12 transition-all cursor-pointer",
                     focusedField === 'quantity' ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-slate-800 hover:border-slate-700"
                   )}
                 >
                   <input
                     type="text"
                     value={quantity}
-                    onChange={(e) => handleQtyChange(e.target.value)}
-                    className="w-full bg-transparent border-none text-white font-black text-lg focus:outline-none placeholder-slate-600 text-right"
+                    className="w-full bg-transparent border-none text-white font-black text-sm focus:outline-none placeholder-slate-600 text-right"
                     placeholder="1.0"
                     readOnly
                   />
                 </div>
               </div>
 
-              <div className="space-y-1.5 col-span-2">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block ml-1">
+                  Desired Amt (Rs)
+                </Label>
+                <div 
+                  onClick={() => setFocusedField('desiredAmount')}
+                  className={cn(
+                    "flex items-center bg-slate-950 border rounded-2xl px-2.5 h-12 transition-all cursor-pointer",
+                    focusedField === 'desiredAmount' ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-slate-800 hover:border-slate-700"
+                  )}
+                >
+                  <span className="text-slate-400 font-bold mr-1 text-xs">Rs</span>
+                  <input
+                    type="text"
+                    value={desiredAmount}
+                    className="w-full bg-transparent border-none text-white font-black text-sm focus:outline-none placeholder-slate-600"
+                    placeholder="0.00"
+                    readOnly
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5 col-span-3">
                 <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block ml-1">
                   Received Cash (Rs)
                 </Label>
@@ -301,7 +345,6 @@ export default function ProductAmountCalculatorModal({
                   <input
                     type="text"
                     value={receivedCash}
-                    onChange={(e) => handleReceivedCashChange(e.target.value)}
                     className="w-full bg-transparent border-none text-white font-black text-lg focus:outline-none placeholder-slate-600"
                     placeholder="Enter cash received"
                     readOnly

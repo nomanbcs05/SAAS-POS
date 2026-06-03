@@ -120,27 +120,37 @@ export const useCartStore = create<CartState>()(
           if (existingItem) {
             // If it has calcDetails, replace the quantity and calculation details
             // Otherwise, increment the quantity
-            newItems = state.items.map(item =>
-              item.product.id === product.id
-                ? calcDetails 
-                  ? { 
-                      ...item, 
-                      quantity: increment, 
-                      lineTotal: increment * item.product.price,
-                      ...calcDetails
-                    }
-                  : { 
-                      ...item, 
-                      quantity: item.quantity + increment, 
-                      lineTotal: (item.quantity + increment) * item.product.price 
-                    }
-                : item
-            );
+            newItems = state.items.map(item => {
+              if (item.product.id === product.id) {
+                if (calcDetails) {
+                  const finalPrice = calcDetails.desiredAmount && increment > 0 
+                    ? calcDetails.desiredAmount / increment 
+                    : item.product.price;
+                  return {
+                    ...item,
+                    quantity: increment,
+                    lineTotal: calcDetails.desiredAmount,
+                    product: { ...item.product, price: finalPrice },
+                    ...calcDetails
+                  };
+                } else {
+                  return {
+                    ...item,
+                    quantity: item.quantity + increment,
+                    lineTotal: (item.quantity + increment) * item.product.price
+                  };
+                }
+              }
+              return item;
+            });
           } else {
+            const finalPrice = calcDetails?.desiredAmount && increment > 0 
+              ? calcDetails.desiredAmount / increment 
+              : product.price;
             newItems = [...state.items, { 
-              product, 
+              product: { ...product, price: finalPrice }, 
               quantity: increment, 
-              lineTotal: product.price * increment,
+              lineTotal: calcDetails?.desiredAmount ?? (finalPrice * increment),
               ...calcDetails
             }];
           }
