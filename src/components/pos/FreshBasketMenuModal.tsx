@@ -22,72 +22,82 @@ interface MenuItem {
   category: string;
   price?: number;
   image?: string;
+  unit?: 'kg' | 'dozen';
   sizes?: {
     [key: string]: number;
   };
 }
 
+// Helper to determine unit: Eggs and Banana are sold in dozens, everything else in kg
+const getItemUnit = (name: string): 'kg' | 'dozen' => {
+  const lower = name.toLowerCase();
+  if (lower.includes('egg') || lower.includes('انڈ') || lower.includes('banana') || lower.includes('کیلا')) {
+    return 'dozen';
+  }
+  return 'kg';
+};
+
 export const DEFAULT_FRESHBASKET_DATA: MenuItem[] = [
   // FRUITS
-  { name: "Apple / سیب", category: "FRUITS", price: 0 },
-  { name: "Banana / کیلا", category: "FRUITS", price: 0 },
-  { name: "Mango / آم", category: "FRUITS", price: 0 },
-  { name: "Orange / سنگترہ", category: "FRUITS", price: 0 },
-  { name: "Grapes / انگور", category: "FRUITS", price: 0 },
-  { name: "Pomegranate / انار", category: "FRUITS", price: 0 },
-  { name: "Watermelon / تربوز", category: "FRUITS", price: 0 },
-  { name: "Melon / خربوزہ", category: "FRUITS", price: 0 },
-  { name: "Guava / امرود", category: "FRUITS", price: 0 },
-  { name: "Papaya / پپیتا", category: "FRUITS", price: 0 },
-  { name: "Pineapple / انناس", category: "FRUITS", price: 0 },
-  { name: "Strawberry / اسٹرابیری", category: "FRUITS", price: 0 },
-  { name: "Peach / آڑو", category: "FRUITS", price: 0 },
-  { name: "Pear / ناشپاتی", category: "FRUITS", price: 0 },
-  { name: "Plum / آلوبخارا", category: "FRUITS", price: 0 },
-  { name: "Cherry / چیری", category: "FRUITS", price: 0 },
-  { name: "Coconut / ناریل", category: "FRUITS", price: 0 },
-  { name: "Dates / کھجور", category: "FRUITS", price: 0 },
-  { name: "Lychee / لیچی", category: "FRUITS", price: 0 },
-  { name: "Apricot / خوبانی", category: "FRUITS", price: 0 },
-  { name: "Fig / انجیر", category: "FRUITS", price: 0 },
-  { name: "Jamun / جامن", category: "FRUITS", price: 0 },
-  { name: "Kiwi / کیوی", category: "FRUITS", price: 0 },
-  { name: "Sapodilla / Chikoo / چیکو", category: "FRUITS", price: 0 },
+  { name: "Apple / سیب", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Banana / کیلا", category: "FRUITS", price: 0, unit: 'dozen' },
+  { name: "Mango / آم", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Orange / سنگترہ", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Grapes / انگور", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Pomegranate / انار", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Watermelon / تربوز", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Melon / خربوزہ", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Guava / امرود", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Papaya / پپیتا", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Pineapple / انناس", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Strawberry / اسٹرابیری", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Peach / آڑو", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Pear / ناشپاتی", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Plum / آلوبخارا", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Cherry / چیری", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Coconut / ناریل", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Dates / کھجور", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Lychee / لیچی", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Apricot / خوبانی", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Fig / انجیر", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Jamun / جامن", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Kiwi / کیوی", category: "FRUITS", price: 0, unit: 'kg' },
+  { name: "Sapodilla / Chikoo / چیکو", category: "FRUITS", price: 0, unit: 'kg' },
   // VEGETABLES
-  { name: "Potato / آلو", category: "VEGETABLES", price: 0 },
-  { name: "Onion / پیاز", category: "VEGETABLES", price: 0 },
-  { name: "Tomato / ٹماٹر", category: "VEGETABLES", price: 0 },
-  { name: "Garlic / لہسن", category: "VEGETABLES", price: 0 },
-  { name: "Ginger / ادرک", category: "VEGETABLES", price: 0 },
-  { name: "Green Chili / ہری مرچ", category: "VEGETABLES", price: 0 },
-  { name: "Capsicum / شملہ مرچ", category: "VEGETABLES", price: 0 },
-  { name: "Carrot / گاجر", category: "VEGETABLES", price: 0 },
-  { name: "Radish / مولی", category: "VEGETABLES", price: 0 },
-  { name: "Turnip / شلجم", category: "VEGETABLES", price: 0 },
-  { name: "Beetroot / چقندر", category: "VEGETABLES", price: 0 },
-  { name: "Cucumber / کھیرہ", category: "VEGETABLES", price: 0 },
-  { name: "Bitter Gourd / کریلا", category: "VEGETABLES", price: 0 },
-  { name: "Bottle Gourd / لوکی", category: "VEGETABLES", price: 0 },
-  { name: "Ridge Gourd / توری", category: "VEGETABLES", price: 0 },
-  { name: "Pumpkin / کدو", category: "VEGETABLES", price: 0 },
-  { name: "Brinjal / Eggplant / بینگن", category: "VEGETABLES", price: 0 },
-  { name: "Lady Finger / بھنڈی", category: "VEGETABLES", price: 0 },
-  { name: "Peas / مٹر", category: "VEGETABLES", price: 0 },
-  { name: "Cabbage / بند گوبھی", category: "VEGETABLES", price: 0 },
-  { name: "Cauliflower / پھول گوبھی", category: "VEGETABLES", price: 0 },
-  { name: "Spinach / پالک", category: "VEGETABLES", price: 0 },
-  { name: "Coriander / دھنیا", category: "VEGETABLES", price: 0 },
-  { name: "Mint / پودینہ", category: "VEGETABLES", price: 0 },
-  { name: "Fenugreek / میتھی", category: "VEGETABLES", price: 0 },
-  { name: "Green Beans / پھلیاں", category: "VEGETABLES", price: 0 },
-  { name: "Lettuce / سلاد پتا", category: "VEGETABLES", price: 0 },
-  { name: "Spring Onion / ہرا پیاز", category: "VEGETABLES", price: 0 },
+  { name: "Potato / آلو", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Onion / پیاز", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Tomato / ٹماٹر", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Garlic / لہسن", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Ginger / ادرک", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Green Chili / ہری مرچ", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Capsicum / شملہ مرچ", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Carrot / گاجر", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Radish / مولی", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Turnip / شلجم", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Beetroot / چقندر", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Cucumber / کھیرہ", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Bitter Gourd / کریلا", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Bottle Gourd / لوکی", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Ridge Gourd / توری", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Pumpkin / کدو", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Brinjal / Eggplant / بینگن", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Lady Finger / بھنڈی", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Peas / مٹر", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Cabbage / بند گوبھی", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Cauliflower / پھول گوبھی", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Spinach / پالک", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Coriander / دھنیا", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Mint / پودینہ", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Fenugreek / میتھی", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Green Beans / پھلیاں", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Lettuce / سلاد پتا", category: "VEGETABLES", price: 0, unit: 'kg' },
+  { name: "Spring Onion / ہرا پیاز", category: "VEGETABLES", price: 0, unit: 'kg' },
   // DAILY ESSENTIALS
-  { name: "Chicken / چکن", category: "DAILY ESSENTIALS", price: 0 },
-  { name: "Fish / مچھلی", category: "DAILY ESSENTIALS", price: 0 },
-  { name: "Eggs / انڈے", category: "DAILY ESSENTIALS", price: 0 },
-  { name: "Dawn Bread / ڈان بریڈ", category: "DAILY ESSENTIALS", price: 0 },
-  { name: "Jam / جیم", category: "DAILY ESSENTIALS", price: 0 },
+  { name: "Chicken / چکن", category: "DAILY ESSENTIALS", price: 0, unit: 'kg' },
+  { name: "Fish / مچھلی", category: "DAILY ESSENTIALS", price: 0, unit: 'kg' },
+  { name: "Eggs / انڈے", category: "DAILY ESSENTIALS", price: 0, unit: 'dozen' },
+  { name: "Dawn Bread / ڈان بریڈ", category: "DAILY ESSENTIALS", price: 0, unit: 'dozen' },
+  { name: "Jam / جیم", category: "DAILY ESSENTIALS", price: 0, unit: 'kg' },
 ];
 
 export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category: initialCategory }: FreshBasketMenuModalProps) {
@@ -101,11 +111,13 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
   const [customAmount, setCustomAmount] = useState<string>('');
   const { isAdmin } = useMultiTenant();
 
-  const calculateQty = (rate: string, amount: string) => {
+  const calculateQty = (rate: string, amount: string, unit?: 'kg' | 'dozen') => {
     const r = Number(rate);
     const a = Number(amount);
     if (!r || !a || r <= 0) return '0.000';
-    return (a / r).toFixed(3);
+    const qty = a / r;
+    // Dozen items show whole numbers, kg items show 3 decimal places
+    return unit === 'dozen' ? Math.round(qty).toString() : qty.toFixed(3);
   };
 
   const handleAddCustomItem = (item: MenuItem) => {
@@ -120,7 +132,9 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
       return;
     }
 
+    const unit = item.unit || getItemUnit(item.name);
     const calculatedQty = amount / rate;
+    const displayQty = unit === 'dozen' ? Math.round(calculatedQty) : calculatedQty;
     const name = item.name;
 
     const product = {
@@ -132,8 +146,9 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
       sku: `FB-${item.name.substring(0, 3).toUpperCase()}-custom`,
     };
 
-    onAdd(product, calculatedQty);
-    toast.success(`${name} added for Rs. ${amount} (Qty: ${calculatedQty.toFixed(3)})`);
+    onAdd(product, displayQty);
+    const unitLabel = unit === 'dozen' ? 'dozen' : 'kg';
+    toast.success(`${name} added for Rs. ${amount} (${unit === 'dozen' ? displayQty : calculatedQty.toFixed(3)} ${unitLabel})`);
     
     // Reset states
     setCustomInputIndex(null);
@@ -256,6 +271,8 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
 
     const price = size ? item.sizes?.[size] : item.price;
     const name = size ? `${item.name} (${size})` : item.name;
+    const unit = item.unit || getItemUnit(item.name);
+    const unitLabel = unit === 'dozen' ? 'dozen' : 'kg';
 
     const product = {
       id: `freshbasket-${item.category.toLowerCase().replace(/\s+/g, '-')}-${item.name.toLowerCase().replace(/\s+/g, '-')}${size ? `-${size.toLowerCase()}` : ''}`,
@@ -267,7 +284,7 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
     };
 
     onAdd(product, selectedQuantity);
-    toast.success(`${name} (${selectedQuantity}x) added to cart`);
+    toast.success(`${name} (${selectedQuantity} ${unitLabel}) added to cart`);
   };
 
   return (
@@ -407,12 +424,22 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
                 >
                   <div>
                     <div className="flex justify-between items-start mb-2">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                        {item.category}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                          {item.category}
+                        </span>
+                        <span className={cn(
+                          "text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full",
+                          (item.unit || getItemUnit(item.name)) === 'dozen' 
+                            ? "text-amber-700 bg-amber-50" 
+                            : "text-blue-700 bg-blue-50"
+                        )}>
+                          {(item.unit || getItemUnit(item.name)) === 'dozen' ? '📦 Dozen' : '⚖️ Per KG'}
+                        </span>
+                      </div>
                       {!isEditingMode && !item.sizes && (
                         <span className="text-sm font-black text-slate-900">
-                          Rs. {item.price}
+                          Rs. {item.price}/{(item.unit || getItemUnit(item.name)) === 'dozen' ? 'dz' : 'kg'}
                         </span>
                       )}
                       {isEditingMode && (
@@ -480,7 +507,7 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
                       <div className="w-full space-y-2 bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100">
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="text-[9px] font-black text-emerald-800 uppercase tracking-wider block mb-0.5">Rate (Rs)</label>
+                            <label className="text-[9px] font-black text-emerald-800 uppercase tracking-wider block mb-0.5">Rate (Rs/{(item.unit || getItemUnit(item.name)) === 'dozen' ? 'dz' : 'kg'})</label>
                             <Input
                               type="number"
                               placeholder="Rate"
@@ -512,7 +539,7 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
                             className="flex-1 h-8 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs"
                             onClick={() => handleAddCustomItem(item)}
                           >
-                            Add ({calculateQty(customRate, customAmount)} qty)
+                            Add ({calculateQty(customRate, customAmount, item.unit || getItemUnit(item.name))} {(item.unit || getItemUnit(item.name)) === 'dozen' ? 'dz' : 'kg'})
                           </Button>
                           <Button
                             size="sm"
@@ -546,7 +573,7 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
                           onClick={() => handleAddItem(item)}
                           className="flex-1 bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-900 border-none rounded-xl h-10 font-bold transition-all text-xs"
                         >
-                          Add Qty ({selectedQuantity})
+                          Add {selectedQuantity} {(item.unit || getItemUnit(item.name)) === 'dozen' ? 'Dozen' : 'KG'}
                         </Button>
                         <Button
                           onClick={() => {
