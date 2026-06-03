@@ -62,7 +62,7 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
           <img
             src={logoSrc}
             alt="Logo"
-            className="mx-auto mb-1 object-contain h-16 max-w-[120px] w-auto"
+            className="mx-auto mb-2 object-contain h-32 max-w-[220px] w-auto"
             onError={() => setLogoError(true)}
           />
         ) : (
