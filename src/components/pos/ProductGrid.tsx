@@ -60,6 +60,13 @@ const ProductGrid = () => {
   const [selectedFreshBasketCategory, setSelectedFreshBasketCategory] = useState<string | undefined>(undefined);
   const [localUpdateTrigger, setLocalUpdateTrigger] = useState(0);
   const [isCalculatorModalOpen, setIsCalculatorModalOpen] = useState(false);
+
+  // Re-render product grid whenever Fresh Basket modal saves prices to localStorage
+  useEffect(() => {
+    const handleFreshBasketUpdate = () => setLocalUpdateTrigger(prev => prev + 1);
+    window.addEventListener('freshbasket-menu-updated', handleFreshBasketUpdate);
+    return () => window.removeEventListener('freshbasket-menu-updated', handleFreshBasketUpdate);
+  }, []);
   const [selectedCalculatorProduct, setSelectedCalculatorProduct] = useState<Product | null>(null);
   
   const { data: openRegister } = useQuery({
@@ -596,7 +603,7 @@ const ProductGrid = () => {
         const freshBasketCategories = [
           { name: 'FRUITS', id: 'freshbasket_fruits', key: 'pos_menu_freshbasket_fruits' },
           { name: 'VEGETABLES', id: 'freshbasket_vegetables', key: 'pos_menu_freshbasket_vegetables' },
-          { name: 'DAILY ESSENTIALS', id: 'freshbasket_essentials', key: 'pos_menu_freshbasket_essentials' },
+          { name: 'DAILY ESSENTIALS', id: 'freshbasket_essentials', key: 'pos_menu_freshbasket_daily_essentials' },
         ];
 
         freshBasketCategories.forEach(cat => {

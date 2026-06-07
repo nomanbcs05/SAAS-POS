@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Search, Plus, Utensils, Edit2, Trash2, ImagePlus, Loader2, Save, X, Apple, Package } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { api } from '@/services/api';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
@@ -113,6 +113,7 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
   const [customRate, setCustomRate] = useState<string>('');
   const [customAmount, setCustomAmount] = useState<string>('');
   const { isAdmin } = useMultiTenant();
+  const queryClient = useQueryClient();
 
   const calculateQty = (rate: string, amount: string, unit?: 'kg' | 'dozen') => {
     const r = Number(rate);
@@ -660,11 +661,32 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
               </Button>
               <Button 
                 className="flex-1 h-14 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold transition-all shadow-lg shadow-emerald-500/20"
-                onClick={() => {
+              onClick={async () => {
                   const key = initialCategory 
                     ? `pos_menu_freshbasket_${initialCategory.toLowerCase().replace(/\s+/g, '_').replace(/[()]/g, '')}`
                     : 'pos_menu_freshbasket';
+                  // 1. Save to localStorage
                   localStorage.setItem(key, JSON.stringify(menuItems));
+
+                  // 2. Persist price/name changes for DB-backed items to Supabase
+                  const dbUpdates = menuItems.filter(item => item._isDb && item._dbId);
+                  if (dbUpdates.length > 0) {
+                    try {
+                      await Promise.all(
+                        dbUpdates.map(item =>
+                          api.products.update(item._dbId!, { price: item.price ?? 0, name: item.name })
+                        )
+                      );
+                      // Refresh products cache so dashboard shows updated prices immediately
+                      queryClient.invalidateQueries({ queryKey: ['products'] });
+                    } catch (err) {
+                      console.error('Failed to sync prices to DB:', err);
+                    }
+                  }
+
+                  // 3. Notify ProductGrid to re-read localStorage prices
+                  window.dispatchEvent(new CustomEvent('freshbasket-menu-updated'));
+
                   setIsEditingMode(false);
                   toast.success('Menu changes saved successfully!');
                 }}
