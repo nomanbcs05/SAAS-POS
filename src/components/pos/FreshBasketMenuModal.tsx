@@ -15,6 +15,7 @@ interface FreshBasketMenuModalProps {
   onClose: () => void;
   onAdd: (product: any, quantity?: number) => void;
   category?: string;
+  dbProducts?: any[]; // Products from DB with matching category
 }
 
 interface MenuItem {
@@ -100,7 +101,7 @@ export const DEFAULT_FRESHBASKET_DATA: MenuItem[] = [
   { name: "Jam / جیم", category: "DAILY ESSENTIALS", price: 0, unit: 'kg' },
 ];
 
-export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category: initialCategory }: FreshBasketMenuModalProps) {
+export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category: initialCategory, dbProducts = [] }: FreshBasketMenuModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>(initialCategory || 'all');
   const [selectedQuantity, setSelectedQuantity] = useState(1);
@@ -199,12 +200,27 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
       : 'pos_menu_freshbasket';
     
     const saved = localStorage.getItem(key);
+    let baseItems: MenuItem[];
     if (saved) {
-      setMenuItems(JSON.parse(saved));
+      baseItems = JSON.parse(saved);
     } else {
-      setMenuItems(DEFAULT_FRESHBASKET_DATA.filter(item => !initialCategory || item.category === initialCategory));
+      baseItems = DEFAULT_FRESHBASKET_DATA.filter(item => !initialCategory || item.category === initialCategory);
     }
-  }, [isOpen, initialCategory]);
+
+    // Merge DB products: add any DB product not already in the list
+    const dbMerged: MenuItem[] = (dbProducts || []).map((p: any) => ({
+      name: p.name,
+      category: initialCategory || p.category || 'FRUITS',
+      price: p.price || 0,
+      image: p.image || undefined,
+      unit: 'kg' as 'kg',
+      _dbId: p.id,
+    }));
+
+    const existingNames = new Set(baseItems.map(i => i.name.toLowerCase()));
+    const newDbItems = dbMerged.filter(i => !existingNames.has(i.name.toLowerCase()));
+    setMenuItems([...baseItems, ...newDbItems]);
+  }, [isOpen, initialCategory, dbProducts]);
 
   const updateMenuState = (updatedItems: MenuItem[]) => {
     setMenuItems(updatedItems);

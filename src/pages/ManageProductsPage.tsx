@@ -458,12 +458,7 @@ const ManageProductsPage = () => {
 
   const filteredProducts = products.filter((p: any) => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = p.category && (
-      p.category.toLowerCase().trim() === 'fruits' ||
-      p.category.toLowerCase().trim() === 'vegetables' ||
-      p.category.toLowerCase().trim() === 'daily essentials'
-    );
-    return matchesSearch && matchesCategory;
+    return matchesSearch;
   });
 
   return (
@@ -581,12 +576,7 @@ const ManageProductsPage = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                     {categories
-                      .filter((category: any) => {
-                        const name = category.name.toLowerCase().trim();
-                        return name === 'fruits' || name === 'vegetables' || name === 'daily essentials';
-                      })
-                      .map((category: any) => (
+                     {categories.map((category: any) => (
                       <TableRow key={category.id} className="hover:bg-slate-50/50 border-slate-100">
                         <TableCell className="font-bold text-slate-700 py-4">{category.name}</TableCell>
                         <TableCell className="text-slate-500 py-4">{category.icon}</TableCell>
@@ -1113,12 +1103,7 @@ const ManageProductsPage = () => {
                       className="w-full h-12 bg-slate-50 border-none rounded-xl px-4 text-sm outline-none"
                     >
                       <option value="">Select category</option>
-                      {categories
-                        .filter((c: any) => {
-                          const name = c.name.toLowerCase().trim();
-                          return name === 'fruits' || name === 'vegetables' || name === 'daily essentials';
-                        })
-                        .map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                     <div className="flex flex-wrap gap-2">
                       {productForm.category_id && (

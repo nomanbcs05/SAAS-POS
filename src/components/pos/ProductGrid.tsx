@@ -1036,6 +1036,11 @@ const ProductGrid = () => {
             }}
             onAdd={handleAddToCart}
             category={selectedFreshBasketCategory}
+            dbProducts={allProducts.filter((p: any) => {
+              const cat = p.category?.toLowerCase()?.trim();
+              if (!selectedFreshBasketCategory) return cat === 'fruits' || cat === 'vegetables' || cat === 'daily essentials';
+              return cat === selectedFreshBasketCategory.toLowerCase();
+            })}
           />
 
           <ProductAmountCalculatorModal
