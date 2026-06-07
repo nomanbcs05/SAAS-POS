@@ -63,6 +63,7 @@ interface CartState {
   addItem: (product: Product, quantity?: number, calcDetails?: { desiredAmount?: number; receivedCash?: number; remainingCash?: number; qtyMeasureLabel?: string }) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
+  updatePrice: (productId: string, price: number) => void;
   setCustomer: (customer: Customer | null) => void;
   setTableId: (tableId: string | null) => void; // Changed to string for UUID
   setServerName: (name: string | null) => void; // Added setServerName
@@ -198,6 +199,33 @@ export const useCartStore = create<CartState>()(
           const newItems = state.items.map(item =>
             item.product.id === productId
               ? { ...item, quantity, lineTotal: quantity * item.product.price }
+              : item
+          );
+          
+          const subtotal = newItems.reduce((sum, item) => sum + item.lineTotal, 0);
+          const discountAmount = state.discountType === 'percentage' 
+            ? subtotal * (state.discount / 100) 
+            : state.discount;
+          const serviceChargesAmount = state.serviceChargesType === 'percentage'
+            ? subtotal * (state.serviceCharges / 100)
+            : state.serviceCharges;
+          const taxAmount = (subtotal - discountAmount + serviceChargesAmount) * (state.taxRate / 100);
+          const deliveryFee = state.orderType === 'delivery' ? 50 : 0;
+          const total = subtotal - discountAmount + serviceChargesAmount + taxAmount + deliveryFee;
+          
+          return { items: newItems, subtotal, discountAmount, serviceChargesAmount, taxAmount, deliveryFee, total };
+        });
+      },
+      
+      updatePrice: (productId, price) => {
+        set((state) => {
+          const newItems = state.items.map(item =>
+            item.product.id === productId
+              ? { 
+                  ...item, 
+                  product: { ...item.product, price: price }, 
+                  lineTotal: item.quantity * price 
+                }
               : item
           );
           

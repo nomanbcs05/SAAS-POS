@@ -40,6 +40,7 @@ const CartPanel = () => {
     serviceChargesAmount,
     total,
     updateQuantity,
+    updatePrice,
     removeItem,
     setCustomer,
     orderType,
@@ -732,60 +733,68 @@ const CartPanel = () => {
                             ))}
                           </div>
                         )}
-                        {item.product.price > 0 && (
-                          <div className="flex gap-1 items-center mt-1">
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-6 px-2 text-[9px] font-black transition-all text-blue-600 border-blue-200 hover:bg-blue-50"
-                                >
-                                  Rs Amt
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-52 p-3" align="center">
-                                <div className="space-y-2">
-                                  <h4 className="font-bold text-xs leading-none">Enter Rupee Amount</h4>
-                                  <p className="text-[10px] text-muted-foreground">Qty will auto-calculate from rate</p>
-                                  <div className="flex gap-2">
-                                    <Input
-                                      id={`amt-input-${item.product.id}`}
-                                      type="number"
-                                      placeholder="e.g. 100"
-                                      className="h-8 text-sm flex-1"
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          const val = Number((e.currentTarget).value);
-                                          if (val > 0 && item.product.price > 0) {
+                        <div className="flex gap-1 items-center mt-1">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-2 text-[9px] font-black transition-all text-blue-600 border-blue-200 hover:bg-blue-50"
+                              >
+                                Rs Amt
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-52 p-3" align="center">
+                              <div className="space-y-2">
+                                <h4 className="font-bold text-xs leading-none">Enter Rupee Amount</h4>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {item.product.price > 0 ? "Qty will auto-calculate from rate" : "Price will set to entered amount"}
+                                </p>
+                                <div className="flex gap-2">
+                                  <Input
+                                    id={`amt-input-${item.product.id}`}
+                                    type="number"
+                                    placeholder="e.g. 100"
+                                    className="h-8 text-sm flex-1"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        const val = Number((e.currentTarget).value);
+                                        if (val > 0) {
+                                          if (item.product.price > 0) {
                                             updateQuantity(item.product.id, val / item.product.price);
-                                            (e.currentTarget).value = '';
+                                          } else {
+                                            updatePrice(item.product.id, val);
                                           }
+                                          (e.currentTarget).value = '';
                                         }
-                                      }}
-                                    />
-                                    <Button
-                                      size="sm"
-                                      className="h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black"
-                                      onClick={() => {
-                                        const input = document.getElementById(`amt-input-${item.product.id}`) as HTMLInputElement;
-                                        if (input) {
-                                          const val = Number(input.value);
-                                          if (val > 0 && item.product.price > 0) {
+                                      }
+                                    }}
+                                  />
+                                  <Button
+                                    size="sm"
+                                    className="h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black"
+                                    onClick={() => {
+                                      const input = document.getElementById(`amt-input-${item.product.id}`) as HTMLInputElement;
+                                      if (input) {
+                                        const val = Number(input.value);
+                                        if (val > 0) {
+                                          if (item.product.price > 0) {
                                             updateQuantity(item.product.id, val / item.product.price);
-                                            input.value = '';
+                                          } else {
+                                            updatePrice(item.product.id, val);
                                           }
+                                          input.value = '';
                                         }
-                                      }}
-                                    >
-                                      Set
-                                    </Button>
-                                  </div>
+                                      }
+                                    }}
+                                  >
+                                    Set
+                                  </Button>
                                 </div>
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                        )}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
                       </div>
                       <span className="font-black text-sm whitespace-nowrap">Rs {item.lineTotal.toLocaleString()}</span>
                     </div>
