@@ -12,6 +12,7 @@ interface DealsSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (product: any) => void;
+  dbProducts?: any[];
 }
 
 interface DealItem {
@@ -20,6 +21,8 @@ interface DealItem {
   description: string;
   price: number;
   color: string;
+  _isDb?: boolean;
+  _dbId?: string;
 }
 
 const DEFAULT_DEALS: DealItem[] = [
@@ -33,7 +36,7 @@ const DEFAULT_DEALS: DealItem[] = [
   { id: 'deal-08', name: "DEAL # 08", description: "01 Large Pizza\n02 Zinger Burger\n02 Zinger Roll\n01 1.5 Ltr Drink", price: 720, color: 'bg-black' },
 ];
 
-export default function DealsSelectionModal({ isOpen, onClose, onAdd }: DealsSelectionModalProps) {
+export default function DealsSelectionModal({ isOpen, onClose, onAdd, dbProducts = [] }: DealsSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { isAdmin } = useMultiTenant();
   const [isEditingMode, setIsEditingMode] = useState(false);
@@ -41,12 +44,49 @@ export default function DealsSelectionModal({ isOpen, onClose, onAdd }: DealsSel
 
   useEffect(() => {
     const saved = localStorage.getItem('pos_menu_deals');
-    if (saved) {
-      setMenuItems(JSON.parse(saved));
-    } else {
-      setMenuItems(DEFAULT_DEALS);
-    }
-  }, [isOpen]);
+    let base: DealItem[] = saved ? JSON.parse(saved) : DEFAULT_DEALS;
+
+    const dbProductsMap = new Map<string, any>();
+    dbProducts.forEach((p: any) => {
+      if (p.name) {
+        dbProductsMap.set(p.name.toLowerCase(), p);
+      }
+    });
+
+    // 1. Update existing / delete removed
+    let updatedBase: DealItem[] = base.map((item) => {
+      const dbProduct = dbProductsMap.get(item.name.toLowerCase());
+      if (dbProduct) {
+        return {
+          ...item,
+          price: dbProduct.price || 0,
+          _isDb: true,
+          _dbId: dbProduct.id,
+        };
+      } else if (item._isDb) {
+        return null;
+      }
+      return item;
+    }).filter(Boolean) as DealItem[];
+
+    // 2. Add new DB items
+    const baseNames = new Set(updatedBase.map(item => item.name.toLowerCase()));
+    dbProducts.forEach((p: any) => {
+      if (p.name && !baseNames.has(p.name.toLowerCase())) {
+        updatedBase.push({
+          id: `deal-db-${p.id}`,
+          name: p.name,
+          description: '',
+          price: p.price || 0,
+          color: 'bg-black',
+          _isDb: true,
+          _dbId: p.id,
+        });
+      }
+    });
+
+    setMenuItems(updatedBase);
+  }, [isOpen, dbProducts]);
 
   const saveMenu = (updatedItems: DealItem[]) => {
     setMenuItems(updatedItems);

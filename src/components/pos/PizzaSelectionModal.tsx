@@ -12,6 +12,7 @@ interface PizzaSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (product: any) => void;
+  dbProducts?: any[];
 }
 
 const PIZZA_SIZES = ['Small', 'Medium', 'Large', 'Jumbo'] as const;
@@ -21,6 +22,8 @@ interface PizzaFlavor {
   name: string;
   category: 'Classic' | 'Premium';
   prices: Partial<Record<PizzaSize, number>>;
+  _isDb?: boolean;
+  _dbId?: string;
 }
 
 const DEFAULT_PIZZA_DATA: PizzaFlavor[] = [
@@ -44,7 +47,7 @@ const DEFAULT_PIZZA_DATA: PizzaFlavor[] = [
   { name: "Special Lava Pizza", category: 'Premium', prices: { Small: 600, Medium: 1000, Large: 1300, Jumbo: 1500 } },
 ];
 
-export default function PizzaSelectionModal({ isOpen, onClose, onAdd }: PizzaSelectionModalProps) {
+export default function PizzaSelectionModal({ isOpen, onClose, onAdd, dbProducts = [] }: PizzaSelectionModalProps) {
   const [activeTab, setActiveTab] = useState<'Classic' | 'Premium'>('Classic');
   const [searchQuery, setSearchQuery] = useState('');
   const [quantityPrefix, setQuantityPrefix] = useState<string>('');
@@ -54,12 +57,50 @@ export default function PizzaSelectionModal({ isOpen, onClose, onAdd }: PizzaSel
 
   useEffect(() => {
     const saved = localStorage.getItem('pos_menu_pizza');
-    if (saved) {
-      setMenuItems(JSON.parse(saved));
-    } else {
-      setMenuItems(DEFAULT_PIZZA_DATA);
-    }
-  }, [isOpen]);
+    let base: PizzaFlavor[] = saved ? JSON.parse(saved) : DEFAULT_PIZZA_DATA;
+
+    const dbProductsMap = new Map<string, any>();
+    dbProducts.forEach((p: any) => {
+      if (p.name) {
+        dbProductsMap.set(p.name.toLowerCase(), p);
+      }
+    });
+
+    // 1. Update existing / delete removed
+    let updatedBase: PizzaFlavor[] = base.map((item) => {
+      const dbProduct = dbProductsMap.get(item.name.toLowerCase());
+      if (dbProduct) {
+        return {
+          ...item,
+          prices: {
+            ...item.prices,
+            Small: dbProduct.price || 0,
+          },
+          _isDb: true,
+          _dbId: dbProduct.id,
+        };
+      } else if (item._isDb) {
+        return null;
+      }
+      return item;
+    }).filter(Boolean) as PizzaFlavor[];
+
+    // 2. Add new DB items
+    const baseNames = new Set(updatedBase.map(item => item.name.toLowerCase()));
+    dbProducts.forEach((p: any) => {
+      if (p.name && !baseNames.has(p.name.toLowerCase())) {
+        updatedBase.push({
+          name: p.name,
+          category: 'Classic',
+          prices: { Small: p.price || 0 },
+          _isDb: true,
+          _dbId: p.id,
+        });
+      }
+    });
+
+    setMenuItems(updatedBase);
+  }, [isOpen, dbProducts]);
 
   const saveMenu = (updatedItems: PizzaFlavor[]) => {
     setMenuItems(updatedItems);

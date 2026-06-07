@@ -30,11 +30,50 @@ const ArabicBroastModal = ({ isOpen, onClose, products, onAdd }: ArabicBroastMod
 
   useEffect(() => {
     const saved = localStorage.getItem('pos_menu_arabic_broast');
-    if (saved) {
-      setMenuItems(JSON.parse(saved));
-    } else {
-      setMenuItems(products);
-    }
+    let base: Product[] = saved ? JSON.parse(saved) : products;
+
+    const dbProductsMap = new Map<string, any>();
+    products.forEach((p: any) => {
+      if (p.name) {
+        dbProductsMap.set(p.name.toLowerCase(), p);
+      }
+    });
+
+    // 1. Update existing / delete removed
+    let updatedBase: Product[] = base.map((item) => {
+      const dbProduct = dbProductsMap.get(item.name.toLowerCase());
+      if (dbProduct) {
+        return {
+          ...item,
+          price: dbProduct.price || 0,
+          image: dbProduct.image || item.image,
+          _isDb: true,
+          _dbId: dbProduct.id,
+        } as any;
+      } else if ((item as any)._isDb) {
+        return null;
+      }
+      return item;
+    }).filter(Boolean) as Product[];
+
+    // 2. Add new DB items
+    const baseNames = new Set(updatedBase.map(item => item.name.toLowerCase()));
+    products.forEach((p: any) => {
+      if (p.name && !baseNames.has(p.name.toLowerCase())) {
+        updatedBase.push({
+          id: p.id || `arabic-broast-${Date.now()}-${Math.random()}`,
+          name: p.name,
+          price: p.price || 0,
+          category: 'Arabic Broast',
+          image: p.image || '🍗',
+          sku: p.sku || `ARB-${Date.now().toString().slice(-4)}`,
+          _isDb: true,
+          _dbId: p.id,
+        } as any);
+      }
+    });
+
+    setMenuItems(updatedBase);
   }, [isOpen, products]);
 
   const saveMenu = (updated: Product[]) => {

@@ -27,6 +27,8 @@ interface MenuItem {
   sizes?: {
     [key: string]: number;
   };
+  _isDb?: boolean;
+  _dbId?: string;
 }
 
 // Helper to determine unit: Eggs and Banana are sold in dozens, everything else in kg
@@ -200,26 +202,63 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
       : 'pos_menu_freshbasket';
     
     const saved = localStorage.getItem(key);
-    let baseItems: MenuItem[];
+    let base: MenuItem[];
     if (saved) {
-      baseItems = JSON.parse(saved);
+      base = JSON.parse(saved);
     } else {
-      baseItems = DEFAULT_FRESHBASKET_DATA.filter(item => !initialCategory || item.category === initialCategory);
+      base = DEFAULT_FRESHBASKET_DATA.filter(item => !initialCategory || item.category === initialCategory);
     }
 
-    // Merge DB products: add any DB product not already in the list
-    const dbMerged: MenuItem[] = (dbProducts || []).map((p: any) => ({
-      name: p.name,
-      category: initialCategory || p.category || 'FRUITS',
-      price: p.price || 0,
-      image: p.image || undefined,
-      unit: 'kg' as 'kg',
-      _dbId: p.id,
-    }));
+    const dbProductsMap = new Map<string, any>();
+    dbProducts.forEach((p: any) => {
+      if (p.name) {
+        dbProductsMap.set(p.name.toLowerCase(), p);
+      }
+    });
 
-    const existingNames = new Set(baseItems.map(i => i.name.toLowerCase()));
-    const newDbItems = dbMerged.filter(i => !existingNames.has(i.name.toLowerCase()));
-    setMenuItems([...baseItems, ...newDbItems]);
+    const canonicals = ['Fruits', 'Vegetables', 'Daily Essentials'];
+    const getCanonicalCategory = (cat?: string) => {
+      if (!cat) return initialCategory || 'Fruits';
+      const found = canonicals.find(c => c.toLowerCase() === cat.toLowerCase().trim());
+      return found || cat;
+    };
+
+    // 1. Update existing / delete removed
+    let updatedBase: MenuItem[] = base.map((item) => {
+      const dbProduct = dbProductsMap.get(item.name.toLowerCase());
+      if (dbProduct) {
+        return {
+          ...item,
+          price: dbProduct.price || 0,
+          category: getCanonicalCategory(dbProduct.category || item.category),
+          image: dbProduct.image || item.image,
+          unit: getItemUnit(item.name),
+          _isDb: true,
+          _dbId: dbProduct.id,
+        };
+      } else if (item._isDb) {
+        return null;
+      }
+      return item;
+    }).filter(Boolean) as MenuItem[];
+
+    // 2. Add new DB items
+    const baseNames = new Set(updatedBase.map(item => item.name.toLowerCase()));
+    dbProducts.forEach((p: any) => {
+      if (p.name && !baseNames.has(p.name.toLowerCase())) {
+        updatedBase.push({
+          name: p.name,
+          category: getCanonicalCategory(p.category),
+          price: p.price || 0,
+          image: p.image || undefined,
+          unit: getItemUnit(p.name),
+          _isDb: true,
+          _dbId: p.id,
+        });
+      }
+    });
+
+    setMenuItems(updatedBase);
   }, [isOpen, initialCategory, dbProducts]);
 
   const updateMenuState = (updatedItems: MenuItem[]) => {

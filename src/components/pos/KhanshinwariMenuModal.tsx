@@ -14,7 +14,8 @@ interface KhanshinwariMenuModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (product: any, quantity?: number) => void;
-  category?: string; // Optional category filter
+  category?: string;
+  dbProducts?: any[];
 }
 
 interface MenuItem {
@@ -25,6 +26,8 @@ interface MenuItem {
   sizes?: {
     [key: string]: number;
   };
+  _isDb?: boolean;
+  _dbId?: string;
 }
 
 export const DEFAULT_KHANSHINWARI_DATA: MenuItem[] = [
@@ -106,7 +109,7 @@ export const DEFAULT_KHANSHINWARI_DATA: MenuItem[] = [
   { name: "Shinwari Special Kheer 01 Bowl", category: "KHEER", price: 250 },
 ];
 
-export default function KhanshinwariMenuModal({ isOpen, onClose, onAdd, category: initialCategory }: KhanshinwariMenuModalProps) {
+export default function KhanshinwariMenuModal({ isOpen, onClose, onAdd, category: initialCategory, dbProducts = [] }: KhanshinwariMenuModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>(initialCategory || 'all');
   const [selectedQuantity, setSelectedQuantity] = useState(1);
@@ -167,12 +170,62 @@ export default function KhanshinwariMenuModal({ isOpen, onClose, onAdd, category
       : 'pos_menu_khanshinwari';
     
     const saved = localStorage.getItem(key);
-    if (saved) {
-      setMenuItems(JSON.parse(saved));
-    } else {
-      setMenuItems(DEFAULT_KHANSHINWARI_DATA.filter(item => !initialCategory || item.category === initialCategory));
-    }
-  }, [isOpen, initialCategory]);
+    let base: MenuItem[] = saved
+      ? JSON.parse(saved)
+      : DEFAULT_KHANSHINWARI_DATA.filter(item => !initialCategory || item.category === initialCategory);
+
+    const dbProductsMap = new Map<string, any>();
+    dbProducts.forEach((p: any) => {
+      if (p.name) {
+        dbProductsMap.set(p.name.toLowerCase(), p);
+      }
+    });
+
+    const canonicals = [
+      'CHICKEN KARHAI', 'BBQ PLATTERS', 'EID ITEM', 'MUTTON ROSH', 
+      'MUTTON KARHAI', 'NAMKEEN BOTI', 'DRINKS', 'TANDOOR', 
+      'SALAD & RAITA', 'BBQ ITEMS', 'KEBABS', 'CHICKEN HANDI', 
+      'MUTTON HANDI', 'KHEER'
+    ];
+    const getCanonicalCategory = (cat?: string) => {
+      if (!cat) return initialCategory || 'CHICKEN KARHAI';
+      const found = canonicals.find(c => c.toLowerCase() === cat.toLowerCase().trim());
+      return found || cat;
+    };
+
+    // 1. Update existing / delete removed
+    let updatedBase: MenuItem[] = base.map((item) => {
+      const dbProduct = dbProductsMap.get(item.name.toLowerCase());
+      if (dbProduct) {
+        return {
+          ...item,
+          price: dbProduct.price || 0,
+          category: getCanonicalCategory(dbProduct.category || item.category),
+          _isDb: true,
+          _dbId: dbProduct.id,
+        };
+      } else if (item._isDb) {
+        return null;
+      }
+      return item;
+    }).filter(Boolean) as MenuItem[];
+
+    // 2. Add new DB items
+    const baseNames = new Set(updatedBase.map(item => item.name.toLowerCase()));
+    dbProducts.forEach((p: any) => {
+      if (p.name && !baseNames.has(p.name.toLowerCase())) {
+        updatedBase.push({
+          name: p.name,
+          category: getCanonicalCategory(p.category),
+          price: p.price || 0,
+          _isDb: true,
+          _dbId: p.id,
+        });
+      }
+    });
+
+    setMenuItems(updatedBase);
+  }, [isOpen, initialCategory, dbProducts]);
 
   const updateMenuState = (updatedItems: MenuItem[]) => {
     setMenuItems(updatedItems);

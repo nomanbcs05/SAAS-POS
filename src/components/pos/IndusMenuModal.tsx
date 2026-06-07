@@ -14,7 +14,8 @@ interface IndusMenuModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (product: any) => void;
-  category?: string; // Optional category filter
+  category?: string;
+  dbProducts?: any[];
 }
 
 interface MenuItem {
@@ -26,6 +27,8 @@ interface MenuItem {
     Half: number;
     Full: number;
   };
+  _isDb?: boolean;
+  _dbId?: string;
 }
 
 export const DEFAULT_INDUS_DATA: MenuItem[] = [
@@ -130,7 +133,7 @@ export const DEFAULT_INDUS_DATA: MenuItem[] = [
   { name: "Green Tea", category: "TEA", price: 50 },
 ];
 
-export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initialCategory }: IndusMenuModalProps) {
+export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initialCategory, dbProducts = [] }: IndusMenuModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>(initialCategory || 'all');
   const [isEditingMode, setIsEditingMode] = useState(false);
@@ -186,12 +189,61 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
       : 'pos_menu_indus';
     
     const saved = localStorage.getItem(key);
-    if (saved) {
-      setMenuItems(JSON.parse(saved));
-    } else {
-      setMenuItems(DEFAULT_INDUS_DATA.filter(item => !initialCategory || item.category === initialCategory));
-    }
-  }, [isOpen, initialCategory]);
+    let base: MenuItem[] = saved
+      ? JSON.parse(saved)
+      : DEFAULT_INDUS_DATA.filter(item => !initialCategory || item.category === initialCategory);
+
+    const dbProductsMap = new Map<string, any>();
+    dbProducts.forEach((p: any) => {
+      if (p.name) {
+        dbProductsMap.set(p.name.toLowerCase(), p);
+      }
+    });
+
+    const canonicals = [
+      'RICE', 'CHICKEN (Karahi)', 'HANDI (Chicken)', 
+      'MUTTON (Karahi)', 'MUTTON HANDI', 'VEGETARIAN', 
+      'FRIED', 'JOINTS', 'BBQ', 'NAAN_ROTI', 'SALADS', 'TEA'
+    ];
+    const getCanonicalCategory = (cat?: string) => {
+      if (!cat) return initialCategory || 'CHICKEN (Karahi)';
+      const found = canonicals.find(c => c.toLowerCase() === cat.toLowerCase().trim());
+      return found || cat;
+    };
+
+    // 1. Update existing / delete removed
+    let updatedBase: MenuItem[] = base.map((item) => {
+      const dbProduct = dbProductsMap.get(item.name.toLowerCase());
+      if (dbProduct) {
+        return {
+          ...item,
+          price: dbProduct.price || 0,
+          category: getCanonicalCategory(dbProduct.category || item.category),
+          _isDb: true,
+          _dbId: dbProduct.id,
+        };
+      } else if (item._isDb) {
+        return null;
+      }
+      return item;
+    }).filter(Boolean) as MenuItem[];
+
+    // 2. Add new DB items
+    const baseNames = new Set(updatedBase.map(item => item.name.toLowerCase()));
+    dbProducts.forEach((p: any) => {
+      if (p.name && !baseNames.has(p.name.toLowerCase())) {
+        updatedBase.push({
+          name: p.name,
+          category: getCanonicalCategory(p.category),
+          price: p.price || 0,
+          _isDb: true,
+          _dbId: p.id,
+        });
+      }
+    });
+
+    setMenuItems(updatedBase);
+  }, [isOpen, initialCategory, dbProducts]);
 
   const updateMenuState = (updatedItems: MenuItem[]) => {
     setMenuItems(updatedItems);

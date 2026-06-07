@@ -623,12 +623,24 @@ const ProductGrid = () => {
             // 2. Add individual items if category selected
             if (isCatSelected) {
               const saved = localStorage.getItem(cat.key);
-              let items = [];
+              let items: any[] = [];
               if (saved) {
                 items = JSON.parse(saved);
               } else {
                 items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === cat.name);
               }
+
+              // Merge DB products for this category into the grid items
+              const dbCatProducts = allProducts.filter((p: any) => {
+                const pCat = p.category?.toLowerCase()?.trim();
+                return pCat === cat.name.toLowerCase();
+              });
+              const existingNames = new Set(items.map((i: any) => i.name?.toLowerCase()));
+              dbCatProducts.forEach((p: any) => {
+                if (!existingNames.has(p.name?.toLowerCase())) {
+                  items.push({ name: p.name, price: p.price || 0, image: p.image || undefined, category: cat.name, unit: 'kg', _dbId: p.id });
+                }
+              });
 
               items.forEach((item: any, idx: number) => {
                 const productItem = {
@@ -661,6 +673,37 @@ const ProductGrid = () => {
 
     return products;
   }, [searchQuery, selectedCategory, fuse, allProducts, tenant, localUpdateTrigger]);
+
+  // Stable reference for DB products matching the selected fresh basket category
+  const freshBasketDbProducts = useMemo(() => {
+    const isFreshBasket = tenant?.restaurant_name?.toLowerCase().includes('fresh basket');
+    if (!isFreshBasket) return [];
+    return allProducts.filter((p: any) => {
+      const cat = p.category?.toLowerCase()?.trim();
+      if (!selectedFreshBasketCategory)
+        return cat === 'fruits' || cat === 'vegetables' || cat === 'daily essentials';
+      return cat === selectedFreshBasketCategory.toLowerCase();
+    });
+  }, [allProducts, selectedFreshBasketCategory, tenant]);
+
+  // DB products per virtual category — passed to each modal so new products appear immediately
+  const pizzaDbProducts = useMemo(() => allProducts.filter((p: any) => p.category?.toLowerCase() === 'pizzas'), [allProducts]);
+  const burgerDbProducts = useMemo(() => allProducts.filter((p: any) => p.category?.toLowerCase() === 'burgers'), [allProducts]);
+  const rollDbProducts = useMemo(() => allProducts.filter((p: any) => p.category?.toLowerCase() === 'rolls'), [allProducts]);
+  const broastDbProducts = useMemo(() => allProducts.filter((p: any) => p.category?.toLowerCase() === 'broast'), [allProducts]);
+  const barbqDbProducts = useMemo(() => allProducts.filter((p: any) => p.category?.toLowerCase() === 'bar bq'), [allProducts]);
+  const beveragesDbProducts = useMemo(() => allProducts.filter((p: any) => p.category?.toLowerCase() === 'beverages'), [allProducts]);
+  const friesDbProducts = useMemo(() => allProducts.filter((p: any) => p.category?.toLowerCase() === 'ala cart' || p.category?.toLowerCase() === 'fries'), [allProducts]);
+  const alacartDbProducts = useMemo(() => allProducts.filter((p: any) => p.category?.toLowerCase() === 'ala cart'), [allProducts]);
+  const dealsDbProducts = useMemo(() => allProducts.filter((p: any) => p.category?.toLowerCase() === 'deals'), [allProducts]);
+  const indusDbProducts = useMemo(() => allProducts.filter((p: any) => {
+    const cat = p.category?.toUpperCase()?.trim();
+    return ['RICE','CHICKEN (KARAHI)','HANDI (CHICKEN)','MUTTON (KARAHI)','MUTTON HANDI','VEGETARIAN','FRIED','JOINTS','BBQ','NAAN_ROTI','SALADS','TEA'].includes(cat);
+  }), [allProducts]);
+  const khanshinwariDbProducts = useMemo(() => allProducts.filter((p: any) => {
+    const cat = p.category?.toUpperCase()?.trim();
+    return ['CHICKEN KARHAI','BBQ PLATTERS','EID ITEM','MUTTON ROSH','MUTTON KARHAI','NAMKEEN BOTI','DRINKS','TANDOOR','SALAD & RAITA','BBQ ITEMS','KEBABS','CHICKEN HANDI','MUTTON HANDI','KHEER'].includes(cat);
+  }), [allProducts]);
 
   const handleUpdateProductImage = useCallback(async (productId: string, imageUrl: string) => {
     try {
@@ -952,60 +995,70 @@ const ProductGrid = () => {
         isOpen={showPizzaModal}
         onClose={() => setShowPizzaModal(false)}
         onAdd={handleAddToCart}
+        dbProducts={pizzaDbProducts}
       />
 
       <RollSelectionModal
          isOpen={showRollModal}
          onClose={() => setShowRollModal(false)}
          onAdd={handleAddToCart}
+         dbProducts={rollDbProducts}
        />
 
        <BroastSelectionModal
           isOpen={showSimpleBroastModal}
           onClose={() => setShowSimpleBroastModal(false)}
           onAdd={handleAddToCart}
+          dbProducts={broastDbProducts}
         />
 
         <BurgerSelectionModal
            isOpen={showBurgerModal}
            onClose={() => setShowBurgerModal(false)}
            onAdd={handleAddToCart}
+           dbProducts={burgerDbProducts}
          />
 
          <BarBQSelectionModal
            isOpen={showBarBQModal}
           onClose={() => setShowBarBQModal(false)}
           onAdd={handleAddToCart}
+          dbProducts={barbqDbProducts}
         />
 
         <SauceToppingSelectionModal
           isOpen={showSauceToppingModal}
           onClose={() => setShowSauceToppingModal(false)}
           onAdd={handleAddToCart}
+          dbProducts={alacartDbProducts}
         />
 
         <DealsSelectionModal
           isOpen={showDealsModal}
           onClose={() => setShowDealsModal(false)}
           onAdd={handleAddToCart}
+          dbProducts={dealsDbProducts}
         />
 
         <FriesSelectionModal
           isOpen={showFriesModal}
           onClose={() => setShowFriesModal(false)}
           onAdd={handleAddToCart}
+          dbProducts={friesDbProducts}
         />
 
         <BeveragesSelectionModal
            isOpen={showBeveragesModal}
            onClose={() => setShowBeveragesModal(false)}
            onAdd={handleAddToCart}
+           dbProducts={beveragesDbProducts}
          />
  
          <AlaCartSelectionModal
            isOpen={showAlaCartModal}
            onClose={() => setShowAlaCartModal(false)}
            onAdd={handleAddToCart}
+           dbProducts={alacartDbProducts}
          />
 
          <IndusMenuModal
@@ -1016,6 +1069,7 @@ const ProductGrid = () => {
             }}
             onAdd={handleAddToCart}
             category={selectedIndusCategory}
+            dbProducts={indusDbProducts}
           />
 
           <KhanshinwariMenuModal
@@ -1026,6 +1080,7 @@ const ProductGrid = () => {
             }}
             onAdd={handleAddToCart}
             category={selectedKhanshinwariCategory}
+            dbProducts={khanshinwariDbProducts}
           />
 
           <FreshBasketMenuModal
@@ -1036,11 +1091,7 @@ const ProductGrid = () => {
             }}
             onAdd={handleAddToCart}
             category={selectedFreshBasketCategory}
-            dbProducts={allProducts.filter((p: any) => {
-              const cat = p.category?.toLowerCase()?.trim();
-              if (!selectedFreshBasketCategory) return cat === 'fruits' || cat === 'vegetables' || cat === 'daily essentials';
-              return cat === selectedFreshBasketCategory.toLowerCase();
-            })}
+            dbProducts={freshBasketDbProducts}
           />
 
           <ProductAmountCalculatorModal

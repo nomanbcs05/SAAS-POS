@@ -250,6 +250,7 @@ const ManageProductsPage = () => {
     mutationFn: api.products.seedArabicBroast,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products-with-details'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['categories'] });
       toast({ title: "Success", description: "Arabic Broast items added successfully" });
     },
@@ -319,6 +320,8 @@ const ManageProductsPage = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products-with-details'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
       toast({ title: "Success", description: `Product ${editingProduct ? 'updated' : 'created'} successfully` });
       setIsProductModalOpen(false);
       resetForm();
@@ -332,6 +335,8 @@ const ManageProductsPage = () => {
     mutationFn: api.products.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products-with-details'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
       toast({ title: "Success", description: "Product deleted successfully" });
     },
     onError: (error: any) => {

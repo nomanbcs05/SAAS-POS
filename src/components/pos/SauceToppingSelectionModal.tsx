@@ -12,12 +12,15 @@ interface SauceToppingSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (product: any) => void;
+  dbProducts?: any[];
 }
 
 interface Item {
   name: string;
   price: number;
   type: 'sauce' | 'topping';
+  _isDb?: boolean;
+  _dbId?: string;
 }
 
 const DEFAULT_SAUCES: Item[] = [
@@ -39,7 +42,7 @@ const DEFAULT_TOPPINGS: Item[] = [
   { name: "Bun", price: 30, type: 'topping' },
 ];
 
-export default function SauceToppingSelectionModal({ isOpen, onClose, onAdd }: SauceToppingSelectionModalProps) {
+export default function SauceToppingSelectionModal({ isOpen, onClose, onAdd, dbProducts = [] }: SauceToppingSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'sauces' | 'toppings'>('sauces');
   const { isAdmin } = useMultiTenant();
@@ -51,12 +54,69 @@ export default function SauceToppingSelectionModal({ isOpen, onClose, onAdd }: S
     const savedSauces = localStorage.getItem('pos_menu_sauce');
     const savedToppings = localStorage.getItem('pos_menu_topping');
     
-    if (savedSauces) setSauceItems(JSON.parse(savedSauces));
-    else setSauceItems(DEFAULT_SAUCES);
-    
-    if (savedToppings) setToppingItems(JSON.parse(savedToppings));
-    else setToppingItems(DEFAULT_TOPPINGS);
-  }, [isOpen]);
+    let baseSauces: Item[] = savedSauces ? JSON.parse(savedSauces) : DEFAULT_SAUCES;
+    let baseToppings: Item[] = savedToppings ? JSON.parse(savedToppings) : DEFAULT_TOPPINGS;
+
+    const dbProductsMap = new Map<string, any>();
+    dbProducts.forEach((p: any) => {
+      if (p.name) {
+        dbProductsMap.set(p.name.toLowerCase(), p);
+      }
+    });
+
+    // 1. Update existing / delete removed for sauces
+    let updatedSauces: Item[] = baseSauces.map((item) => {
+      const dbProduct = dbProductsMap.get(item.name.toLowerCase());
+      if (dbProduct) {
+        return {
+          ...item,
+          price: dbProduct.price || 0,
+          _isDb: true,
+          _dbId: dbProduct.id,
+        };
+      } else if (item._isDb) {
+        return null;
+      }
+      return item;
+    }).filter(Boolean) as Item[];
+
+    // 2. Update existing / delete removed for toppings
+    let updatedToppings: Item[] = baseToppings.map((item) => {
+      const dbProduct = dbProductsMap.get(item.name.toLowerCase());
+      if (dbProduct) {
+        return {
+          ...item,
+          price: dbProduct.price || 0,
+          _isDb: true,
+          _dbId: dbProduct.id,
+        };
+      } else if (item._isDb) {
+        return null;
+      }
+      return item;
+    }).filter(Boolean) as Item[];
+
+    // 3. Add new DB items into sauces
+    const baseNames = new Set([
+      ...updatedSauces.map(item => item.name.toLowerCase()),
+      ...updatedToppings.map(item => item.name.toLowerCase()),
+    ]);
+
+    dbProducts.forEach((p: any) => {
+      if (p.name && !baseNames.has(p.name.toLowerCase())) {
+        updatedSauces.push({
+          name: p.name,
+          price: p.price || 0,
+          type: 'sauce',
+          _isDb: true,
+          _dbId: p.id,
+        });
+      }
+    });
+
+    setSauceItems(updatedSauces);
+    setToppingItems(updatedToppings);
+  }, [isOpen, dbProducts]);
 
   const saveSauces = (updated: Item[]) => {
     setSauceItems(updated);

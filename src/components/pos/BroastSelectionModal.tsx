@@ -11,11 +11,14 @@ interface BroastSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (product: any) => void;
+  dbProducts?: any[];
 }
 
 interface BroastItem {
   name: string;
   price: number;
+  _isDb?: boolean;
+  _dbId?: string;
 }
 
 const DEFAULT_BROAST_DATA: BroastItem[] = [
@@ -26,7 +29,7 @@ const DEFAULT_BROAST_DATA: BroastItem[] = [
   { name: "Drum Sticks 1 Pcs", price: 150 },
 ];
 
-export default function BroastSelectionModal({ isOpen, onClose, onAdd }: BroastSelectionModalProps) {
+export default function BroastSelectionModal({ isOpen, onClose, onAdd, dbProducts = [] }: BroastSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [quantityPrefix, setQuantityPrefix] = useState<string>('');
   const { isAdmin } = useMultiTenant();
@@ -35,12 +38,46 @@ export default function BroastSelectionModal({ isOpen, onClose, onAdd }: BroastS
 
   useEffect(() => {
     const saved = localStorage.getItem('pos_menu_broast');
-    if (saved) {
-      setMenuItems(JSON.parse(saved));
-    } else {
-      setMenuItems(DEFAULT_BROAST_DATA);
-    }
-  }, [isOpen]);
+    let base: BroastItem[] = saved ? JSON.parse(saved) : DEFAULT_BROAST_DATA;
+
+    const dbProductsMap = new Map<string, any>();
+    dbProducts.forEach((p: any) => {
+      if (p.name) {
+        dbProductsMap.set(p.name.toLowerCase(), p);
+      }
+    });
+
+    // 1. Update existing / delete removed
+    let updatedBase: BroastItem[] = base.map((item) => {
+      const dbProduct = dbProductsMap.get(item.name.toLowerCase());
+      if (dbProduct) {
+        return {
+          ...item,
+          price: dbProduct.price || 0,
+          _isDb: true,
+          _dbId: dbProduct.id,
+        };
+      } else if (item._isDb) {
+        return null;
+      }
+      return item;
+    }).filter(Boolean) as BroastItem[];
+
+    // 2. Add new DB items
+    const baseNames = new Set(updatedBase.map(item => item.name.toLowerCase()));
+    dbProducts.forEach((p: any) => {
+      if (p.name && !baseNames.has(p.name.toLowerCase())) {
+        updatedBase.push({
+          name: p.name,
+          price: p.price || 0,
+          _isDb: true,
+          _dbId: p.id,
+        });
+      }
+    });
+
+    setMenuItems(updatedBase);
+  }, [isOpen, dbProducts]);
 
   const saveMenu = (updatedItems: BroastItem[]) => {
     setMenuItems(updatedItems);

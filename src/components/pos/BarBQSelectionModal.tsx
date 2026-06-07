@@ -13,11 +13,14 @@ interface BarBQSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (product: any) => void;
+  dbProducts?: any[];
 }
 
 interface BarBQItem {
   name: string;
   price: number;
+  _isDb?: boolean;
+  _dbId?: string;
 }
 
 const DEFAULT_BARBQ_DATA: BarBQItem[] = [
@@ -33,7 +36,7 @@ const DEFAULT_BARBQ_DATA: BarBQItem[] = [
   { name: "Chicken Gola Kabab 1 Plate / 4 Pcs", price: 250 },
 ];
 
-export default function BarBQSelectionModal({ isOpen, onClose, onAdd }: BarBQSelectionModalProps) {
+export default function BarBQSelectionModal({ isOpen, onClose, onAdd, dbProducts = [] }: BarBQSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [quantityPrefix, setQuantityPrefix] = useState<string>('');
   const { isAdmin } = useMultiTenant();
@@ -64,12 +67,46 @@ export default function BarBQSelectionModal({ isOpen, onClose, onAdd }: BarBQSel
 
   useEffect(() => {
     const saved = localStorage.getItem('pos_menu_barbq');
-    if (saved) {
-      setMenuItems(JSON.parse(saved));
-    } else {
-      setMenuItems(DEFAULT_BARBQ_DATA);
-    }
-  }, [isOpen]);
+    let base: BarBQItem[] = saved ? JSON.parse(saved) : DEFAULT_BARBQ_DATA;
+
+    const dbProductsMap = new Map<string, any>();
+    dbProducts.forEach((p: any) => {
+      if (p.name) {
+        dbProductsMap.set(p.name.toLowerCase(), p);
+      }
+    });
+
+    // 1. Update existing / delete removed
+    let updatedBase: BarBQItem[] = base.map((item) => {
+      const dbProduct = dbProductsMap.get(item.name.toLowerCase());
+      if (dbProduct) {
+        return {
+          ...item,
+          price: dbProduct.price || 0,
+          _isDb: true,
+          _dbId: dbProduct.id,
+        };
+      } else if (item._isDb) {
+        return null;
+      }
+      return item;
+    }).filter(Boolean) as BarBQItem[];
+
+    // 2. Add new DB items
+    const baseNames = new Set(updatedBase.map(item => item.name.toLowerCase()));
+    dbProducts.forEach((p: any) => {
+      if (p.name && !baseNames.has(p.name.toLowerCase())) {
+        updatedBase.push({
+          name: p.name,
+          price: p.price || 0,
+          _isDb: true,
+          _dbId: p.id,
+        });
+      }
+    });
+
+    setMenuItems(updatedBase);
+  }, [isOpen, dbProducts]);
 
   const saveMenu = (updatedItems: BarBQItem[]) => {
     setMenuItems(updatedItems);

@@ -11,11 +11,14 @@ interface BurgerSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (product: any) => void;
+  dbProducts?: any[];
 }
 
 interface BurgerItem {
   name: string;
   price: number;
+  _isDb?: boolean;
+  _dbId?: string;
 }
 
 const DEFAULT_BURGER_DATA: BurgerItem[] = [
@@ -31,7 +34,7 @@ const DEFAULT_BURGER_DATA: BurgerItem[] = [
   { name: "Patty Burger", price: 250 },
 ];
 
-export default function BurgerSelectionModal({ isOpen, onClose, onAdd }: BurgerSelectionModalProps) {
+export default function BurgerSelectionModal({ isOpen, onClose, onAdd, dbProducts = [] }: BurgerSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [quantityPrefix, setQuantityPrefix] = useState<string>('');
   const { isAdmin } = useMultiTenant();
@@ -40,12 +43,46 @@ export default function BurgerSelectionModal({ isOpen, onClose, onAdd }: BurgerS
 
   useEffect(() => {
     const saved = localStorage.getItem('pos_menu_burger');
-    if (saved) {
-      setMenuItems(JSON.parse(saved));
-    } else {
-      setMenuItems(DEFAULT_BURGER_DATA);
-    }
-  }, [isOpen]);
+    let base: BurgerItem[] = saved ? JSON.parse(saved) : DEFAULT_BURGER_DATA;
+
+    const dbProductsMap = new Map<string, any>();
+    dbProducts.forEach((p: any) => {
+      if (p.name) {
+        dbProductsMap.set(p.name.toLowerCase(), p);
+      }
+    });
+
+    // 1. Update existing / delete removed
+    let updatedBase: BurgerItem[] = base.map((item) => {
+      const dbProduct = dbProductsMap.get(item.name.toLowerCase());
+      if (dbProduct) {
+        return {
+          ...item,
+          price: dbProduct.price || 0,
+          _isDb: true,
+          _dbId: dbProduct.id,
+        };
+      } else if (item._isDb) {
+        return null;
+      }
+      return item;
+    }).filter(Boolean) as BurgerItem[];
+
+    // 2. Add new DB items
+    const baseNames = new Set(updatedBase.map(item => item.name.toLowerCase()));
+    dbProducts.forEach((p: any) => {
+      if (p.name && !baseNames.has(p.name.toLowerCase())) {
+        updatedBase.push({
+          name: p.name,
+          price: p.price || 0,
+          _isDb: true,
+          _dbId: p.id,
+        });
+      }
+    });
+
+    setMenuItems(updatedBase);
+  }, [isOpen, dbProducts]);
 
   const saveMenu = (updatedItems: BurgerItem[]) => {
     setMenuItems(updatedItems);
