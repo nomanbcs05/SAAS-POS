@@ -1159,89 +1159,135 @@ const ProductCard = ({ product, onAdd, onUpdateImage }: ProductCardProps) => {
     }
   };
 
+  const isVirtual = (product as any).isVirtual;
+  const showPrice = !isVirtual || ((product as any).modalType === 'simple' && product.price > 0);
+  const stockQty = (product as any).stock_quantity ?? (product as any).stock ?? null;
+  const isLowStock = stockQty !== null && stockQty <= 5 && stockQty > 0;
+  const isOutOfStock = stockQty !== null && stockQty === 0;
+
   return (
     <motion.div
-      whileHover={{ scale: 1.02, translateY: -2 }}
-      whileTap={{ scale: 0.98 }}
+      whileHover={{ scale: 1.03, translateY: -3 }}
+      whileTap={{ scale: 0.96 }}
       onClick={() => onAdd(product)}
       className={cn(
-        "relative w-full aspect-square p-3 bg-white rounded-xl border border-slate-100 shadow-sm transition-all",
-        "hover:shadow-md hover:border-blue-200 hover:bg-blue-50/30",
-        "focus:outline-none focus:ring-2 focus:ring-blue-500/20",
-        "flex flex-col items-center justify-center text-center gap-1.5 group cursor-pointer"
+        "relative w-full rounded-2xl overflow-hidden cursor-pointer group",
+        "bg-white border border-slate-100/80",
+        "shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_24px_rgba(59,130,246,0.18)]",
+        "transition-all duration-200",
+        "flex flex-col",
+        isOutOfStock && "opacity-60"
       )}
+      style={{ minHeight: '140px' }}
     >
-      {isIndividualProduct && (
-        <div 
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <label className="flex items-center justify-center h-7 w-7 rounded-full bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 shadow-sm cursor-pointer transition-all active:scale-95">
-            {uploading ? (
-              <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" />
-            ) : (
-              <ImagePlus className="h-3.5 w-3.5 text-slate-500 hover:text-blue-500" />
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleUpload}
-              disabled={uploading}
-            />
-          </label>
-        </div>
-      )}
+      {/* Top image / emoji area */}
+      <div className={cn(
+        "relative flex items-center justify-center w-full overflow-hidden",
+        (product.image && (!isNoImageCategory || forceShowImage)) ? "h-[80px] md:h-[90px]" : "h-[56px]",
+        "bg-gradient-to-br from-slate-50 to-blue-50/40"
+      )}>
+        {/* Shimmer bg on hover */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-400/0 to-indigo-500/0 group-hover:from-blue-400/5 group-hover:to-indigo-500/10 transition-all duration-300" />
 
-      {(product.image && (!isNoImageCategory || forceShowImage)) && (
-        <div className={cn(
-          "relative mb-2 w-full flex items-center justify-center overflow-hidden rounded-lg bg-slate-50/50",
-          imageHeightClass
-        )}>
-          {currentSrc && (currentSrc.startsWith('http') || currentSrc.startsWith('/')) ? (
+        {product.image && (!isNoImageCategory || forceShowImage) ? (
+          currentSrc && (currentSrc.startsWith('http') || currentSrc.startsWith('/')) ? (
             <>
               {!imageLoaded && !imageError && (
-                <div className="absolute inset-0 animate-pulse bg-slate-200/50 flex items-center justify-center">
-                  <div className="w-6 h-6 rounded-full border-2 border-slate-300 border-t-blue-500 animate-spin" />
+                <div className="absolute inset-0 animate-pulse bg-slate-200/60 flex items-center justify-center">
+                  <div className="w-5 h-5 rounded-full border-2 border-slate-300 border-t-blue-500 animate-spin" />
                 </div>
               )}
               {imageError ? (
-                <span className="text-xl opacity-50">📦</span>
+                <span className="text-3xl opacity-40">📦</span>
               ) : (
-                <img 
-                   src={currentSrc} 
-                   alt={product.name} 
-                   onLoad={() => setImageLoaded(true)}
-                   onError={() => {
-                     if (fallbackIndex < fallbacks.length) {
-                       setCurrentSrc(fallbacks[fallbackIndex]);
-                       setFallbackIndex(fallbackIndex + 1);
-                     } else {
-                       setImageError(true);
-                     }
-                   }}
-                   className={cn(
-                     "h-full w-full p-0.5 transition-all duration-500",
-                     (isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isVirtualDeals) ? "object-cover" : "object-contain",
-                     imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95"
-                   )}
+                <img
+                  src={currentSrc}
+                  alt={product.name}
+                  onLoad={() => setImageLoaded(true)}
+                  onError={() => {
+                    if (fallbackIndex < fallbacks.length) {
+                      setCurrentSrc(fallbacks[fallbackIndex]);
+                      setFallbackIndex(fallbackIndex + 1);
+                    } else {
+                      setImageError(true);
+                    }
+                  }}
+                  className={cn(
+                    "h-full w-full transition-all duration-500",
+                    (isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isVirtualDeals) ? "object-cover" : "object-contain p-1",
+                    imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95"
+                  )}
                 />
               )}
             </>
           ) : (
-            <span className="text-2xl group-hover:scale-110 transition-transform duration-300">
+            <span className="text-3xl group-hover:scale-110 transition-transform duration-300 select-none">
               {product.image}
             </span>
-          )}
-        </div>
-      )}
-      
-      <h3 className={cn(
-        "font-black font-heading text-slate-900 leading-tight line-clamp-2 px-1 text-[10px] md:text-[11px] tracking-tight uppercase",
-        isNoImageCategory && "text-[11px] md:text-xs"
-      )}>
-        {product.name}
-      </h3>
+          )
+        ) : (
+          <span className="text-3xl select-none opacity-70">
+            {isNoImageCategory ? '🍽️' : '📦'}
+          </span>
+        )}
+
+        {/* Upload button */}
+        {isIndividualProduct && (
+          <div
+            className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-20"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <label className="flex items-center justify-center h-6 w-6 rounded-full bg-white/90 border border-slate-200 hover:bg-blue-50 hover:border-blue-300 shadow cursor-pointer transition-all active:scale-95">
+              {uploading ? (
+                <Loader2 className="h-3 w-3 text-blue-500 animate-spin" />
+              ) : (
+                <ImagePlus className="h-3 w-3 text-slate-500 hover:text-blue-500" />
+              )}
+              <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+            </label>
+          </div>
+        )}
+
+        {/* Low / Out of stock badge */}
+        {isOutOfStock && (
+          <div className="absolute top-1.5 left-1.5 bg-red-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow z-10 uppercase tracking-wide">
+            Out
+          </div>
+        )}
+        {isLowStock && (
+          <div className="absolute top-1.5 left-1.5 bg-amber-400 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow z-10 uppercase tracking-wide">
+            Low
+          </div>
+        )}
+      </div>
+
+      {/* Bottom info area */}
+      <div className="flex flex-col items-center justify-center flex-1 px-2 pt-1.5 pb-2 gap-1 text-center">
+        <h3 className={cn(
+          "font-extrabold text-slate-800 leading-tight line-clamp-2 tracking-tight uppercase w-full",
+          "text-[9px] md:text-[10px]"
+        )}>
+          {product.name}
+        </h3>
+
+        {/* Price badge */}
+        {showPrice && product.price > 0 ? (
+          <div className="mt-0.5 px-2.5 py-0.5 rounded-full text-white font-black text-[10px] md:text-[11px] tracking-wide shadow-sm"
+            style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)' }}
+          >
+            Rs. {product.price.toLocaleString()}
+          </div>
+        ) : isVirtual && !showPrice ? (
+          <div className="mt-0.5 px-2.5 py-0.5 rounded-full font-bold text-[9px] tracking-wide border"
+            style={{ color: '#6366f1', borderColor: '#c7d2fe', background: '#eef2ff' }}
+          >
+            TAP TO ORDER
+          </div>
+        ) : null}
+      </div>
+
+      {/* Bottom accent line on hover */}
+      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-2xl" />
     </motion.div>
   );
 };
