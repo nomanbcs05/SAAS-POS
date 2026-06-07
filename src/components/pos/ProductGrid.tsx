@@ -752,13 +752,13 @@ const ProductGrid = () => {
         setSelectedFreshBasketCategory((product as any).freshBasketCategory);
         setShowFreshBasketModal(true);
       } else if ((product as any).modalType === 'simple') {
-        setSelectedCalculatorProduct(product);
-        setIsCalculatorModalOpen(true);
+        // Direct add for simple virtual items
+        addItem(product, 1);
       }
       return;
     }
-    setSelectedCalculatorProduct(product);
-    setIsCalculatorModalOpen(true);
+    // Directly add to cart with quantity 1 — no calculator modal
+    addItem(product, 1);
   }, [addItem]);
 
   const handleClearSearch = () => {

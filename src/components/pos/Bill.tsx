@@ -22,6 +22,8 @@ interface Order {
   tableId?: string | number | null;
   rider?: { name: string } | null;
   customerAddress?: string | null;
+  receivedCash?: number;
+  remainingCash?: number;
 }
 
 interface BillProps {
@@ -226,6 +228,18 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
           <div className="flex justify-between font-black text-lg mt-1 p-1 border-t border-black">
             <span>Total Payable :</span>
             <span>{((order.total || 0) + (order.customer.creditBalance || 0)).toLocaleString()}</span>
+          </div>
+        )}
+        {order.receivedCash !== undefined && order.receivedCash > 0 && (
+          <div className="flex justify-between font-bold mt-1 border-t border-dotted border-black pt-1">
+            <span>Cash Received:</span>
+            <span>Rs {order.receivedCash.toLocaleString()}</span>
+          </div>
+        )}
+        {order.remainingCash !== undefined && order.remainingCash > 0 && (
+          <div className="flex justify-between font-bold">
+            <span>Change Returned:</span>
+            <span>Rs {order.remainingCash.toLocaleString()}</span>
           </div>
         )}
         {order.items.some(item => item.desiredAmount !== undefined) && (

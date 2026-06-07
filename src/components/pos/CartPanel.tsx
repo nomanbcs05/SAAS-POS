@@ -26,6 +26,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 
 import TableSelectionModal from './TableSelectionModal';
+import BillSettlementCalculatorModal from './BillSettlementCalculatorModal';
 
 const CartPanel = () => {
   const navigate = useNavigate();
@@ -68,7 +69,10 @@ const CartPanel = () => {
   const [showTableModal, setShowTableModal] = useState(false);
   const [showRiderModal, setShowRiderModal] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
+  const [showBillPreviewModal, setShowBillPreviewModal] = useState(false);
+  const [billPreviewOrder, setBillPreviewOrder] = useState<any>(null);
   const [pendingAfterRider, setPendingAfterRider] = useState<'none' | 'bill' | 'complete'>('none');
+  const [showSettlementModal, setShowSettlementModal] = useState(false);
   const [lastOrder, setLastOrder] = useState<any>(null);
   const [previewActive, setPreviewActive] = useState<'none' | 'receipt' | 'kot' | 'bill'>('none');
   const [kotItemsToPrint, setKotItemsToPrint] = useState<any[]>([]);
@@ -503,6 +507,50 @@ const CartPanel = () => {
     await performCompleteSale();
   };
 
+  const handleSettleBill = async (receivedCash: number, remainingCash: number) => {
+    if (items.length === 0) {
+      toast.error('Cart is empty');
+      return;
+    }
+    
+    const orderData = await prepareOrderData();
+    const fullOrderForPrint = {
+      ...orderData,
+      receivedCash,
+      remainingCash,
+    };
+    setLastOrder(fullOrderForPrint);
+
+    const orderInsert: any = {
+      customer_id: customer?.id || null,
+      total_amount: total,
+      status: 'completed',
+      payment_method: paymentMethod,
+      order_type: orderType,
+      table_id: tableId || null,
+      server_name: getServerNameWithRole(),
+      customer_address: customerAddress || null,
+      register_id: null,
+      tenant_id: tenant?.id || null,
+      daily_id: orderData.daily_id ?? null,
+    };
+
+    const orderItemsInsert = items.map(item => ({
+      product_id: item.product.id,
+      product_name: item.product.name,
+      product_category: item.product.category,
+      quantity: item.quantity,
+      price: item.product.price
+    }));
+
+    const toastId = toast.loading('Saving completed sale...');
+    createOrderMutation.mutate({ order: orderInsert, items: orderItemsInsert }, {
+      onSettled: () => {
+        toast.dismiss(toastId);
+      }
+    });
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === 'u' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
@@ -571,28 +619,29 @@ const CartPanel = () => {
         />
 
         {orderType === 'dine_in' && (
-          <div
-            className="flex items-center justify-between p-2.5 bg-muted/50 rounded-lg border cursor-pointer hover:bg-muted/70 transition-colors"
-            onClick={() => setShowTableModal(true)}
-          >
-            <div className="flex items-center gap-2">
-              <div className={cn(
-                "w-7 h-7 rounded-full flex items-center justify-center font-bold text-[10px]",
-                selectedTable ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : "bg-gray-100 text-gray-500 border border-gray-200"
-              )}>
-                {selectedTable ? selectedTable.table_number : "?"}
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-medium">
-                  {selectedTable ? `Table ${selectedTable.table_number}` : 'No Table Selected'}
+          <div className="flex flex-col gap-2">
+            {selectedTable && (
+              <div className="flex items-center gap-2 p-2 bg-emerald-50 rounded-lg border border-emerald-100 text-emerald-700">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-full">
+                  Table: {selectedTable.table_number}
                 </span>
-                {selectedTable && (
-                  <span className="text-[10px] text-muted-foreground capitalize">
-                    {selectedTable.section} • {selectedTable.capacity} Seats
-                  </span>
-                )}
+                <span className="text-[10px] font-medium">
+                  {selectedTable.section} • {selectedTable.capacity} Seats
+                </span>
               </div>
-            </div>
+            )}
+            <Button
+              variant="default"
+              disabled={items.length === 0}
+              onClick={() => {
+                if (items.length === 0) { toast.error('Cart is empty'); return; }
+                setShowSettlementModal(true);
+              }}
+              className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-wider rounded-lg shadow-md shadow-emerald-500/20"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Settle Bill
+            </Button>
           </div>
         )}
       </div>
@@ -925,10 +974,15 @@ const CartPanel = () => {
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Done
             </Button>
-            <Button variant="outline" className="flex-1 font-bold font-heading uppercase tracking-wider text-xs h-10" onClick={handleShowBill} disabled={items.length === 0}>
-              <FileText className="h-4 w-4 mr-2" />
-              Bill
-            </Button>
+            {orderType !== 'dine_in' && (
+              <Button variant="outline" className="flex-1 font-bold font-heading uppercase tracking-wider text-xs h-10 border-2 border-emerald-500/20 hover:bg-emerald-50 hover:text-emerald-600 transition-all" onClick={() => {
+                if (items.length === 0) { toast.error('Cart is empty'); return; }
+                setShowSettlementModal(true);
+              }} disabled={items.length === 0}>
+                <FileText className="h-4 w-4 mr-2" />
+                Settle Bill
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -939,10 +993,49 @@ const CartPanel = () => {
           <>
             <Receipt ref={receiptRef} order={lastOrder} />
             <KOT ref={kotRef} order={{ ...lastOrder, items: kotItemsToPrint.length > 0 ? kotItemsToPrint : lastOrder.items }} />
-            <Bill ref={billRef} order={lastOrder} />
           </>
         )}
+        {/* Bill ref always targets either billPreviewOrder or lastOrder – never both */}
+        <Bill ref={billRef} order={billPreviewOrder ?? lastOrder ?? { orderNumber: '', items: [], customer: null, subtotal: 0, taxAmount: 0, discountAmount: 0, total: 0, paymentMethod: 'cash', createdAt: new Date(), cashierName: '' }} />
       </div>
+
+      {/* Settle Bill Preview Modal */}
+      <Dialog open={showBillPreviewModal} onOpenChange={setShowBillPreviewModal}>
+        <DialogContent className="max-w-sm p-0 overflow-hidden rounded-2xl bg-white">
+          <DialogHeader className="px-4 pt-4 pb-2 border-b">
+            <DialogTitle className="text-sm font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+              <FileText className="h-4 w-4 text-emerald-600" />
+              Bill Preview
+            </DialogTitle>
+            <DialogDescription className="text-[10px] text-slate-500">
+              Review the bill before printing or settling
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto max-h-[70vh] flex justify-center bg-gray-50 p-3">
+            {billPreviewOrder && <Bill order={billPreviewOrder} />}
+          </div>
+          <div className="flex gap-2 p-3 border-t bg-white">
+            <Button
+              variant="outline"
+              className="flex-1 h-10 font-bold text-xs uppercase tracking-wider"
+              onClick={() => setShowBillPreviewModal(false)}
+            >
+              Close
+            </Button>
+            <Button
+              className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider shadow-md"
+              onClick={() => {
+                setLastOrder(billPreviewOrder);
+                setShowBillPreviewModal(false);
+                setTimeout(() => handlePrintBill(), 150);
+              }}
+            >
+              <Printer className="h-3.5 w-3.5 mr-1.5" />
+              Print Bill
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <PrintPreviewModal 
         isOpen={previewActive !== 'none' && !!lastOrder} 
@@ -981,6 +1074,13 @@ const CartPanel = () => {
       <TableSelectionModal
         isOpen={showTableModal}
         onClose={() => setShowTableModal(false)}
+      />
+
+      <BillSettlementCalculatorModal
+        isOpen={showSettlementModal}
+        onClose={() => setShowSettlementModal(false)}
+        totalAmount={total}
+        onSettle={handleSettleBill}
       />
     </div>
   );
