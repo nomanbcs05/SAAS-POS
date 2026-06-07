@@ -67,6 +67,7 @@ const dbManager = {
 
   // Product Cache Methods
   cacheProducts: (products) => {
+    db.prepare('DELETE FROM products_cache').run();
     const stmt = db.prepare('INSERT OR REPLACE INTO products_cache (id, data) VALUES (?, ?)');
     const insertMany = db.transaction((items) => {
       for (const item of items) stmt.run(item.id, JSON.stringify(item));

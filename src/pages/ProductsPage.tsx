@@ -35,8 +35,11 @@ import { useToast } from '@/hooks/use-toast';
 import { api, Category } from '@/services/api';
 import { DEFAULT_INDUS_DATA } from '@/components/pos/IndusMenuModal';
 import { DEFAULT_FRESHBASKET_DATA } from '@/components/pos/FreshBasketMenuModal';
+import { useMultiTenant } from '@/hooks/useMultiTenant';
 
 const ProductsPage = () => {
+  const { tenant } = useMultiTenant();
+  const isFreshBasket = tenant?.restaurant_name?.toLowerCase().includes('fresh basket');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
@@ -348,13 +351,15 @@ const ProductsPage = () => {
 
   const openEditDialog = (product: any) => {
     setEditingProduct(product);
+    // Resolve category UUID to category name if needed
+    const categoryName = categories.find((c: any) => c.id === product.category || c.name === product.category)?.name || product.category || '';
     setNewProduct({
       name: product.name,
       sku: product.sku,
       price: product.price.toString(),
       cost: product.cost.toString(),
       stock: product.stock.toString(),
-      category: product.category,
+      category: categoryName,
       image: product.image,
     });
     setIsProductDialogOpen(true);
@@ -474,63 +479,68 @@ const ProductsPage = () => {
   const filteredProducts = useMemo(() => {
     const isAllowedCategory = (catName?: string) => {
       if (!catName) return false;
-      const name = catName.toLowerCase().trim();
+      const resolvedName = categories.find((c: any) => c.id === catName || c.name === catName)?.name || catName;
+      if (!isFreshBasket) return true;
+      const name = resolvedName.toLowerCase().trim();
       return name === 'fruits' || name === 'vegetables' || name === 'daily essentials';
     };
 
     let allDisplayProducts = products.filter(p => isAllowedCategory(p.category));
 
-    // Add virtual products to the display list
-    virtualCategories.forEach(vCat => {
-      const saved = localStorage.getItem(vCat.key);
-      let items = [];
-      if (saved) {
-        items = JSON.parse(saved);
-      } else if (vCat.key === 'pos_menu_freshbasket_fruits') {
-        items = DEFAULT_FRESHBASKET_DATA
-          .filter(item => item.category === 'FRUITS')
-          .map(item => ({
-            name: item.name,
-            price: item.price || 0
-          }));
-      } else if (vCat.key === 'pos_menu_freshbasket_vegetables') {
-        items = DEFAULT_FRESHBASKET_DATA
-          .filter(item => item.category === 'VEGETABLES')
-          .map(item => ({
-            name: item.name,
-            price: item.price || 0
-          }));
-      } else if (vCat.key === 'pos_menu_freshbasket_essentials') {
-        items = DEFAULT_FRESHBASKET_DATA
-          .filter(item => item.category === 'DAILY ESSENTIALS')
-          .map(item => ({
-            name: item.name,
-            price: item.price || 0
-          }));
-      }
+    // Add virtual products to the display list only for Fresh Basket tenant
+    if (isFreshBasket) {
+      virtualCategories.forEach(vCat => {
+        const saved = localStorage.getItem(vCat.key);
+        let items = [];
+        if (saved) {
+          items = JSON.parse(saved);
+        } else if (vCat.key === 'pos_menu_freshbasket_fruits') {
+          items = DEFAULT_FRESHBASKET_DATA
+            .filter(item => item.category === 'FRUITS')
+            .map(item => ({
+              name: item.name,
+              price: item.price || 0
+            }));
+        } else if (vCat.key === 'pos_menu_freshbasket_vegetables') {
+          items = DEFAULT_FRESHBASKET_DATA
+            .filter(item => item.category === 'VEGETABLES')
+            .map(item => ({
+              name: item.name,
+              price: item.price || 0
+            }));
+        } else if (vCat.key === 'pos_menu_freshbasket_essentials') {
+          items = DEFAULT_FRESHBASKET_DATA
+            .filter(item => item.category === 'DAILY ESSENTIALS')
+            .map(item => ({
+              name: item.name,
+              price: item.price || 0
+            }));
+        }
 
-      items.forEach((item: any, idx: number) => {
-        allDisplayProducts.push({
-          id: `virtual-${vCat.id}-${idx}`,
-          name: item.name,
-          sku: `VIRTUAL-${vCat.name.substring(0, 3).toUpperCase()}`,
-          category: vCat.name,
-          cost: 0,
-          price: item.price,
-          stock: 0,
-          image: item.image || '📦',
-          isVirtual: true
-        } as any);
+        items.forEach((item: any, idx: number) => {
+          allDisplayProducts.push({
+            id: `virtual-${vCat.id}-${idx}`,
+            name: item.name,
+            sku: `VIRTUAL-${vCat.name.substring(0, 3).toUpperCase()}`,
+            category: vCat.name,
+            cost: 0,
+            price: item.price,
+            stock: 0,
+            image: item.image || '📦',
+            isVirtual: true
+          } as any);
+        });
       });
-    });
+    }
 
     return allDisplayProducts.filter(product => {
       const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             product.sku.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
+      const productCategoryName = categories.find((c: any) => c.id === product.category || c.name === product.category)?.name || product.category;
+      const matchesCategory = selectedCategory === 'all' || productCategoryName === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [products, searchQuery, selectedCategory, localUpdateTrigger]);
+  }, [products, searchQuery, selectedCategory, localUpdateTrigger, isFreshBasket, categories]);
 
   const lowStockCount = products.filter(p => p.stock <= 10).length;
 
@@ -864,11 +874,12 @@ const ProductsPage = () => {
                               <option value="">Select a category</option>
                               {categories
                                .filter(category => {
+                                 if (!isFreshBasket) return true;
                                  const name = category.name.toLowerCase().trim();
                                  return name === 'fruits' || name === 'vegetables' || name === 'daily essentials';
                                })
                                .map((c) => (
-                                 <option key={c.id} value={c.id}>{c.name}</option>
+                                 <option key={c.id} value={c.name}>{c.name}</option>
                                ))}
                             </>
                           )}
@@ -936,21 +947,22 @@ const ProductsPage = () => {
               {/* Only show categories that have items in them or are from the DB */}
               {categories
                 .filter(category => {
+                  if (!isFreshBasket) return true;
                   const name = category.name.toLowerCase().trim();
                   return name === 'fruits' || name === 'vegetables' || name === 'daily essentials';
                 })
                 .map((category) => (
                 <Button
                   key={category.id}
-                  variant={selectedCategory === category.id ? 'default' : 'outline'}
+                  variant={selectedCategory === category.name ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setSelectedCategory(category.id)}
+                  onClick={() => setSelectedCategory(category.name)}
                 >
                   {category.name}
                 </Button>
               ))}
               {/* Filter out virtual categories that match database category names to remove duplicates */}
-              {virtualCategories
+              {isFreshBasket && virtualCategories
                 .filter(vCat => !categories.some(dbCat => dbCat.name.toLowerCase() === vCat.name.toLowerCase()))
                 .map((vCat) => (
                 <Button
@@ -1003,7 +1015,7 @@ const ProductsPage = () => {
                       <TableCell className="text-muted-foreground">{product.sku}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="capitalize">
-                          {categories.find(c => c.id === product.category)?.name || product.category}
+                          {categories.find((c: any) => c.id === product.category || c.name === product.category)?.name || product.category}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
@@ -1035,7 +1047,7 @@ const ProductsPage = () => {
                                   <Edit className="h-4 w-4 mr-2" />
                                   Edit
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEditDialog(product)}>
                                   <Package className="h-4 w-4 mr-2" />
                                   Adjust Stock
                                 </DropdownMenuItem>

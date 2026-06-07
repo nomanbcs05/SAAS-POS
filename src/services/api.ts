@@ -91,6 +91,40 @@ export interface DailyRegister {
 let cachedDailyCount: { count: number; timestamp: number; registerId?: string } | null = null;
 const COUNT_CACHE_TTL = 30000; // 30 seconds cache for daily count
 
+// Helper to refresh and cache products locally
+const recacheProducts = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('name');
+    if (!error && data) {
+      if (isDesktop() && window.electronAPI) {
+        await window.electronAPI.cacheProducts(data as any[]);
+      } else {
+        offline.cacheProducts(data as any[]);
+      }
+    }
+  } catch (err) {
+    console.warn('[Sync] Failed to update products cache:', err);
+  }
+};
+
+// Helper to refresh and cache categories locally
+const recacheCategories = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('categories' as any)
+      .select('*')
+      .order('name');
+    if (!error && data) {
+      offline.cacheCategories(data as Category[]);
+    }
+  } catch (err) {
+    console.warn('[Sync] Failed to update categories cache:', err);
+  }
+};
+
 export const api = {
   registers: {
     getOpen: async () => {
@@ -122,27 +156,22 @@ export const api = {
   },
   categories: {
     getAll: async () => {
-      // Force offline for desktop app to avoid any internet waiting
-      if (isDesktop()) {
-        console.log('[Desktop] Using offline categories');
-        return offline.getCachedCategories() as Category[];
+      try {
+        if (offline.isOnline()) {
+          const { data, error } = await supabase
+            .from('categories' as any)
+            .select('*')
+            .order('name');
+          if (error) throw error;
+          offline.cacheCategories(data as Category[]);
+          return data as Category[];
+        }
+      } catch (err) {
+        console.warn('[Categories] Failed to fetch online categories:', err);
       }
 
-      try {
-        const { data, error } = await supabase
-          .from('categories' as any)
-          .select('*')
-          .order('name');
-        if (error) throw error;
-        offline.cacheCategories(data as Category[]);
-        return data as Category[];
-      } catch (err) {
-        if (!offline.isOnline()) {
-          console.warn('[Offline] Using cached categories');
-          return offline.getCachedCategories() as Category[];
-        }
-        throw err;
-      }
+      // Fallback
+      return offline.getCachedCategories() as Category[];
     },
     create: async (category: Omit<Category, 'id'>) => {
       const { data, error } = await supabase
@@ -151,6 +180,7 @@ export const api = {
         .select()
         .single();
       if (error) throw error;
+      await recacheCategories();
       return data as unknown as Category;
     },
     update: async (id: string, category: Partial<Category>) => {
@@ -161,6 +191,7 @@ export const api = {
         .select()
         .single();
       if (error) throw error;
+      await recacheCategories();
       return data as unknown as Category;
     },
     delete: async (id: string) => {
@@ -169,6 +200,7 @@ export const api = {
         .delete()
         .eq('id', id);
       if (error) throw error;
+      await recacheCategories();
     }
   },
   products: {
@@ -183,34 +215,31 @@ export const api = {
       return true;
     },
     getAll: async () => {
-      // Force SQLite for desktop app
-      if (isDesktop() && window.electronAPI) {
-        console.log('[SQLite] Fetching products');
-        return await window.electronAPI.getCachedProducts();
+      try {
+        if (offline.isOnline()) {
+          const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .order('name');
+          if (error) throw error;
+          
+          if (isDesktop() && window.electronAPI) {
+            await window.electronAPI.cacheProducts(data as any[]);
+          } else {
+            offline.cacheProducts(data as any[]);
+          }
+          return data as any[];
+        }
+      } catch (err) {
+        console.warn('[Products] Failed to fetch online products:', err);
       }
 
-      try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .order('name');
-        if (error) throw error;
-        
-        if (isDesktop() && window.electronAPI) {
-          window.electronAPI.cacheProducts(data as any[]);
-        } else {
-          offline.cacheProducts(data as any[]);
-        }
-        return data as any[];
-      } catch (err) {
-        if (isDesktop() && window.electronAPI) {
-          return await window.electronAPI.getCachedProducts();
-        }
-        if (!offline.isOnline()) {
-          return offline.getCachedProducts();
-        }
-        throw err;
+      // Fallback
+      if (isDesktop() && window.electronAPI) {
+        console.log('[SQLite] Fetching cached products');
+        return await window.electronAPI.getCachedProducts();
       }
+      return offline.getCachedProducts();
     },
     create: async (product: ProductInsert) => {
       const { data, error } = await supabase
@@ -219,6 +248,7 @@ export const api = {
         .select()
         .single();
       if (error) throw error;
+      await recacheProducts();
       return data;
     },
     update: async (id: string, product: ProductUpdate) => {
@@ -229,6 +259,7 @@ export const api = {
         .select()
         .single();
       if (error) throw error;
+      await recacheProducts();
       return data;
     },
     delete: async (id: string) => {
@@ -237,6 +268,7 @@ export const api = {
         .delete()
         .eq('id', id);
       if (error) throw error;
+      await recacheProducts();
     },
     uploadImage: async (file: File) => {
       const fileExt = file.name.split('.').pop();
@@ -256,19 +288,30 @@ export const api = {
       return data.publicUrl;
     },
     getWithDetails: async () => {
-      // Force offline for desktop
-      if (isDesktop()) {
-        return offline.getCachedProducts();
+      try {
+        if (offline.isOnline()) {
+          const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .order('name');
+          if (error) throw error;
+          
+          if (isDesktop() && window.electronAPI) {
+            await window.electronAPI.cacheProducts(data as any[]);
+          } else {
+            offline.cacheProducts(data as any[]);
+          }
+          return data as any[];
+        }
+      } catch (err) {
+        console.warn('[Products] Failed to fetch online products with details:', err);
       }
 
-      // Missing tables fix: Only fetch products, ignore variants/addons
-      const { data, error } = await supabase
-        .from('products')
-        .select('*') // Removed '*, product_variants(*), product_addons(*)'
-        .order('name');
-
-      if (error) throw error;
-      return data;
+      // Fallback
+      if (isDesktop() && window.electronAPI) {
+        return await window.electronAPI.getCachedProducts();
+      }
+      return offline.getCachedProducts();
     }
   },
   addons: {
