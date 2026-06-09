@@ -127,6 +127,7 @@ const OngoingOrdersPage = () => {
       api.orders.updateStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       toast.success('Order status updated');
     },
     onError: (error: any) => {
@@ -169,6 +170,7 @@ const OngoingOrdersPage = () => {
     },
     onSuccess: (updatedOrder) => {
       queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
 
       // Prepare bill data
       const order = selectedOrder;
@@ -227,6 +229,7 @@ const OngoingOrdersPage = () => {
     mutationFn: (id: string) => api.orders.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       toast.success('Order cancelled and deleted');
       setSelectedOrderId(null);
     },
@@ -246,6 +249,7 @@ const OngoingOrdersPage = () => {
         try {
           await api.orders.updateStatus(billOrder.id, 'completed');
           queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
+          queryClient.invalidateQueries({ queryKey: ['products'] });
           toast.success('Order marked as completed');
         } catch (error) {
           console.error('Failed to update order status after printing:', error);

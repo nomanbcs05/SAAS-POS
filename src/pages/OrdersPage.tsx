@@ -129,6 +129,7 @@ const OrdersPage = () => {
     mutationFn: (orderId: string) => api.orders.delete(orderId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       toast.success('Order refunded and deleted successfully');
     },
     onError: (error) => {
@@ -171,6 +172,7 @@ const OrdersPage = () => {
         try {
           await api.orders.updateStatus(billOrder.id, 'completed');
           queryClient.invalidateQueries({ queryKey: ['orders'] });
+          queryClient.invalidateQueries({ queryKey: ['products'] });
           toast.success('Order marked as completed');
         } catch (error) {
           console.error('Failed to update order status after printing:', error);

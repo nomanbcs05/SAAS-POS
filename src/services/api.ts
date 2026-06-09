@@ -262,6 +262,84 @@ export const api = {
       await recacheProducts();
       return data;
     },
+    decrementStock: async (orderItems: Array<{ product_id: string | null | undefined; quantity: number }>) => {
+      try {
+        // Only process items with valid UUIDs (not virtual/freshbasket items)
+        const validItems = orderItems.filter(
+          (item) => item.product_id && isValidUUID(item.product_id as string)
+        );
+        if (validItems.length === 0) return;
+
+        const ids = [...new Set(validItems.map((i) => i.product_id as string))];
+
+        // Fetch current stock for all sold products in one query
+        const { data: products, error } = await supabase
+          .from('products')
+          .select('id, stock')
+          .in('id', ids);
+
+        if (error || !products || products.length === 0) return;
+
+        // Decrement each product's stock (floor at 0)
+        await Promise.all(
+          products.map(async (product: any) => {
+            if (product.stock === null || product.stock === undefined) return;
+            const soldQty = validItems
+              .filter((i) => i.product_id === product.id)
+              .reduce((sum, i) => sum + i.quantity, 0);
+            const newStock = Math.max(0, (product.stock || 0) - soldQty);
+            await supabase
+              .from('products')
+              .update({ stock: newStock })
+              .eq('id', product.id);
+          })
+        );
+
+        // Refresh local cache so POS dashboard shows updated stock instantly
+        await recacheProducts();
+      } catch (err) {
+        // Never block the sale — log silently
+        console.error('[Stock] Failed to decrement stock after sale:', err);
+      }
+    },
+    incrementStock: async (orderItems: Array<{ product_id: string | null | undefined; quantity: number }>) => {
+      try {
+        // Only process items with valid UUIDs (not virtual/freshbasket items)
+        const validItems = orderItems.filter(
+          (item) => item.product_id && isValidUUID(item.product_id as string)
+        );
+        if (validItems.length === 0) return;
+
+        const ids = [...new Set(validItems.map((i) => i.product_id as string))];
+
+        // Fetch current stock for all sold products in one query
+        const { data: products, error } = await supabase
+          .from('products')
+          .select('id, stock')
+          .in('id', ids);
+
+        if (error || !products || products.length === 0) return;
+
+        // Increment each product's stock
+        await Promise.all(
+          products.map(async (product: any) => {
+            const soldQty = validItems
+              .filter((i) => i.product_id === product.id)
+              .reduce((sum, i) => sum + i.quantity, 0);
+            const newStock = (product.stock || 0) + soldQty;
+            await supabase
+              .from('products')
+              .update({ stock: newStock })
+              .eq('id', product.id);
+          })
+        );
+
+        // Refresh local cache
+        await recacheProducts();
+      } catch (err) {
+        console.error('[Stock] Failed to increment stock after cancellation:', err);
+      }
+    },
     delete: async (id: string) => {
       const { error } = await supabase
         .from('products')
@@ -933,6 +1011,15 @@ export const api = {
         cachedDailyCount.count++;
       }
 
+      // Decrement stock if order is created as completed
+      if (safeOrder.status === 'completed') {
+        try {
+          await api.products.decrementStock(items);
+        } catch (err) {
+          console.error('[Stock] Failed to decrement stock on order creation:', err);
+        }
+      }
+
       return newOrder;
     },
     update: async (orderId: string, order: any, items: OrderItemInsert[]) => {
@@ -1397,6 +1484,15 @@ export const api = {
       }
 
       try {
+        // Fetch current status before updating to check if we are transitioning to 'completed'
+        const { data: existingOrder } = await supabase
+          .from('orders')
+          .select('status')
+          .eq('id', id)
+          .maybeSingle();
+
+        const wasCompleted = existingOrder?.status === 'completed';
+
         const { data, error } = await Promise.race([
           supabase
             .from('orders')
@@ -1413,6 +1509,23 @@ export const api = {
           offline.updateOrderStatus(id, status);
           return { id, status, _offline: true };
         }
+
+        // If transitioning to completed and was not completed before, decrement stock
+        if (status === 'completed' && !wasCompleted) {
+          try {
+            const { data: orderItems } = await supabase
+              .from('order_items')
+              .select('product_id, quantity')
+              .eq('order_id', id);
+
+            if (orderItems && orderItems.length > 0) {
+              await api.products.decrementStock(orderItems);
+            }
+          } catch (err) {
+            console.error('[Stock] Failed to decrement stock during status update:', err);
+          }
+        }
+
         return data || { id, status };
       } catch (err) {
         console.warn('Timeout or error during status update, falling back to offline update');
@@ -1432,6 +1545,18 @@ export const api = {
       }
 
       try {
+        // Fetch order details and items first before deleting them
+        const { data: order } = await supabase
+          .from('orders')
+          .select('status')
+          .eq('id', id)
+          .maybeSingle();
+
+        const { data: orderItems } = await supabase
+          .from('order_items')
+          .select('product_id, quantity')
+          .eq('order_id', id);
+
         // 1. Delete associated order items first
         const { error: itemsError } = await Promise.race([
           supabase
@@ -1453,6 +1578,16 @@ export const api = {
         ]);
 
         if (orderError) throw orderError;
+
+        // If the order was completed, restore/increment stock!
+        if (order && order.status === 'completed' && orderItems && orderItems.length > 0) {
+          try {
+            await api.products.incrementStock(orderItems);
+          } catch (err) {
+            console.error('[Stock] Failed to restore stock during order deletion:', err);
+          }
+        }
+
         return true;
       } catch (err) {
         console.warn('Timeout or error during delete, attempting offline delete');

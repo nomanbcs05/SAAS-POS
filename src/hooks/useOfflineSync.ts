@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import * as offline from '@/services/offlineStore';
 import { useQueryClient } from '@tanstack/react-query';
+import { api } from '@/services/api';
 
 // Shared flag so we never run two syncs concurrently
 let syncing = false;
@@ -262,6 +263,15 @@ async function syncPendingOrders() {
         // Fallback: try without product_name/category
         const minimalItems = items.map(({ product_name, product_category, ...rest }: any) => rest);
         await supabase.from('order_items').insert(minimalItems);
+      }
+
+      // Decrement stock for synced completed orders
+      if (safeOrder.status === 'completed') {
+        try {
+          await api.products.decrementStock(items);
+        } catch (err) {
+          console.error('[Sync] Failed to decrement stock for synced order:', err);
+        }
       }
 
       offline.markOrderSynced(entry.id);

@@ -260,6 +260,7 @@ const CartPanel = () => {
 
           queryClient.invalidateQueries({ queryKey: ['orders'] });
           queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
+          queryClient.invalidateQueries({ queryKey: ['products'] }); // stock updated inside api.orders.create
 
           toast.dismiss(toastId);
           toast.success('Order saved as completed', { duration: 1000 });
@@ -483,6 +484,9 @@ const CartPanel = () => {
 
     toast.loading('Processing order...', { id: toastId });
     createOrderMutation.mutate({ order: orderInsert, items: orderItemsInsert }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['products'] }); // stock updated inside api.orders.create
+      },
       onSettled: () => {
         toast.dismiss(toastId);
       }
@@ -546,6 +550,9 @@ const CartPanel = () => {
 
     const toastId = toast.loading('Saving completed sale...');
     createOrderMutation.mutate({ order: orderInsert, items: orderItemsInsert }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['products'] }); // stock updated inside api.orders.create
+      },
       onSettled: () => {
         toast.dismiss(toastId);
       }
