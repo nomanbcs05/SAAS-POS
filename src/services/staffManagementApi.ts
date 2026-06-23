@@ -132,16 +132,15 @@ export const probeStaffSchema = async (): Promise<boolean> => {
       .select('id')
       .limit(0);
 
-    if (error && isSchemaMissing(error)) {
+    if (error) {
+      // Any error from the probe means schema is not ready
       markAllTablesMissing();
       return false;
     }
     return true;
-  } catch (err: any) {
-    if (isSchemaMissing(err)) {
-      markAllTablesMissing();
-      return false;
-    }
+  } catch {
+    // Network error, schema error, anything — fall back to local
+    markAllTablesMissing();
     return false;
   }
 };
@@ -158,7 +157,7 @@ const isSchemaMissing = (error: any): boolean => {
   if (!error) return false;
   const status = Number(error.status ?? 0);
   const code = String(error.code ?? '');
-  const msg = String(error.message ?? '').toLowerCase();
+  const msg = String(error.message ?? error.details ?? '').toLowerCase();
   return (
     status === 404 ||
     status === 400 ||
@@ -166,8 +165,11 @@ const isSchemaMissing = (error: any): boolean => {
     code === '42703' ||
     code === 'PGRST116' ||
     code === 'PGRST200' ||
+    code === 'PGRST204' ||
     msg.includes('not found') ||
+    msg.includes('could not find') ||
     msg.includes('does not exist') ||
+    msg.includes('schema cache') ||
     msg.includes('relation') ||
     msg.includes('column')
   );
