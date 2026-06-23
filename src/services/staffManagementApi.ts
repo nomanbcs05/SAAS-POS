@@ -98,10 +98,52 @@ const markTableMissing = (tableName: string) => {
   } catch { /* ignore */ }
 
   console.warn(`[StaffMgmt] Table "${tableName}" not found — switching to local storage mode for this session.`);
-  toast.warning(`Database table "${tableName}" not set up yet.`, {
-    description: 'Running in local storage mode. Run the migration SQL in Supabase to enable cloud sync.',
-    duration: 6000,
+};
+
+// Mark every staff table as missing at once (called by probe on failure)
+const markAllTablesMissing = () => {
+  const tables = ['staff', 'staff_attendance', 'staff_payroll', 'payroll_vouchers'];
+  tables.forEach(markTableMissing);
+  // Show a single toast instead of one per table
+  toast.warning('Staff management tables not set up in database yet.', {
+    description: 'Running in local storage mode. Run the migration SQL in your Supabase dashboard to enable cloud sync.',
+    duration: 8000,
+    id: 'staff-tables-missing', // prevent duplicate toasts
   });
+};
+
+// ---------------------------------------------------------------------------
+// Schema probe — runs ONCE on page mount via a dedicated TanStack Query.
+// If staff_attendance doesn't exist, pre-marks ALL tables missing so zero
+// further HTTP requests are fired for the rest of the browser session.
+// ---------------------------------------------------------------------------
+export const probeStaffSchema = async (): Promise<boolean> => {
+  // Desktop / offline always use local storage
+  if (isDesktop() || !offline.isOnline()) return false;
+
+  // If we already know from a previous probe or 404 this session, skip the HTTP call
+  const alreadyKnown = Object.values(TABLE_OK).some(v => v === false);
+  if (alreadyKnown) return false;
+
+  try {
+    // Lightweight probe — select 0 rows, just checks the table exists
+    const { error } = await supabase
+      .from('staff_attendance' as any)
+      .select('id')
+      .limit(0);
+
+    if (error && isSchemaMissing(error)) {
+      markAllTablesMissing();
+      return false;
+    }
+    return true;
+  } catch (err: any) {
+    if (isSchemaMissing(err)) {
+      markAllTablesMissing();
+      return false;
+    }
+    return false;
+  }
 };
 
 // Local Storage Keys

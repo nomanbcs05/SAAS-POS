@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { staffManagementApi, Staff, StaffAttendance, StaffPayroll, PayrollVoucher } from '@/services/staffManagementApi';
+import { staffManagementApi, probeStaffSchema, Staff, StaffAttendance, StaffPayroll, PayrollVoucher } from '@/services/staffManagementApi';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -75,11 +75,25 @@ export default function StaffManagementPage() {
     onAfterPrint: () => setPrintingVoucher(null),
   });
 
-  // Queries
+  // ---------------------------------------------------------------------------
+  // Schema probe: runs ONCE on mount. Pre-marks all tables as missing if the
+  // Supabase migration hasn't been run yet, so ZERO data queries hit the network.
+  // ---------------------------------------------------------------------------
+  const { data: schemaReady = false, isLoading: isCheckingSchema } = useQuery({
+    queryKey: ['staff-schema-probe'],
+    queryFn: probeStaffSchema,
+    retry: 0,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity, // only probe once per browser session
+    gcTime: Infinity,
+  });
+
+  // Queries — all gated behind !isCheckingSchema so they only fire
+  // after the probe has finished (and pre-set any missing-table flags).
   const { data: staffList = [], isLoading: isLoadingStaff } = useQuery({
     queryKey: ['staff-mgmt', tenant?.id],
     queryFn: () => staffManagementApi.staff.getAll(tenant?.id),
-    enabled: !!tenant?.id,
+    enabled: !!tenant?.id && !isCheckingSchema,
     retry: 0,
     refetchOnWindowFocus: false,
   });
@@ -87,7 +101,7 @@ export default function StaffManagementPage() {
   const { data: attendanceList = [], isLoading: isLoadingAttendance } = useQuery({
     queryKey: ['staff-attendance', selectedDate, tenant?.id],
     queryFn: () => staffManagementApi.attendance.getByDate(selectedDate, tenant?.id),
-    enabled: !!tenant?.id && activeTab === 'attendance',
+    enabled: !!tenant?.id && !isCheckingSchema && activeTab === 'attendance',
     retry: 0,
     refetchOnWindowFocus: false,
   });
@@ -95,7 +109,7 @@ export default function StaffManagementPage() {
   const { data: calculatedPayrolls = [], isLoading: isLoadingPayroll, refetch: refetchPayroll } = useQuery({
     queryKey: ['staff-payroll', selectedMonth, tenant?.id],
     queryFn: () => staffManagementApi.payroll.calculate(selectedMonth, tenant?.id),
-    enabled: !!tenant?.id && activeTab === 'payroll',
+    enabled: !!tenant?.id && !isCheckingSchema && activeTab === 'payroll',
     retry: 0,
     refetchOnWindowFocus: false,
   });
@@ -103,7 +117,7 @@ export default function StaffManagementPage() {
   const { data: vouchersList = [], isLoading: isLoadingVouchers } = useQuery({
     queryKey: ['staff-vouchers', selectedMonth, tenant?.id],
     queryFn: () => staffManagementApi.vouchers.getByMonth(selectedMonth, tenant?.id),
-    enabled: !!tenant?.id && activeTab === 'vouchers',
+    enabled: !!tenant?.id && !isCheckingSchema && activeTab === 'vouchers',
     retry: 0,
     refetchOnWindowFocus: false,
   });
