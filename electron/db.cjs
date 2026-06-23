@@ -21,6 +21,12 @@ db.exec(`
     data TEXT NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS key_value_store (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 const dbManager = {
@@ -65,6 +71,11 @@ const dbManager = {
     return stmt.run(id);
   },
 
+  clearAllOrders: () => {
+    const stmt = db.prepare('DELETE FROM orders');
+    return stmt.run();
+  },
+
   // Product Cache Methods
   cacheProducts: (products) => {
     db.prepare('DELETE FROM products_cache').run();
@@ -78,6 +89,23 @@ const dbManager = {
   getCachedProducts: () => {
     const stmt = db.prepare('SELECT data FROM products_cache');
     return stmt.all().map(row => JSON.parse(row.data));
+  },
+
+  // Key Value Methods
+  getItem: (key) => {
+    const stmt = db.prepare('SELECT value FROM key_value_store WHERE key = ?');
+    const row = stmt.get(key);
+    return row ? row.value : null;
+  },
+
+  setItem: (key, value) => {
+    const stmt = db.prepare('INSERT OR REPLACE INTO key_value_store (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)');
+    return stmt.run(key, value);
+  },
+
+  removeItem: (key) => {
+    const stmt = db.prepare('DELETE FROM key_value_store WHERE key = ?');
+    return stmt.run(key);
   }
 };
 

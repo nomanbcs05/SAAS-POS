@@ -119,6 +119,13 @@ export const useMultiTenant = () => {
     queryKey: ['owned-tenants', session?.user?.id],
     queryFn: async () => {
       if (!session?.user?.id) return [];
+      
+      // Force offline for desktop
+      if (isDesktop()) {
+        const cached = offline.getCachedTenant();
+        return cached ? [cached as Tenant] : [];
+      }
+      
       const { data, error } = await supabase
         .from('tenants')
         .select('*')

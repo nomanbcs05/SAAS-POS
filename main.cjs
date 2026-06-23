@@ -35,6 +35,10 @@ ipcMain.handle('db:get-order-by-id', async (event, id) => db.getOrderById(id));
 ipcMain.handle('db:delete-order', async (event, id) => db.deleteOrder(id));
 ipcMain.handle('db:cache-products', async (event, products) => db.cacheProducts(products));
 ipcMain.handle('db:get-cached-products', async () => db.getCachedProducts());
+ipcMain.handle('db:get-item', async (event, key) => db.getItem(key));
+ipcMain.handle('db:set-item', async (event, key, value) => db.setItem(key, value));
+ipcMain.handle('db:remove-item', async (event, key) => db.removeItem(key));
+ipcMain.handle('db:clear-all-today', async () => db.clearAllOrders());
 
 app.whenReady().then(createWindow);
 

@@ -1,4 +1,5 @@
 
+import { useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,11 +8,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Building2, Loader2, Plus, LogIn } from "lucide-react";
 import { toast } from "sonner";
 import { useMultiTenant } from "@/hooks/useMultiTenant";
+import { isDesktop } from '@/lib/env';
 
 const SelectRestaurantPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { session, ownedTenants, isLoading } = useMultiTenant();
+
+  // On desktop, redirect to dashboard since we only have one offline tenant
+  useEffect(() => {
+    if (isDesktop()) {
+      navigate('/');
+    }
+  }, []);
 
   const handleSelect = async (tenantId: string) => {
     try {

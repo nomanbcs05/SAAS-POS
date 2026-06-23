@@ -109,6 +109,7 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
     { name: 'Products', href: '/products', icon: Package, adminOnly: true, management: true },
     { name: 'Customers', href: '/customers', icon: Users, adminOnly: true, management: true },
     { name: 'Credit Ledger', href: '/credit', icon: Wallet, adminOnly: true, management: true },
+    { name: 'Staff Management', href: '/staff-management', icon: Users, adminOnly: true, management: true },
     { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true, management: true },
     { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true, management: true },
   ].filter(item => {
@@ -123,11 +124,15 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
 
   const handleLogout = async () => {
     try {
-      localStorage.removeItem("pos_local_user"); // Clear local dev session
-      localStorage.removeItem("pos_hide_management"); // Reset hide state on logout
-      localStorage.removeItem("pos_daily_counter"); // Reset order sequence
-      localStorage.removeItem("pos_session_id"); // Reset session ID
-      await supabase.auth.signOut(); 
+      localStorage.removeItem("pos_local_user");
+      localStorage.removeItem("pos_hide_management");
+      localStorage.removeItem("pos_daily_counter");
+      localStorage.removeItem("pos_session_id");
+      localStorage.removeItem("pos_offline_session");
+      localStorage.removeItem("pos_offline_profile");
+      if (!isDesktop()) {
+        await supabase.auth.signOut();
+      }
       toast.success("Logged out successfully");
       navigate("/auth");
     } catch (error) {

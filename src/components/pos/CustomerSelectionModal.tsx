@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { useCartStore } from '@/stores/cartStore';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { isDesktop } from '@/lib/env';
+import * as offline from '@/services/offlineStore';
 import { Loader2, Search, User, Phone } from 'lucide-react';
 
 interface CustomerSelectionModalProps {
@@ -36,6 +38,18 @@ const CustomerSelectionModal = ({ isOpen, onClose, onSaved }: CustomerSelectionM
     
     setIsSearching(true);
     try {
+      // Offline/Desktop: search local cache
+      if (isDesktop()) {
+        const customers = await offline.getCachedCustomers();
+        const found = customers.find((c: any) => c.phone === phone);
+        if (found) {
+          setName(found.name);
+          toast.success('Customer found!');
+        }
+        setIsSearching(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('customers')
         .select('*')
@@ -72,6 +86,52 @@ const CustomerSelectionModal = ({ isOpen, onClose, onSaved }: CustomerSelectionM
     setIsLoading(true);
 
     try {
+      // Offline/Desktop: manage customers locally
+      if (isDesktop()) {
+        let customers = await offline.getCachedCustomers();
+        let existing = customers.find((c: any) => c.phone === phone);
+        
+        if (existing) {
+          if (existing.name !== name) {
+            existing.name = name;
+            await offline.cacheCustomers(customers);
+          }
+        } else {
+          existing = {
+            id: crypto.randomUUID(),
+            name,
+            phone,
+            loyalty_points: 0,
+            total_spent: 0,
+            total_orders: 1,
+            credit_balance: 0,
+            created_at: new Date().toISOString()
+          };
+          customers.push(existing);
+          await offline.cacheCustomers(customers);
+        }
+        
+        const storeCustomer = {
+          id: existing.id,
+          name: existing.name,
+          phone: existing.phone || '',
+          email: existing.email || '',
+          loyaltyPoints: existing.loyalty_points || 0,
+          totalSpent: existing.total_spent || 0,
+          visitCount: existing.total_orders || 0
+        };
+        
+        setCustomer(storeCustomer);
+        if (orderType === 'delivery') {
+          setCustomerAddress(address);
+        }
+        toast.success(`Customer ${name} attached to order`);
+        if (onSaved) onSaved();
+        onClose();
+        setIsLoading(false);
+        return;
+      }
+
       // Check if customer exists first
       const { data: existingCustomer } = await supabase
         .from('customers')

@@ -163,7 +163,7 @@ export const api = {
             .select('*')
             .order('name');
           if (error) throw error;
-          offline.cacheCategories(data as Category[]);
+          await offline.cacheCategories(data as Category[]);
           return data as Category[];
         }
       } catch (err) {
@@ -171,9 +171,20 @@ export const api = {
       }
 
       // Fallback
-      return offline.getCachedCategories() as Category[];
+      return await offline.getCachedCategories() as Category[];
     },
     create: async (category: Omit<Category, 'id'>) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const categories = await offline.getCachedCategories();
+        const newCategory = {
+          ...category,
+          id: crypto.randomUUID()
+        } as Category;
+        categories.push(newCategory);
+        await offline.cacheCategories(categories);
+        return newCategory;
+      }
+
       const { data, error } = await supabase
         .from('categories')
         .insert(category as any)
@@ -184,6 +195,17 @@ export const api = {
       return data as unknown as Category;
     },
     update: async (id: string, category: Partial<Category>) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const categories = await offline.getCachedCategories();
+        const index = categories.findIndex((c: any) => c.id === id);
+        if (index !== -1) {
+          categories[index] = { ...categories[index], ...category };
+          await offline.cacheCategories(categories);
+          return categories[index];
+        }
+        throw new Error("Category not found locally");
+      }
+
       const { data, error } = await supabase
         .from('categories')
         .update(category as any)
@@ -195,6 +217,13 @@ export const api = {
       return data as unknown as Category;
     },
     delete: async (id: string) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const categories = await offline.getCachedCategories();
+        const filtered = categories.filter((c: any) => c.id !== id);
+        await offline.cacheCategories(filtered);
+        return;
+      }
+
       const { error } = await supabase
         .from('categories')
         .delete()
@@ -223,11 +252,7 @@ export const api = {
             .order('name');
           if (error) throw error;
           
-          if (isDesktop() && window.electronAPI) {
-            await window.electronAPI.cacheProducts(data as any[]);
-          } else {
-            offline.cacheProducts(data as any[]);
-          }
+          await offline.cacheProducts(data as any[]);
           return data as any[];
         }
       } catch (err) {
@@ -235,13 +260,21 @@ export const api = {
       }
 
       // Fallback
-      if (isDesktop() && window.electronAPI) {
-        console.log('[SQLite] Fetching cached products');
-        return await window.electronAPI.getCachedProducts();
-      }
-      return offline.getCachedProducts();
+      return await offline.getCachedProducts();
     },
     create: async (product: ProductInsert) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const products = await offline.getCachedProducts();
+        const newProduct = {
+          ...product,
+          id: product.id || crypto.randomUUID(),
+          created_at: new Date().toISOString()
+        } as Product;
+        products.push(newProduct);
+        await offline.cacheProducts(products);
+        return newProduct;
+      }
+
       const { data, error } = await supabase
         .from('products')
         .insert(product)
@@ -252,6 +285,17 @@ export const api = {
       return data;
     },
     update: async (id: string, product: ProductUpdate) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const products = await offline.getCachedProducts();
+        const index = products.findIndex((p: any) => p.id === id);
+        if (index !== -1) {
+          products[index] = { ...products[index], ...product };
+          await offline.cacheProducts(products);
+          return products[index];
+        }
+        throw new Error("Product not found locally");
+      }
+
       const { data, error } = await supabase
         .from('products')
         .update(product)
@@ -264,11 +308,26 @@ export const api = {
     },
     decrementStock: async (orderItems: Array<{ product_id: string | null | undefined; quantity: number }>) => {
       try {
-        // Only process items with valid UUIDs (not virtual/freshbasket items)
         const validItems = orderItems.filter(
           (item) => item.product_id && isValidUUID(item.product_id as string)
         );
         if (validItems.length === 0) return;
+
+        if (isDesktop() || !offline.isOnline()) {
+          const products = await offline.getCachedProducts();
+          let modified = false;
+          for (const item of validItems) {
+            const product = products.find((p: any) => p.id === item.product_id);
+            if (product && product.stock !== null && product.stock !== undefined) {
+              product.stock = Math.max(0, (product.stock || 0) - item.quantity);
+              modified = true;
+            }
+          }
+          if (modified) {
+            await offline.cacheProducts(products);
+          }
+          return;
+        }
 
         const ids = [...new Set(validItems.map((i) => i.product_id as string))];
 
@@ -304,11 +363,26 @@ export const api = {
     },
     incrementStock: async (orderItems: Array<{ product_id: string | null | undefined; quantity: number }>) => {
       try {
-        // Only process items with valid UUIDs (not virtual/freshbasket items)
         const validItems = orderItems.filter(
           (item) => item.product_id && isValidUUID(item.product_id as string)
         );
         if (validItems.length === 0) return;
+
+        if (isDesktop() || !offline.isOnline()) {
+          const products = await offline.getCachedProducts();
+          let modified = false;
+          for (const item of validItems) {
+            const product = products.find((p: any) => p.id === item.product_id);
+            if (product && product.stock !== null && product.stock !== undefined) {
+              product.stock = (product.stock || 0) + item.quantity;
+              modified = true;
+            }
+          }
+          if (modified) {
+            await offline.cacheProducts(products);
+          }
+          return;
+        }
 
         const ids = [...new Set(validItems.map((i) => i.product_id as string))];
 
@@ -341,6 +415,13 @@ export const api = {
       }
     },
     delete: async (id: string) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const products = await offline.getCachedProducts();
+        const filtered = products.filter((p: any) => p.id !== id);
+        await offline.cacheProducts(filtered);
+        return;
+      }
+
       const { error } = await supabase
         .from('products')
         .delete()
@@ -349,6 +430,22 @@ export const api = {
       await recacheProducts();
     },
     uploadImage: async (file: File) => {
+      if (isDesktop() || !offline.isOnline()) {
+        // Return a base64 data URL for local storage
+        return new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (typeof reader.result === 'string') {
+              resolve(reader.result);
+            } else {
+              reject(new Error("Failed to read file as data URL"));
+            }
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `${fileName}`;
@@ -374,11 +471,7 @@ export const api = {
             .order('name');
           if (error) throw error;
           
-          if (isDesktop() && window.electronAPI) {
-            await window.electronAPI.cacheProducts(data as any[]);
-          } else {
-            offline.cacheProducts(data as any[]);
-          }
+          await offline.cacheProducts(data as any[]);
           return data as any[];
         }
       } catch (err) {
@@ -386,10 +479,7 @@ export const api = {
       }
 
       // Fallback
-      if (isDesktop() && window.electronAPI) {
-        return await window.electronAPI.getCachedProducts();
-      }
-      return offline.getCachedProducts();
+      return await offline.getCachedProducts();
     }
   },
   addons: {
@@ -416,10 +506,9 @@ export const api = {
   },
   customers: {
     getAll: async () => {
-      // Force offline for desktop app
-      if (isDesktop()) {
-        console.log('[Desktop] Using offline customers');
-        return offline.getCachedCustomers();
+      if (isDesktop() || !offline.isOnline()) {
+        console.log('[Desktop/Offline] Using offline customers');
+        return await offline.getCachedCustomers();
       }
 
       try {
@@ -428,17 +517,26 @@ export const api = {
           .select('*')
           .order('name');
         if (error) throw error;
-        offline.cacheCustomers(data);
+        await offline.cacheCustomers(data);
         return data;
       } catch (err) {
-        if (!offline.isOnline()) {
-          console.warn('[Offline] Using cached customers');
-          return offline.getCachedCustomers();
-        }
-        throw err;
+        console.warn('[Offline] Using cached customers');
+        return await offline.getCachedCustomers();
       }
     },
     create: async (customer: CustomerInsert) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const customers = await offline.getCachedCustomers();
+        const newCustomer = {
+          ...customer,
+          id: customer.id || crypto.randomUUID(),
+          created_at: new Date().toISOString()
+        } as Customer;
+        customers.push(newCustomer);
+        await offline.cacheCustomers(customers);
+        return newCustomer;
+      }
+
       const { data, error } = await supabase
         .from('customers')
         .insert(customer)
@@ -448,6 +546,17 @@ export const api = {
       return data;
     },
     update: async (id: string, customer: CustomerUpdate) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const customers = await offline.getCachedCustomers();
+        const index = customers.findIndex((c: any) => c.id === id);
+        if (index !== -1) {
+          customers[index] = { ...customers[index], ...customer };
+          await offline.cacheCustomers(customers);
+          return customers[index];
+        }
+        throw new Error("Customer not found locally");
+      }
+
       const { data, error } = await supabase
         .from('customers')
         .update(customer)
@@ -458,6 +567,13 @@ export const api = {
       return data;
     },
     delete: async (id: string) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const customers = await offline.getCachedCustomers();
+        const filtered = customers.filter((c: any) => c.id !== id);
+        await offline.cacheCustomers(filtered);
+        return;
+      }
+
       const { error } = await supabase
         .from('customers')
         .delete()
@@ -467,9 +583,8 @@ export const api = {
   },
   tables: {
     getAll: async () => {
-      // Force offline for desktop
-      if (isDesktop()) {
-        return [];
+      if (isDesktop() || !offline.isOnline()) {
+        return await offline.getCachedTables();
       }
 
       try {
@@ -478,10 +593,10 @@ export const api = {
           .select('*')
           .order('table_number');
         if (error) {
-          // Table may not exist yet — silently return empty so virtual tables render
-          console.warn('[Tables] restaurant_tables query failed (table may not exist):', error.message);
+          console.warn('[Tables] restaurant_tables query failed:', error.message);
           return [];
         }
+        await offline.cacheTables(data ?? []);
         return data ?? [];
       } catch (err) {
         console.warn('[Tables] Failed to fetch restaurant_tables:', err);
@@ -489,6 +604,18 @@ export const api = {
       }
     },
     create: async (table: { table_number: string; section: string; capacity: number }) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const tables = await offline.getCachedTables();
+        const newTable = {
+          ...table,
+          id: crypto.randomUUID(),
+          status: 'available'
+        };
+        tables.push(newTable);
+        await offline.cacheTables(tables);
+        return newTable;
+      }
+
       try {
         const { data, error } = await supabase
           .from('restaurant_tables')
@@ -496,26 +623,33 @@ export const api = {
           .select()
           .single();
         if (error) {
-          console.warn('[Tables] Failed to create table (table may not exist in DB):', error.message);
-          // Return a virtual table object so the UI can still proceed
-          return { ...table, id: crypto.randomUUID(), status: 'available', isVirtual: true };
+          throw error;
         }
         return data;
       } catch (err) {
-        console.warn('[Tables] restaurant_tables create error:', err);
+        console.warn('[Tables] restaurant_tables create error, returning virtual table:', err);
         return { ...table, id: crypto.randomUUID(), status: 'available', isVirtual: true };
       }
     },
-    bulkCreate: async (tables: { table_number: string; section: string; capacity: number }[]) => {
+    bulkCreate: async (newTables: { table_number: string; section: string; capacity: number }[]) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const tables = await offline.getCachedTables();
+        const added = newTables.map(t => ({
+          ...t,
+          id: crypto.randomUUID(),
+          status: 'available'
+        }));
+        const merged = [...tables, ...added];
+        await offline.cacheTables(merged);
+        return added;
+      }
+
       try {
         const { data, error } = await supabase
           .from('restaurant_tables')
-          .insert(tables)
+          .insert(newTables)
           .select();
-        if (error) {
-          console.warn('[Tables] bulkCreate failed:', error.message);
-          return [];
-        }
+        if (error) throw error;
         return data ?? [];
       } catch (err) {
         console.warn('[Tables] restaurant_tables bulkCreate error:', err);
@@ -523,6 +657,17 @@ export const api = {
       }
     },
     updateStatus: async (id: string, status: 'available' | 'occupied' | 'reserved' | 'cleaning') => {
+      if (isDesktop() || !offline.isOnline()) {
+        const tables = await offline.getCachedTables();
+        const index = tables.findIndex((t: any) => t.id === id);
+        if (index !== -1) {
+          tables[index].status = status;
+          await offline.cacheTables(tables);
+          return tables[index];
+        }
+        return null;
+      }
+
       try {
         const { data, error } = await supabase
           .from('restaurant_tables')
@@ -530,10 +675,7 @@ export const api = {
           .eq('id', id)
           .select()
           .single();
-        if (error) {
-          console.warn('[Tables] updateStatus failed:', error.message);
-          return null;
-        }
+        if (error) throw error;
         return data;
       } catch (err) {
         console.warn('[Tables] restaurant_tables updateStatus error:', err);
@@ -541,6 +683,21 @@ export const api = {
       }
     },
     clearReserved: async () => {
+      if (isDesktop() || !offline.isOnline()) {
+        const tables = await offline.getCachedTables();
+        let modified = false;
+        for (const t of tables) {
+          if (t.status === 'reserved') {
+            t.status = 'available';
+            modified = true;
+          }
+        }
+        if (modified) {
+          await offline.cacheTables(tables);
+        }
+        return;
+      }
+
       try {
         const { error } = await supabase
           .from('restaurant_tables')
@@ -554,6 +711,15 @@ export const api = {
   },
   staff: {
     getAll: async () => {
+      if (isDesktop() || !offline.isOnline()) {
+        const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
+        return localUsers.map((u: any) => ({
+          id: u.id,
+          name: u.full_name,
+          role: u.role || 'cashier'
+        }));
+      }
+
       const { data, error } = await supabase
         .from('staff')
         .select('*')
@@ -562,6 +728,24 @@ export const api = {
       return data;
     },
     create: async (staff: { name: string; role?: string }) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
+        const newUser = {
+          id: crypto.randomUUID(),
+          email: `${staff.name.toLowerCase().replace(/\s+/g, '')}@offline.pos`,
+          password: 'password123',
+          full_name: staff.name,
+          role: staff.role || 'cashier'
+        };
+        localUsers.push(newUser);
+        localStorage.setItem('pos_local_users', JSON.stringify(localUsers));
+        return {
+          id: newUser.id,
+          name: newUser.full_name,
+          role: newUser.role
+        };
+      }
+
       const { data, error } = await supabase
         .from('staff')
         .insert(staff)
@@ -571,6 +755,13 @@ export const api = {
       return data;
     },
     delete: async (id: string) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
+        const filtered = localUsers.filter((u: any) => u.id !== id);
+        localStorage.setItem('pos_local_users', JSON.stringify(filtered));
+        return;
+      }
+
       const { error } = await supabase
         .from('staff')
         .delete()
@@ -580,6 +771,10 @@ export const api = {
   },
   drivers: {
     getAll: async () => {
+      if (isDesktop() || !offline.isOnline()) {
+        return await offline.getCachedDrivers();
+      }
+
       const { data, error } = await supabase
         .from('delivery_drivers')
         .select('*')
@@ -588,6 +783,19 @@ export const api = {
       return data;
     },
     create: async (driver: { name: string; phone?: string; vehicle_type?: string }) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const drivers = await offline.getCachedDrivers();
+        const newDriver = {
+          id: crypto.randomUUID(),
+          name: driver.name,
+          phone: driver.phone || '0000000000',
+          vehicle_type: driver.vehicle_type || 'Bike'
+        };
+        drivers.push(newDriver);
+        await offline.cacheDrivers(drivers);
+        return newDriver;
+      }
+
       const { data, error } = await supabase
         .from('delivery_drivers')
         .insert({
@@ -601,6 +809,13 @@ export const api = {
       return data;
     },
     delete: async (id: string) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const drivers = await offline.getCachedDrivers();
+        const filtered = drivers.filter((d: any) => d.id !== id);
+        await offline.cacheDrivers(filtered);
+        return;
+      }
+
       const { error } = await supabase
         .from('delivery_drivers')
         .delete()
@@ -1077,8 +1292,15 @@ export const api = {
       };
 
       // Force offline for desktop app
-      if (isDesktop()) {
-        return enqueueOfflineUpdate();
+      if (isDesktop() && window.electronAPI) {
+        console.log('[SQLite] Updating order and items locally');
+        await window.electronAPI.updateItems(orderId, items, safeOrder.total_amount);
+        await window.electronAPI.updateStatus(orderId, safeOrder.status);
+        return { 
+          id: orderId, 
+          status: safeOrder.status,
+          total_amount: safeOrder.total_amount
+        };
       }
 
       if (!offline.isOnline()) {

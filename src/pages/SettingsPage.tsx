@@ -14,6 +14,8 @@ import { api } from '@/services/api';
 import { toast } from 'sonner';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { isDesktop } from '@/lib/env';
+import * as offline from '@/services/offlineStore';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
@@ -73,7 +75,7 @@ const SettingsPage = () => {
 
   const { data: staffMembers = [], isLoading: isLoadingStaff } = useQuery({
     queryKey: ['staff', tenant?.id],
-    queryFn: () => api.profiles.getByRestaurant(tenant!.id),
+    queryFn: () => api.profiles.getByTenant(tenant!.id),
     enabled: !!tenant?.id && isAdmin,
   });
 
@@ -141,6 +143,27 @@ const SettingsPage = () => {
 
   const updateRestaurantMutation = useMutation({
     mutationFn: async (payload: Record<string, any>) => {
+      // Offline/Desktop: update local cached tenant
+      if (isDesktop()) {
+        const cached = offline.getCachedTenant();
+        const updated = { ...cached, ...({} as any) };
+        if (payload.name !== undefined) updated.restaurant_name = payload.name;
+        if (payload.logo_url !== undefined) updated.logo_url = payload.logo_url;
+        if (payload.address !== undefined) updated.address = payload.address;
+        if (payload.city !== undefined) updated.city = payload.city;
+        if (payload.phone !== undefined) updated.phone = payload.phone;
+        if (payload.receipt_footer !== undefined) updated.receipt_footer = payload.receipt_footer;
+        if (payload.bill_footer !== undefined) updated.bill_footer = payload.bill_footer;
+        if (payload.tax_id !== undefined) updated.tax_id = payload.tax_id;
+        if (payload.website !== undefined) updated.website = payload.website;
+        if (payload.tax_rate !== undefined) updated.tax_rate = payload.tax_rate;
+        if (payload.tax_name !== undefined) updated.tax_name = payload.tax_name;
+        if (payload.default_cashier_name !== undefined) updated.default_cashier_name = payload.default_cashier_name;
+        if (payload.enabled_payment_methods !== undefined) updated.enabled_payment_methods = payload.enabled_payment_methods;
+        offline.cacheTenant(updated);
+        return;
+      }
+
       if (!tenant?.id) throw new Error('No restaurant selected');
       
       console.log('Updating settings for tenant ID:', tenant.id, 'Payload:', payload);
@@ -221,6 +244,24 @@ const SettingsPage = () => {
 
     try {
       setIsUploadingLogo(true);
+
+      // Offline/Desktop: convert to Base64 and save locally
+      if (isDesktop()) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64Url = reader.result as string;
+          setLogoUrl(base64Url);
+          updateRestaurantMutation.mutate({ logo_url: base64Url });
+          setIsUploadingLogo(false);
+        };
+        reader.onerror = () => {
+          toast.error('Failed to read logo file');
+          setIsUploadingLogo(false);
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+
       const fileExt = file.name.split('.').pop();
       const fileName = `${tenant.id}-${Date.now()}.${fileExt}`;
       const filePath = fileName;

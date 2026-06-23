@@ -15,6 +15,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cacheProducts: (products) => ipcRenderer.invoke('db:cache-products', products),
   getCachedProducts: () => ipcRenderer.invoke('db:get-cached-products'),
 
+  // Key-value cache store
+  getItem: (key) => ipcRenderer.invoke('db:get-item', key),
+  setItem: (key, value) => ipcRenderer.invoke('db:set-item', key, value),
+  removeItem: (key) => ipcRenderer.invoke('db:remove-item', key),
+  clearAllToday: () => ipcRenderer.invoke('db:clear-all-today'),
+
   // Environment info
   isDesktop: true,
   appVersion: process.env.npm_package_version

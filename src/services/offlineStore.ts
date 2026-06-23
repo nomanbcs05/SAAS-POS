@@ -14,16 +14,28 @@ const CACHE_KEYS = {
 
 export const isOnline = () => {
   if (typeof navigator === 'undefined') return false;
+  // If running in Desktop app, force offline mode to run everything locally
+  if (typeof window !== 'undefined' && window.electronAPI) {
+    return false;
+  }
   return navigator.onLine;
 };
 
 // Categories
-export const cacheCategories = (categories: any[]) => {
-  localStorage.setItem(CACHE_KEYS.CATEGORIES, JSON.stringify(categories));
+export const cacheCategories = async (categories: any[]) => {
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.setItem === 'function') {
+    await window.electronAPI.setItem(CACHE_KEYS.CATEGORIES, JSON.stringify(categories));
+  } else {
+    localStorage.setItem(CACHE_KEYS.CATEGORIES, JSON.stringify(categories));
+  }
 };
 
-export const getCachedCategories = () => {
+export const getCachedCategories = async () => {
   try {
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.getItem === 'function') {
+      const val = await window.electronAPI.getItem(CACHE_KEYS.CATEGORIES);
+      return JSON.parse(val || '[]');
+    }
     return JSON.parse(localStorage.getItem(CACHE_KEYS.CATEGORIES) || '[]');
   } catch {
     return [];
@@ -31,12 +43,20 @@ export const getCachedCategories = () => {
 };
 
 // Products
-export const cacheProducts = (products: any[]) => {
-  localStorage.setItem(CACHE_KEYS.PRODUCTS, JSON.stringify(products));
+export const cacheProducts = async (products: any[]) => {
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.setItem === 'function') {
+    await window.electronAPI.setItem(CACHE_KEYS.PRODUCTS, JSON.stringify(products));
+  } else {
+    localStorage.setItem(CACHE_KEYS.PRODUCTS, JSON.stringify(products));
+  }
 };
 
-export const getCachedProducts = () => {
+export const getCachedProducts = async () => {
   try {
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.getItem === 'function') {
+      const val = await window.electronAPI.getItem(CACHE_KEYS.PRODUCTS);
+      return JSON.parse(val || '[]');
+    }
     return JSON.parse(localStorage.getItem(CACHE_KEYS.PRODUCTS) || '[]');
   } catch {
     return [];
@@ -44,13 +64,63 @@ export const getCachedProducts = () => {
 };
 
 // Customers
-export const cacheCustomers = (customers: any[]) => {
-  localStorage.setItem(CACHE_KEYS.CUSTOMERS, JSON.stringify(customers));
+export const cacheCustomers = async (customers: any[]) => {
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.setItem === 'function') {
+    await window.electronAPI.setItem(CACHE_KEYS.CUSTOMERS, JSON.stringify(customers));
+  } else {
+    localStorage.setItem(CACHE_KEYS.CUSTOMERS, JSON.stringify(customers));
+  }
 };
 
-export const getCachedCustomers = () => {
+export const getCachedCustomers = async () => {
   try {
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.getItem === 'function') {
+      const val = await window.electronAPI.getItem(CACHE_KEYS.CUSTOMERS);
+      return JSON.parse(val || '[]');
+    }
     return JSON.parse(localStorage.getItem(CACHE_KEYS.CUSTOMERS) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+// Tables
+export const cacheTables = async (tables: any[]) => {
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.setItem === 'function') {
+    await window.electronAPI.setItem('pos_offline_tables', JSON.stringify(tables));
+  } else {
+    localStorage.setItem('pos_offline_tables', JSON.stringify(tables));
+  }
+};
+
+export const getCachedTables = async () => {
+  try {
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.getItem === 'function') {
+      const val = await window.electronAPI.getItem('pos_offline_tables');
+      return JSON.parse(val || '[]');
+    }
+    return JSON.parse(localStorage.getItem('pos_offline_tables') || '[]');
+  } catch {
+    return [];
+  }
+};
+
+// Drivers
+export const cacheDrivers = async (drivers: any[]) => {
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.setItem === 'function') {
+    await window.electronAPI.setItem('pos_offline_drivers', JSON.stringify(drivers));
+  } else {
+    localStorage.setItem('pos_offline_drivers', JSON.stringify(drivers));
+  }
+};
+
+export const getCachedDrivers = async () => {
+  try {
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.getItem === 'function') {
+      const val = await window.electronAPI.getItem('pos_offline_drivers');
+      return JSON.parse(val || '[]');
+    }
+    return JSON.parse(localStorage.getItem('pos_offline_drivers') || '[]');
   } catch {
     return [];
   }

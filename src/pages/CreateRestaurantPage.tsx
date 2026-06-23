@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Building2, Loader2, Rocket, Store } from "lucide-react";
 import { toast } from "sonner";
 import { useMultiTenant } from "@/hooks/useMultiTenant";
+import { isDesktop } from '@/lib/env';
+import * as offline from '@/services/offlineStore';
 
 const CreateRestaurantPage = () => {
   const navigate = useNavigate();
@@ -36,6 +38,30 @@ const CreateRestaurantPage = () => {
 
     setLoading(true);
     try {
+      // Offline/Desktop: create tenant locally
+      if (isDesktop()) {
+        const tenantId = 'offline-tenant';
+        const newTenant = {
+          id: tenantId,
+          restaurant_name: name,
+          plan_type: 'offline',
+          billing_status: 'active',
+          default_cashier_name: 'Cashier'
+        };
+        offline.cacheTenant(newTenant);
+        
+        // Update cached profile with tenant
+        const cachedProfile = offline.getCachedProfile();
+        if (cachedProfile) {
+          offline.cacheProfile({ ...cachedProfile, tenant_id: tenantId });
+        }
+        
+        toast.success('Restaurant created successfully! Welcome aboard.');
+        navigate('/');
+        window.location.reload();
+        setLoading(false);
+        return;
+      }
       if (!session?.user?.id) {
         toast.error("You must be logged in to create a restaurant.");
         setLoading(false);

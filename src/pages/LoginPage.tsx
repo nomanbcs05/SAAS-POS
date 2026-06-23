@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { isDesktop } from '@/lib/env';
+import * as offline from '@/services/offlineStore';
 
 type Role = "admin" | "cashier" | "cashier2";
 
@@ -62,6 +64,76 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
+      if (isDesktop()) {
+        // Offline local authentication
+        // Get or initialize local users list
+        const usersRaw = localStorage.getItem('pos_local_users');
+        let users: Array<{email: string; password: string; full_name: string; role: string}> = usersRaw ? JSON.parse(usersRaw) : [];
+
+        // Seed default admin if no users exist
+        if (users.length === 0) {
+          users = [{ email: 'admin@pos.com', password: 'admin123', full_name: 'Administrator', role: 'admin' }];
+          localStorage.setItem('pos_local_users', JSON.stringify(users));
+        }
+
+        if (isRegistering) {
+          if (!fullName.trim()) {
+            toast.error('Please enter your full name');
+            setLoading(false);
+            return;
+          }
+          // Check duplicate
+          if (users.some(u => u.email === email)) {
+            toast.error('An account with this email already exists');
+            setLoading(false);
+            return;
+          }
+          users.push({ email, password, full_name: fullName, role: 'cashier' });
+          localStorage.setItem('pos_local_users', JSON.stringify(users));
+          toast.success('Account created! Please log in.');
+          setIsRegistering(false);
+          setLoading(false);
+          return;
+        }
+
+        // Login check
+        const user = users.find(u => u.email === email && u.password === password);
+        if (!user) {
+          toast.error('Invalid email or password. Please try again.');
+          setLoading(false);
+          return;
+        }
+
+        // Create offline session & profile
+        const fakeUserId = 'local-' + btoa(email).replace(/[^a-zA-Z0-9]/g, '');
+        const fakeSession = { user: { id: fakeUserId, email }, expires_at: 9999999999 };
+        const fakeProfile = { id: fakeUserId, full_name: user.full_name, role: user.role as any, email, tenant_id: 'offline-tenant' };
+
+        offline.cacheSession(fakeSession);
+        offline.cacheProfile(fakeProfile);
+
+        // Initialize default tenant if not present
+        const existingTenant = offline.getCachedTenant();
+        if (!existingTenant) {
+          offline.cacheTenant({
+            id: 'offline-tenant',
+            restaurant_name: 'My Restaurant',
+            plan_type: 'offline',
+            billing_status: 'active',
+            default_cashier_name: user.full_name
+          });
+        }
+
+        const newSavedUsers = { ...savedUsers, [role]: email };
+        localStorage.setItem('pos_saved_users', JSON.stringify(newSavedUsers));
+        localStorage.setItem('active_staff_name', staffDisplayName);
+
+        toast.success(`Welcome, ${user.full_name}!`);
+        navigate('/');
+        setLoading(false);
+        return;
+      }
+
       if (isRegistering) {
         // Handle Registration
         if (!fullName.trim()) {

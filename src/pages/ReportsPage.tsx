@@ -27,6 +27,7 @@ import DailySummary from '@/components/pos/DailySummary';
 import ProductSalesSummary from '@/components/pos/ProductSalesSummary';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { isDesktop } from '@/lib/env';
 import { 
   startOfDay, 
   startOfWeek, 
@@ -114,11 +115,14 @@ const ReportsPage = () => {
       api.registers.close(id, amount, 'Shift ended by cashier'),
     onSuccess: async () => {
       toast.success('Shift ended successfully');
-      // Clear local state and log out
       localStorage.removeItem("pos_local_user");
       localStorage.removeItem("pos_daily_counter");
       localStorage.removeItem("pos_session_id");
-      await supabase.auth.signOut();
+      localStorage.removeItem("pos_offline_session");
+      localStorage.removeItem("pos_offline_profile");
+      if (!isDesktop()) {
+        await supabase.auth.signOut();
+      }
       navigate("/auth");
     },
     onError: (err: any) => {
