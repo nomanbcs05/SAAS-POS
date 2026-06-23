@@ -77,34 +77,42 @@ export default function StaffManagementPage() {
 
   // Queries
   const { data: staffList = [], isLoading: isLoadingStaff } = useQuery({
-    queryKey: ['staff', tenant?.id],
+    queryKey: ['staff-mgmt', tenant?.id],
     queryFn: () => staffManagementApi.staff.getAll(tenant?.id),
     enabled: !!tenant?.id,
+    retry: 0,
+    refetchOnWindowFocus: false,
   });
 
   const { data: attendanceList = [], isLoading: isLoadingAttendance } = useQuery({
-    queryKey: ['attendance', selectedDate, tenant?.id],
+    queryKey: ['staff-attendance', selectedDate, tenant?.id],
     queryFn: () => staffManagementApi.attendance.getByDate(selectedDate, tenant?.id),
     enabled: !!tenant?.id && activeTab === 'attendance',
+    retry: 0,
+    refetchOnWindowFocus: false,
   });
 
   const { data: calculatedPayrolls = [], isLoading: isLoadingPayroll, refetch: refetchPayroll } = useQuery({
-    queryKey: ['payroll', selectedMonth, tenant?.id],
+    queryKey: ['staff-payroll', selectedMonth, tenant?.id],
     queryFn: () => staffManagementApi.payroll.calculate(selectedMonth, tenant?.id),
     enabled: !!tenant?.id && activeTab === 'payroll',
+    retry: 0,
+    refetchOnWindowFocus: false,
   });
 
   const { data: vouchersList = [], isLoading: isLoadingVouchers } = useQuery({
-    queryKey: ['vouchers', selectedMonth, tenant?.id],
+    queryKey: ['staff-vouchers', selectedMonth, tenant?.id],
     queryFn: () => staffManagementApi.vouchers.getByMonth(selectedMonth, tenant?.id),
     enabled: !!tenant?.id && activeTab === 'vouchers',
+    retry: 0,
+    refetchOnWindowFocus: false,
   });
 
   // Mutations
   const createStaffMutation = useMutation({
     mutationFn: (newStaff: Omit<Staff, 'id' | 'created_at'>) => staffManagementApi.staff.create(newStaff),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-mgmt'] });
       toast.success('Staff member added successfully');
       setIsStaffModalOpen(false);
       resetStaffForm();
@@ -115,7 +123,7 @@ export default function StaffManagementPage() {
   const updateStaffMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Staff> }) => staffManagementApi.staff.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-mgmt'] });
       toast.success('Staff member updated successfully');
       setIsStaffModalOpen(false);
       setEditingStaff(null);
@@ -127,7 +135,7 @@ export default function StaffManagementPage() {
   const deleteStaffMutation = useMutation({
     mutationFn: (id: string) => staffManagementApi.staff.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-mgmt'] });
       toast.success('Staff member deleted successfully');
       setIsDeleteConfirmOpen(false);
       setStaffToDelete(null);
@@ -138,7 +146,7 @@ export default function StaffManagementPage() {
   const saveAttendanceMutation = useMutation({
     mutationFn: (records: StaffAttendance[]) => staffManagementApi.attendance.saveDaily(records),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-attendance'] });
       toast.success('Daily attendance saved successfully');
     },
     onError: (err: any) => toast.error('Error saving attendance: ' + err.message)
@@ -147,7 +155,7 @@ export default function StaffManagementPage() {
   const savePayrollMutation = useMutation({
     mutationFn: (records: StaffPayroll[]) => staffManagementApi.payroll.save(records),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['payroll'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-payroll'] });
       toast.success('Payroll calculations saved');
     },
     onError: (err: any) => toast.error('Error saving payroll: ' + err.message)
@@ -157,8 +165,8 @@ export default function StaffManagementPage() {
     mutationFn: (vouchers: Omit<PayrollVoucher, 'id' | 'created_at' | 'staff_name' | 'staff_role'>[]) => 
       staffManagementApi.vouchers.createVouchers(vouchers),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vouchers'] });
-      queryClient.invalidateQueries({ queryKey: ['payroll'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-vouchers'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-payroll'] });
       toast.success('Payroll voucher generated successfully');
     },
     onError: (err: any) => toast.error('Error generating voucher: ' + err.message)
@@ -168,7 +176,7 @@ export default function StaffManagementPage() {
     mutationFn: ({ id, status }: { id: string; status: 'Paid' | 'Pending' }) => 
       staffManagementApi.vouchers.updateStatus(id, status),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-vouchers'] });
       toast.success('Voucher status updated successfully');
     },
     onError: (err: any) => toast.error('Error updating status: ' + err.message)
