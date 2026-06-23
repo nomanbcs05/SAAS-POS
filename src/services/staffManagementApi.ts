@@ -67,29 +67,35 @@ const OFFLINE_KEYS = {
 
 // Rate limiting toast notifications
 let lastToastTime = 0;
-const warnMissingTables = (tableName: string) => {
+const warnMissingTables = (tableName: string, details?: string) => {
   const now = Date.now();
-  if (now - lastToastTime > 10000) { // Show at most once every 10 seconds
-    toast.warning(`Table "${tableName}" not found in Supabase. Running in local storage mode.`, {
-      description: "Please run the migration SQL script in your Supabase dashboard to sync online."
+  if (now - lastToastTime > 15000) { // Show at most once every 15 seconds
+    toast.warning(`Running in local storage mode for "${tableName}".`, {
+      description: details || "Please check your Supabase schema and run the migration SQL script."
     });
     lastToastTime = now;
   }
-  console.warn(`[StaffManagement] Supabase table "${tableName}" does not exist. Falling back to offline local storage.`);
+  console.warn(`[StaffManagement] Supabase table "${tableName}" error. Falling back to offline local storage:`, details);
 };
 
-// Check if error is related to missing database tables
-const isMissingTableError = (error: any): boolean => {
+// Check if error warrants falling back to local storage
+const shouldFallbackToOffline = (error: any): boolean => {
   if (!error) return false;
   const message = String(error.message || '').toLowerCase();
   const code = String(error.code || '');
+  const status = Number(error.status || 0);
+  
   return (
-    error.status === 404 || 
-    code === '42P01' || 
+    status === 404 || 
+    status === 400 || // Bad Request (stale schema cache / mismatch)
+    code === '42P01' || // Undefined table
+    code === '42703' || // Undefined column
     code === 'PGRST116' ||
+    code === 'PGRST200' ||
     message.includes('not found') || 
     message.includes('does not exist') || 
-    message.includes('relation')
+    message.includes('relation') ||
+    message.includes('column')
   );
 };
 
@@ -125,16 +131,16 @@ export const staffManagementApi = {
         
         const { data, error } = await query.order('name');
         if (error) {
-          if (isMissingTableError(error)) {
-            warnMissingTables('staff');
+          if (shouldFallbackToOffline(error)) {
+            warnMissingTables('staff', error.message);
             return getLocal();
           }
           throw error;
         }
         return (data || []) as unknown as Staff[];
       } catch (err) {
-        if (isMissingTableError(err)) {
-          warnMissingTables('staff');
+        if (shouldFallbackToOffline(err)) {
+          warnMissingTables('staff', (err as any).message);
           return getLocal();
         }
         throw err;
@@ -181,16 +187,16 @@ export const staffManagementApi = {
           .select()
           .single();
         if (error) {
-          if (isMissingTableError(error)) {
-            warnMissingTables('staff');
+          if (shouldFallbackToOffline(error)) {
+            warnMissingTables('staff', error.message);
             return saveLocal();
           }
           throw error;
         }
         return data as unknown as Staff;
       } catch (err) {
-        if (isMissingTableError(err)) {
-          warnMissingTables('staff');
+        if (shouldFallbackToOffline(err)) {
+          warnMissingTables('staff', (err as any).message);
           return saveLocal();
         }
         throw err;
@@ -237,16 +243,16 @@ export const staffManagementApi = {
           .select()
           .single();
         if (error) {
-          if (isMissingTableError(error)) {
-            warnMissingTables('staff');
+          if (shouldFallbackToOffline(error)) {
+            warnMissingTables('staff', error.message);
             return updateLocal();
           }
           throw error;
         }
         return data as unknown as Staff;
       } catch (err) {
-        if (isMissingTableError(err)) {
-          warnMissingTables('staff');
+        if (shouldFallbackToOffline(err)) {
+          warnMissingTables('staff', (err as any).message);
           return updateLocal();
         }
         throw err;
@@ -270,15 +276,15 @@ export const staffManagementApi = {
           .delete()
           .eq('id', id);
         if (error) {
-          if (isMissingTableError(error)) {
-            warnMissingTables('staff');
+          if (shouldFallbackToOffline(error)) {
+            warnMissingTables('staff', error.message);
             return deleteLocal();
           }
           throw error;
         }
       } catch (err) {
-        if (isMissingTableError(err)) {
-          warnMissingTables('staff');
+        if (shouldFallbackToOffline(err)) {
+          warnMissingTables('staff', (err as any).message);
           return deleteLocal();
         }
         throw err;
@@ -306,16 +312,16 @@ export const staffManagementApi = {
         
         const { data, error } = await query;
         if (error) {
-          if (isMissingTableError(error)) {
-            warnMissingTables('staff_attendance');
+          if (shouldFallbackToOffline(error)) {
+            warnMissingTables('staff_attendance', error.message);
             return getLocal();
           }
           throw error;
         }
         return (data || []) as unknown as StaffAttendance[];
       } catch (err) {
-        if (isMissingTableError(err)) {
-          warnMissingTables('staff_attendance');
+        if (shouldFallbackToOffline(err)) {
+          warnMissingTables('staff_attendance', (err as any).message);
           return getLocal();
         }
         throw err;
@@ -345,16 +351,16 @@ export const staffManagementApi = {
         
         const { data, error } = await query;
         if (error) {
-          if (isMissingTableError(error)) {
-            warnMissingTables('staff_attendance');
+          if (shouldFallbackToOffline(error)) {
+            warnMissingTables('staff_attendance', error.message);
             return getLocal();
           }
           throw error;
         }
         return (data || []) as unknown as StaffAttendance[];
       } catch (err) {
-        if (isMissingTableError(err)) {
-          warnMissingTables('staff_attendance');
+        if (shouldFallbackToOffline(err)) {
+          warnMissingTables('staff_attendance', (err as any).message);
           return getLocal();
         }
         throw err;
@@ -389,16 +395,16 @@ export const staffManagementApi = {
           .upsert(records, { onConflict: 'staff_id,date' })
           .select();
         if (error) {
-          if (isMissingTableError(error)) {
-            warnMissingTables('staff_attendance');
+          if (shouldFallbackToOffline(error)) {
+            warnMissingTables('staff_attendance', error.message);
             return saveLocal();
           }
           throw error;
         }
         return data as unknown as StaffAttendance[];
       } catch (err) {
-        if (isMissingTableError(err)) {
-          warnMissingTables('staff_attendance');
+        if (shouldFallbackToOffline(err)) {
+          warnMissingTables('staff_attendance', (err as any).message);
           return saveLocal();
         }
         throw err;
@@ -426,16 +432,16 @@ export const staffManagementApi = {
         
         const { data, error } = await query;
         if (error) {
-          if (isMissingTableError(error)) {
-            warnMissingTables('staff_payroll');
+          if (shouldFallbackToOffline(error)) {
+            warnMissingTables('staff_payroll', error.message);
             return getLocal();
           }
           throw error;
         }
         return (data || []) as unknown as StaffPayroll[];
       } catch (err) {
-        if (isMissingTableError(err)) {
-          warnMissingTables('staff_payroll');
+        if (shouldFallbackToOffline(err)) {
+          warnMissingTables('staff_payroll', (err as any).message);
           return getLocal();
         }
         throw err;
@@ -470,16 +476,16 @@ export const staffManagementApi = {
           .upsert(records, { onConflict: 'staff_id,month' })
           .select();
         if (error) {
-          if (isMissingTableError(error)) {
-            warnMissingTables('staff_payroll');
+          if (shouldFallbackToOffline(error)) {
+            warnMissingTables('staff_payroll', error.message);
             return saveLocal();
           }
           throw error;
         }
         return data as unknown as StaffPayroll[];
       } catch (err) {
-        if (isMissingTableError(err)) {
-          warnMissingTables('staff_payroll');
+        if (shouldFallbackToOffline(err)) {
+          warnMissingTables('staff_payroll', (err as any).message);
           return saveLocal();
         }
         throw err;
@@ -594,8 +600,8 @@ export const staffManagementApi = {
           .order('created_at', { ascending: false });
 
         if (error) {
-          if (isMissingTableError(error)) {
-            warnMissingTables('payroll_vouchers');
+          if (shouldFallbackToOffline(error)) {
+            warnMissingTables('payroll_vouchers', error.message);
             return getLocal();
           }
           throw error;
@@ -616,8 +622,8 @@ export const staffManagementApi = {
           staff_role: v.staff?.role || 'Unknown'
         })) as PayrollVoucher[];
       } catch (err) {
-        if (isMissingTableError(err)) {
-          warnMissingTables('payroll_vouchers');
+        if (shouldFallbackToOffline(err)) {
+          warnMissingTables('payroll_vouchers', (err as any).message);
           return getLocal();
         }
         throw err;
@@ -662,8 +668,8 @@ export const staffManagementApi = {
           .select();
 
         if (error) {
-          if (isMissingTableError(error)) {
-            warnMissingTables('payroll_vouchers');
+          if (shouldFallbackToOffline(error)) {
+            warnMissingTables('payroll_vouchers', error.message);
             return saveLocal();
           }
           throw error;
@@ -681,8 +687,8 @@ export const staffManagementApi = {
           };
         });
       } catch (err) {
-        if (isMissingTableError(err)) {
-          warnMissingTables('payroll_vouchers');
+        if (shouldFallbackToOffline(err)) {
+          warnMissingTables('payroll_vouchers', (err as any).message);
           return saveLocal();
         }
         throw err;
@@ -714,15 +720,15 @@ export const staffManagementApi = {
           .eq('id', id);
           
         if (error) {
-          if (isMissingTableError(error)) {
-            warnMissingTables('payroll_vouchers');
+          if (shouldFallbackToOffline(error)) {
+            warnMissingTables('payroll_vouchers', error.message);
             return updateLocal();
           }
           throw error;
         }
       } catch (err) {
-        if (isMissingTableError(err)) {
-          warnMissingTables('payroll_vouchers');
+        if (shouldFallbackToOffline(err)) {
+          warnMissingTables('payroll_vouchers', (err as any).message);
           return updateLocal();
         }
         throw err;
