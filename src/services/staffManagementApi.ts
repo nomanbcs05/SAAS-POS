@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { isDesktop } from '@/lib/env';
 import * as offline from '@/services/offlineStore';
+import { toast } from 'sonner';
 
 export interface Staff {
   id: string;
@@ -64,11 +65,39 @@ const OFFLINE_KEYS = {
   PAYROLL_VOUCHERS: 'pos_offline_payroll_vouchers',
 };
 
+// Rate limiting toast notifications
+let lastToastTime = 0;
+const warnMissingTables = (tableName: string) => {
+  const now = Date.now();
+  if (now - lastToastTime > 10000) { // Show at most once every 10 seconds
+    toast.warning(`Table "${tableName}" not found in Supabase. Running in local storage mode.`, {
+      description: "Please run the migration SQL script in your Supabase dashboard to sync online."
+    });
+    lastToastTime = now;
+  }
+  console.warn(`[StaffManagement] Supabase table "${tableName}" does not exist. Falling back to offline local storage.`);
+};
+
+// Check if error is related to missing database tables
+const isMissingTableError = (error: any): boolean => {
+  if (!error) return false;
+  const message = String(error.message || '').toLowerCase();
+  const code = String(error.code || '');
+  return (
+    error.status === 404 || 
+    code === '42P01' || 
+    code === 'PGRST116' ||
+    message.includes('not found') || 
+    message.includes('does not exist') || 
+    message.includes('relation')
+  );
+};
+
 export const staffManagementApi = {
   // Staff CRUD Operations
   staff: {
     getAll: async (tenantId?: string): Promise<Staff[]> => {
-      if (isDesktop() || !offline.isOnline()) {
+      const getLocal = () => {
         const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
         return localUsers.map((u: any) => ({
           id: u.id,
@@ -82,20 +111,38 @@ export const staffManagementApi = {
           is_active: u.is_active !== false,
           tenant_id: u.tenant_id || tenantId,
         })) as Staff[];
+      };
+
+      if (isDesktop() || !offline.isOnline()) {
+        return getLocal();
       }
 
-      let query = supabase.from('staff').select('*');
-      if (tenantId) {
-        query = query.eq('tenant_id', tenantId);
+      try {
+        let query = supabase.from('staff').select('*');
+        if (tenantId) {
+          query = query.eq('tenant_id', tenantId);
+        }
+        
+        const { data, error } = await query.order('name');
+        if (error) {
+          if (isMissingTableError(error)) {
+            warnMissingTables('staff');
+            return getLocal();
+          }
+          throw error;
+        }
+        return (data || []) as unknown as Staff[];
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          warnMissingTables('staff');
+          return getLocal();
+        }
+        throw err;
       }
-      
-      const { data, error } = await query.order('name');
-      if (error) throw error;
-      return (data || []) as unknown as Staff[];
     },
 
     create: async (staffData: Omit<Staff, 'id' | 'created_at'>): Promise<Staff> => {
-      if (isDesktop() || !offline.isOnline()) {
+      const saveLocal = () => {
         const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
         const newId = crypto.randomUUID();
         const newStaff = {
@@ -121,19 +168,37 @@ export const staffManagementApi = {
           is_active: true,
           tenant_id: staffData.tenant_id,
         };
+      };
+
+      if (isDesktop() || !offline.isOnline()) {
+        return saveLocal();
       }
 
-      const { data, error } = await supabase
-        .from('staff')
-        .insert(staffData)
-        .select()
-        .single();
-      if (error) throw error;
-      return data as unknown as Staff;
+      try {
+        const { data, error } = await supabase
+          .from('staff')
+          .insert(staffData)
+          .select()
+          .single();
+        if (error) {
+          if (isMissingTableError(error)) {
+            warnMissingTables('staff');
+            return saveLocal();
+          }
+          throw error;
+        }
+        return data as unknown as Staff;
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          warnMissingTables('staff');
+          return saveLocal();
+        }
+        throw err;
+      }
     },
 
     update: async (id: string, staffData: Partial<Staff>): Promise<Staff> => {
-      if (isDesktop() || !offline.isOnline()) {
+      const updateLocal = () => {
         const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
         const idx = localUsers.findIndex((u: any) => u.id === id);
         if (idx === -1) throw new Error('Staff member not found');
@@ -158,83 +223,151 @@ export const staffManagementApi = {
           is_active: updated.is_active,
           tenant_id: updated.tenant_id,
         };
+      };
+
+      if (isDesktop() || !offline.isOnline()) {
+        return updateLocal();
       }
 
-      const { data, error } = await supabase
-        .from('staff')
-        .update(staffData)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data as unknown as Staff;
+      try {
+        const { data, error } = await supabase
+          .from('staff')
+          .update(staffData)
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) {
+          if (isMissingTableError(error)) {
+            warnMissingTables('staff');
+            return updateLocal();
+          }
+          throw error;
+        }
+        return data as unknown as Staff;
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          warnMissingTables('staff');
+          return updateLocal();
+        }
+        throw err;
+      }
     },
 
     delete: async (id: string): Promise<void> => {
-      if (isDesktop() || !offline.isOnline()) {
+      const deleteLocal = () => {
         const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
         const filtered = localUsers.filter((u: any) => u.id !== id);
         localStorage.setItem('pos_local_users', JSON.stringify(filtered));
-        return;
+      };
+
+      if (isDesktop() || !offline.isOnline()) {
+        return deleteLocal();
       }
 
-      const { error } = await supabase
-        .from('staff')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
+      try {
+        const { error } = await supabase
+          .from('staff')
+          .delete()
+          .eq('id', id);
+        if (error) {
+          if (isMissingTableError(error)) {
+            warnMissingTables('staff');
+            return deleteLocal();
+          }
+          throw error;
+        }
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          warnMissingTables('staff');
+          return deleteLocal();
+        }
+        throw err;
+      }
     }
   },
 
   // Attendance Operations
   attendance: {
     getByDate: async (date: string, tenantId?: string): Promise<StaffAttendance[]> => {
-      if (isDesktop() || !offline.isOnline()) {
+      const getLocal = () => {
         const list = JSON.parse(localStorage.getItem(OFFLINE_KEYS.STAFF_ATTENDANCE) || '[]');
         return list.filter((a: any) => a.date === date) as StaffAttendance[];
+      };
+
+      if (isDesktop() || !offline.isOnline()) {
+        return getLocal();
       }
 
-      let query = supabase.from('staff_attendance').select('*').eq('date', date);
-      if (tenantId) {
-        query = query.eq('tenant_id', tenantId);
+      try {
+        let query = supabase.from('staff_attendance').select('*').eq('date', date);
+        if (tenantId) {
+          query = query.eq('tenant_id', tenantId);
+        }
+        
+        const { data, error } = await query;
+        if (error) {
+          if (isMissingTableError(error)) {
+            warnMissingTables('staff_attendance');
+            return getLocal();
+          }
+          throw error;
+        }
+        return (data || []) as unknown as StaffAttendance[];
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          warnMissingTables('staff_attendance');
+          return getLocal();
+        }
+        throw err;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as unknown as StaffAttendance[];
     },
 
     getByMonth: async (month: string, tenantId?: string): Promise<StaffAttendance[]> => {
-      if (isDesktop() || !offline.isOnline()) {
+      const getLocal = () => {
         const list = JSON.parse(localStorage.getItem(OFFLINE_KEYS.STAFF_ATTENDANCE) || '[]');
         return list.filter((a: any) => a.date.startsWith(month)) as StaffAttendance[];
+      };
+
+      if (isDesktop() || !offline.isOnline()) {
+        return getLocal();
       }
 
-      let query = supabase
-        .from('staff_attendance')
-        .select('*')
-        .gte('date', `${month}-01`)
-        .lte('date', `${month}-31`); // Simplified date boundary range
-      
-      if (tenantId) {
-        query = query.eq('tenant_id', tenantId);
+      try {
+        let query = supabase
+          .from('staff_attendance')
+          .select('*')
+          .gte('date', `${month}-01`)
+          .lte('date', `${month}-31`);
+        
+        if (tenantId) {
+          query = query.eq('tenant_id', tenantId);
+        }
+        
+        const { data, error } = await query;
+        if (error) {
+          if (isMissingTableError(error)) {
+            warnMissingTables('staff_attendance');
+            return getLocal();
+          }
+          throw error;
+        }
+        return (data || []) as unknown as StaffAttendance[];
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          warnMissingTables('staff_attendance');
+          return getLocal();
+        }
+        throw err;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as unknown as StaffAttendance[];
     },
 
     saveDaily: async (records: StaffAttendance[]): Promise<StaffAttendance[]> => {
-      if (isDesktop() || !offline.isOnline()) {
+      const saveLocal = () => {
         const list = JSON.parse(localStorage.getItem(OFFLINE_KEYS.STAFF_ATTENDANCE) || '[]');
-        
-        // Remove existing records for this date and these staff members to upsert
         const staffIds = records.map(r => r.staff_id);
         const date = records[0]?.date;
         let filtered = list.filter((a: any) => !(a.date === date && staffIds.includes(a.staff_id)));
         
-        // Append new records
         const newRecords = records.map(r => ({
           ...r,
           id: r.id || crypto.randomUUID(),
@@ -244,46 +377,78 @@ export const staffManagementApi = {
         filtered.push(...newRecords);
         localStorage.setItem(OFFLINE_KEYS.STAFF_ATTENDANCE, JSON.stringify(filtered));
         return newRecords as StaffAttendance[];
+      };
+
+      if (isDesktop() || !offline.isOnline()) {
+        return saveLocal();
       }
 
-      // Supabase bulk upsert
-      const { data, error } = await supabase
-        .from('staff_attendance')
-        .upsert(records, { onConflict: 'staff_id,date' })
-        .select();
-      if (error) throw error;
-      return data as unknown as StaffAttendance[];
+      try {
+        const { data, error } = await supabase
+          .from('staff_attendance')
+          .upsert(records, { onConflict: 'staff_id,date' })
+          .select();
+        if (error) {
+          if (isMissingTableError(error)) {
+            warnMissingTables('staff_attendance');
+            return saveLocal();
+          }
+          throw error;
+        }
+        return data as unknown as StaffAttendance[];
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          warnMissingTables('staff_attendance');
+          return saveLocal();
+        }
+        throw err;
+      }
     }
   },
 
   // Payroll Operations
   payroll: {
     getByMonth: async (month: string, tenantId?: string): Promise<StaffPayroll[]> => {
-      if (isDesktop() || !offline.isOnline()) {
+      const getLocal = () => {
         const list = JSON.parse(localStorage.getItem(OFFLINE_KEYS.STAFF_PAYROLL) || '[]');
         return list.filter((p: any) => p.month === month) as StaffPayroll[];
+      };
+
+      if (isDesktop() || !offline.isOnline()) {
+        return getLocal();
       }
 
-      let query = supabase.from('staff_payroll').select('*').eq('month', month);
-      if (tenantId) {
-        query = query.eq('tenant_id', tenantId);
+      try {
+        let query = supabase.from('staff_payroll').select('*').eq('month', month);
+        if (tenantId) {
+          query = query.eq('tenant_id', tenantId);
+        }
+        
+        const { data, error } = await query;
+        if (error) {
+          if (isMissingTableError(error)) {
+            warnMissingTables('staff_payroll');
+            return getLocal();
+          }
+          throw error;
+        }
+        return (data || []) as unknown as StaffPayroll[];
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          warnMissingTables('staff_payroll');
+          return getLocal();
+        }
+        throw err;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as unknown as StaffPayroll[];
     },
 
     save: async (records: StaffPayroll[]): Promise<StaffPayroll[]> => {
-      if (isDesktop() || !offline.isOnline()) {
+      const saveLocal = () => {
         const list = JSON.parse(localStorage.getItem(OFFLINE_KEYS.STAFF_PAYROLL) || '[]');
-        
-        // Remove existing records for this month and these staff members to upsert
         const staffIds = records.map(r => r.staff_id);
         const month = records[0]?.month;
         let filtered = list.filter((p: any) => !(p.month === month && staffIds.includes(p.staff_id)));
         
-        // Append new records
         const newRecords = records.map(r => ({
           ...r,
           id: r.id || crypto.randomUUID(),
@@ -293,40 +458,52 @@ export const staffManagementApi = {
         filtered.push(...newRecords);
         localStorage.setItem(OFFLINE_KEYS.STAFF_PAYROLL, JSON.stringify(filtered));
         return newRecords as StaffPayroll[];
+      };
+
+      if (isDesktop() || !offline.isOnline()) {
+        return saveLocal();
       }
 
-      const { data, error } = await supabase
-        .from('staff_payroll')
-        .upsert(records, { onConflict: 'staff_id,month' })
-        .select();
-      if (error) throw error;
-      return data as unknown as StaffPayroll[];
+      try {
+        const { data, error } = await supabase
+          .from('staff_payroll')
+          .upsert(records, { onConflict: 'staff_id,month' })
+          .select();
+        if (error) {
+          if (isMissingTableError(error)) {
+            warnMissingTables('staff_payroll');
+            return saveLocal();
+          }
+          throw error;
+        }
+        return data as unknown as StaffPayroll[];
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          warnMissingTables('staff_payroll');
+          return saveLocal();
+        }
+        throw err;
+      }
     },
 
     calculate: async (month: string, tenantId?: string): Promise<StaffPayroll[]> => {
-      // 1. Fetch all staff members
       const staffList = await staffManagementApi.staff.getAll(tenantId);
       const activeStaff = staffList.filter(s => s.is_active);
       
-      // 2. Fetch all attendance records for this month
       const attendance = await staffManagementApi.attendance.getByMonth(month, tenantId);
       
-      // Determine total days in month
       const [yearStr, monthStr] = month.split('-');
       const year = parseInt(yearStr);
       const monthIdx = parseInt(monthStr) - 1;
       const totalDays = new Date(year, monthIdx + 1, 0).getDate();
       
-      // 3. Fetch existing payroll calculations (so we don't wipe out manually inputted bonuses/advances)
       const existingPayrolls = await staffManagementApi.payroll.getByMonth(month, tenantId);
       const existingMap = new Map<string, StaffPayroll>();
       existingPayrolls.forEach(p => existingMap.set(p.staff_id, p));
 
-      // Calculate for each staff
       const calculatedPayrolls: StaffPayroll[] = activeStaff.map(s => {
         const staffAtt = attendance.filter(a => a.staff_id === s.id);
         
-        // Count attendance status
         let presentDays = 0;
         let absentDays = 0;
         
@@ -341,7 +518,6 @@ export const staffManagementApi = {
           }
         });
 
-        // Get previously saved values or defaults
         const existing = existingMap.get(s.id);
         const bonus = existing ? Number(existing.bonus || 0) : 0;
         const advances = existing ? Number(existing.advances || 0) : 0;
@@ -351,21 +527,15 @@ export const staffManagementApi = {
         let net_salary = 0;
 
         if (s.salary_type === 'monthly') {
-          // Absent days calculation: daily_rate = base_salary / totalDays
           const dailyRate = base_salary / (totalDays || 30);
-          
-          // Deductions default to absent days * daily rate
           if (!existing) {
             deductions = absentDays * dailyRate;
           }
-          
           net_salary = base_salary - deductions + bonus - advances;
         } else {
-          // Daily Wage calculation
           net_salary = (presentDays * base_salary) + bonus - advances;
         }
 
-        // Round net_salary to 2 decimal places
         net_salary = Math.round(net_salary * 100) / 100;
         deductions = Math.round(deductions * 100) / 100;
 
@@ -374,7 +544,7 @@ export const staffManagementApi = {
           staff_id: s.id,
           month,
           base_salary,
-          present_days: Math.round(presentDays * 2) / 2, // round to nearest half day
+          present_days: Math.round(presentDays * 2) / 2,
           absent_days: Math.round(absentDays * 2) / 2,
           bonus,
           advances,
@@ -391,11 +561,10 @@ export const staffManagementApi = {
   // Voucher Operations
   vouchers: {
     getByMonth: async (month: string, tenantId?: string): Promise<PayrollVoucher[]> => {
-      if (isDesktop() || !offline.isOnline()) {
+      const getLocal = async () => {
         const vouchers = JSON.parse(localStorage.getItem(OFFLINE_KEYS.PAYROLL_VOUCHERS) || '[]');
         const filtered = vouchers.filter((v: any) => v.month === month);
         
-        // Join with staff info
         const staff = await staffManagementApi.staff.getAll(tenantId);
         return filtered.map((v: any) => {
           const s = staff.find(st => st.id === v.staff_id);
@@ -405,43 +574,59 @@ export const staffManagementApi = {
             staff_role: s ? s.role : 'Unknown'
           };
         });
+      };
+
+      if (isDesktop() || !offline.isOnline()) {
+        return getLocal();
       }
 
-      // Perform a join query in Supabase
-      const { data, error } = await supabase
-        .from('payroll_vouchers')
-        .select(`
-          *,
-          staff:staff_id (
-            name,
-            role
-          )
-        `)
-        .eq('month', month)
-        .order('created_at', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('payroll_vouchers')
+          .select(`
+            *,
+            staff:staff_id (
+              name,
+              role
+            )
+          `)
+          .eq('month', month)
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      
-      return (data || []).map((v: any) => ({
-        id: v.id,
-        voucher_id: v.voucher_id,
-        staff_id: v.staff_id,
-        payroll_id: v.payroll_id,
-        month: v.month,
-        net_salary: Number(v.net_salary),
-        payment_status: v.payment_status,
-        payment_date: v.payment_date,
-        tenant_id: v.tenant_id,
-        created_at: v.created_at,
-        staff_name: v.staff?.name || 'Unknown',
-        staff_role: v.staff?.role || 'Unknown'
-      })) as PayrollVoucher[];
+        if (error) {
+          if (isMissingTableError(error)) {
+            warnMissingTables('payroll_vouchers');
+            return getLocal();
+          }
+          throw error;
+        }
+        
+        return (data || []).map((v: any) => ({
+          id: v.id,
+          voucher_id: v.voucher_id,
+          staff_id: v.staff_id,
+          payroll_id: v.payroll_id,
+          month: v.month,
+          net_salary: Number(v.net_salary),
+          payment_status: v.payment_status,
+          payment_date: v.payment_date,
+          tenant_id: v.tenant_id,
+          created_at: v.created_at,
+          staff_name: v.staff?.name || 'Unknown',
+          staff_role: v.staff?.role || 'Unknown'
+        })) as PayrollVoucher[];
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          warnMissingTables('payroll_vouchers');
+          return getLocal();
+        }
+        throw err;
+      }
     },
 
     createVouchers: async (vouchers: Omit<PayrollVoucher, 'id' | 'created_at' | 'staff_name' | 'staff_role'>[]): Promise<PayrollVoucher[]> => {
-      if (isDesktop() || !offline.isOnline()) {
+      const saveLocal = async () => {
         const list = JSON.parse(localStorage.getItem(OFFLINE_KEYS.PAYROLL_VOUCHERS) || '[]');
-        
         const newVouchers = vouchers.map(v => ({
           ...v,
           id: crypto.randomUUID(),
@@ -461,33 +646,51 @@ export const staffManagementApi = {
             staff_role: s ? s.role : 'Unknown'
           };
         });
+      };
+
+      if (isDesktop() || !offline.isOnline()) {
+        return saveLocal();
       }
 
-      const { data, error } = await supabase
-        .from('payroll_vouchers')
-        .insert(vouchers.map(v => ({
-          ...v,
-          payment_date: v.payment_status === 'Paid' ? new Date().toISOString() : null
-        })))
-        .select();
+      try {
+        const { data, error } = await supabase
+          .from('payroll_vouchers')
+          .insert(vouchers.map(v => ({
+            ...v,
+            payment_date: v.payment_status === 'Paid' ? new Date().toISOString() : null
+          })))
+          .select();
 
-      if (error) throw error;
-      
-      const result = data as any[];
-      const staff = await staffManagementApi.staff.getAll(vouchers[0]?.tenant_id || undefined);
-      return result.map(v => {
-        const s = staff.find(st => st.id === v.staff_id);
-        return {
-          ...v,
-          net_salary: Number(v.net_salary),
-          staff_name: s ? s.name : 'Unknown',
-          staff_role: s ? s.role : 'Unknown'
-        };
-      });
+        if (error) {
+          if (isMissingTableError(error)) {
+            warnMissingTables('payroll_vouchers');
+            return saveLocal();
+          }
+          throw error;
+        }
+        
+        const result = data as any[];
+        const staff = await staffManagementApi.staff.getAll(vouchers[0]?.tenant_id || undefined);
+        return result.map(v => {
+          const s = staff.find(st => st.id === v.staff_id);
+          return {
+            ...v,
+            net_salary: Number(v.net_salary),
+            staff_name: s ? s.name : 'Unknown',
+            staff_role: s ? s.role : 'Unknown'
+          };
+        });
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          warnMissingTables('payroll_vouchers');
+          return saveLocal();
+        }
+        throw err;
+      }
     },
 
     updateStatus: async (id: string, status: 'Paid' | 'Pending'): Promise<void> => {
-      if (isDesktop() || !offline.isOnline()) {
+      const updateLocal = () => {
         const list = JSON.parse(localStorage.getItem(OFFLINE_KEYS.PAYROLL_VOUCHERS) || '[]');
         const idx = list.findIndex((v: any) => v.id === id);
         if (idx !== -1) {
@@ -495,18 +698,35 @@ export const staffManagementApi = {
           list[idx].payment_date = status === 'Paid' ? new Date().toISOString() : null;
           localStorage.setItem(OFFLINE_KEYS.PAYROLL_VOUCHERS, JSON.stringify(list));
         }
-        return;
+      };
+
+      if (isDesktop() || !offline.isOnline()) {
+        return updateLocal();
       }
 
-      const { error } = await supabase
-        .from('payroll_vouchers')
-        .update({
-          payment_status: status,
-          payment_date: status === 'Paid' ? new Date().toISOString() : null
-        })
-        .eq('id', id);
-        
-      if (error) throw error;
+      try {
+        const { error } = await supabase
+          .from('payroll_vouchers')
+          .update({
+            payment_status: status,
+            payment_date: status === 'Paid' ? new Date().toISOString() : null
+          })
+          .eq('id', id);
+          
+        if (error) {
+          if (isMissingTableError(error)) {
+            warnMissingTables('payroll_vouchers');
+            return updateLocal();
+          }
+          throw error;
+        }
+      } catch (err) {
+        if (isMissingTableError(err)) {
+          warnMissingTables('payroll_vouchers');
+          return updateLocal();
+        }
+        throw err;
+      }
     }
   }
 };
