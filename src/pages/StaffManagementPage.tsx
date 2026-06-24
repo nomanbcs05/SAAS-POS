@@ -36,119 +36,121 @@ import {
   ExternalLink
 } from 'lucide-react';
 
-const MIGRATION_SQL_STRING = `-- =============================================
--- GENX CLOUD POS - Staff Management Tables Setup
--- =============================================
-
--- Ensure UUID extension exists
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- Create 'staff' table if it does not exist
-CREATE TABLE IF NOT EXISTS public.staff (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'waiter',
-    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- Alter existing 'staff' table to add payroll and basic details columns safely
-ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS phone TEXT;
-ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS email TEXT;
-ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS salary_type TEXT DEFAULT 'monthly' CHECK (salary_type IN ('monthly', 'daily'));
-ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS salary_amount NUMERIC DEFAULT 0;
-ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS joining_date DATE DEFAULT CURRENT_DATE;
-
--- Create 'staff_attendance' table
-CREATE TABLE IF NOT EXISTS public.staff_attendance (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    staff_id UUID REFERENCES public.staff(id) ON DELETE CASCADE,
-    date DATE NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('present', 'absent', 'half_day', 'leave')),
-    check_in TIME,
-    check_out TIME,
-    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    UNIQUE(staff_id, date)
-);
-
--- Create 'staff_payroll' table
-CREATE TABLE IF NOT EXISTS public.staff_payroll (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    staff_id UUID REFERENCES public.staff(id) ON DELETE CASCADE,
-    month TEXT NOT NULL,
-    base_salary NUMERIC NOT NULL DEFAULT 0,
-    present_days INTEGER NOT NULL DEFAULT 0,
-    absent_days INTEGER NOT NULL DEFAULT 0,
-    bonus NUMERIC DEFAULT 0,
-    advances NUMERIC DEFAULT 0,
-    deductions NUMERIC DEFAULT 0,
-    net_salary NUMERIC NOT NULL,
-    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    UNIQUE(staff_id, month)
-);
-
--- Create 'payroll_vouchers' table
-CREATE TABLE IF NOT EXISTS public.payroll_vouchers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    voucher_id TEXT UNIQUE NOT NULL,
-    staff_id UUID REFERENCES public.staff(id) ON DELETE CASCADE,
-    payroll_id UUID REFERENCES public.staff_payroll(id) ON DELETE CASCADE,
-    month TEXT NOT NULL,
-    net_salary NUMERIC NOT NULL,
-    payment_status TEXT NOT NULL CHECK (payment_status IN ('Paid', 'Pending')),
-    payment_date TIMESTAMP WITH TIME ZONE,
-    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- Enable RLS for all tables (including staff, just in case)
-ALTER TABLE public.staff ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.staff_attendance ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.staff_payroll ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.payroll_vouchers ENABLE ROW LEVEL SECURITY;
-
--- Tenant Isolation policies
-DO $$ 
-BEGIN 
-    -- Staff Policies
-    DROP POLICY IF EXISTS "Tenant Isolation" ON public.staff;
-    CREATE POLICY "Tenant Isolation" ON public.staff FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL);
-
-    -- Staff Attendance Policies
-    DROP POLICY IF EXISTS "Tenant Isolation" ON public.staff_attendance;
-    CREATE POLICY "Tenant Isolation" ON public.staff_attendance FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL);
-    
-    -- Staff Payroll Policies
-    DROP POLICY IF EXISTS "Tenant Isolation" ON public.staff_payroll;
-    CREATE POLICY "Tenant Isolation" ON public.staff_payroll FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL);
-    
-    -- Payroll Vouchers Policies
-    DROP POLICY IF EXISTS "Tenant Isolation" ON public.payroll_vouchers;
-    CREATE POLICY "Tenant Isolation" ON public.payroll_vouchers FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL);
-END $$;
-
--- Register tenant_id triggers to automatically assign tenant_id on insert
-DROP TRIGGER IF EXISTS tr_set_tenant_id ON public.staff;
-CREATE TRIGGER tr_set_tenant_id BEFORE INSERT ON public.staff FOR EACH ROW EXECUTE FUNCTION public.set_tenant_id_on_insert();
-
-DROP TRIGGER IF EXISTS tr_set_tenant_id ON public.staff_attendance;
-CREATE TRIGGER tr_set_tenant_id BEFORE INSERT ON public.staff_attendance FOR EACH ROW EXECUTE FUNCTION public.set_tenant_id_on_insert();
-
-DROP TRIGGER IF EXISTS tr_set_tenant_id ON public.staff_payroll;
-CREATE TRIGGER tr_set_tenant_id BEFORE INSERT ON public.staff_payroll FOR EACH ROW EXECUTE FUNCTION public.set_tenant_id_on_insert();
-
-DROP TRIGGER IF EXISTS tr_set_tenant_id ON public.payroll_vouchers;
-CREATE TRIGGER tr_set_tenant_id BEFORE INSERT ON public.payroll_vouchers FOR EACH ROW EXECUTE FUNCTION public.set_tenant_id_on_insert();
-
--- Grant permissions
-GRANT ALL ON public.staff TO anon, authenticated, service_role;
-GRANT ALL ON public.staff_attendance TO anon, authenticated, service_role;
-GRANT ALL ON public.staff_payroll TO anon, authenticated, service_role;
-GRANT ALL ON public.payroll_vouchers TO anon, authenticated, service_role;
-\`;
+const MIGRATION_SQL_STRING = [
+  "-- =============================================\n",
+  "-- GENX CLOUD POS - Staff Management Tables Setup\n",
+  "-- =============================================\n",
+  "\n",
+  "-- Ensure UUID extension exists\n",
+  "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n",
+  "\n",
+  "-- Create 'staff' table if it does not exist\n",
+  "CREATE TABLE IF NOT EXISTS public.staff (\n",
+  "    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n",
+  "    name TEXT NOT NULL,\n",
+  "    role TEXT NOT NULL DEFAULT 'waiter',\n",
+  "    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,\n",
+  "    is_active BOOLEAN DEFAULT TRUE,\n",
+  "    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n",
+  ");\n",
+  "\n",
+  "-- Alter existing 'staff' table to add payroll and basic details columns safely\n",
+  "ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS phone TEXT;\n",
+  "ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS email TEXT;\n",
+  "ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS salary_type TEXT DEFAULT 'monthly' CHECK (salary_type IN ('monthly', 'daily'));\n",
+  "ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS salary_amount NUMERIC DEFAULT 0;\n",
+  "ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS joining_date DATE DEFAULT CURRENT_DATE;\n",
+  "\n",
+  "-- Create 'staff_attendance' table\n",
+  "CREATE TABLE IF NOT EXISTS public.staff_attendance (\n",
+  "    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n",
+  "    staff_id UUID REFERENCES public.staff(id) ON DELETE CASCADE,\n",
+  "    date DATE NOT NULL,\n",
+  "    status TEXT NOT NULL CHECK (status IN ('present', 'absent', 'half_day', 'leave')),\n",
+  "    check_in TIME,\n",
+  "    check_out TIME,\n",
+  "    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,\n",
+  "    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,\n",
+  "    UNIQUE(staff_id, date)\n",
+  ");\n",
+  "\n",
+  "-- Create 'staff_payroll' table\n",
+  "CREATE TABLE IF NOT EXISTS public.staff_payroll (\n",
+  "    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n",
+  "    staff_id UUID REFERENCES public.staff(id) ON DELETE CASCADE,\n",
+  "    month TEXT NOT NULL,\n",
+  "    base_salary NUMERIC NOT NULL DEFAULT 0,\n",
+  "    present_days INTEGER NOT NULL DEFAULT 0,\n",
+  "    absent_days INTEGER NOT NULL DEFAULT 0,\n",
+  "    bonus NUMERIC DEFAULT 0,\n",
+  "    advances NUMERIC DEFAULT 0,\n",
+  "    deductions NUMERIC DEFAULT 0,\n",
+  "    net_salary NUMERIC NOT NULL,\n",
+  "    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,\n",
+  "    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,\n",
+  "    UNIQUE(staff_id, month)\n",
+  ");\n",
+  "\n",
+  "-- Create 'payroll_vouchers' table\n",
+  "CREATE TABLE IF NOT EXISTS public.payroll_vouchers (\n",
+  "    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n",
+  "    voucher_id TEXT UNIQUE NOT NULL,\n",
+  "    staff_id UUID REFERENCES public.staff(id) ON DELETE CASCADE,\n",
+  "    payroll_id UUID REFERENCES public.staff_payroll(id) ON DELETE CASCADE,\n",
+  "    month TEXT NOT NULL,\n",
+  "    net_salary NUMERIC NOT NULL,\n",
+  "    payment_status TEXT NOT NULL CHECK (payment_status IN ('Paid', 'Pending')),\n",
+  "    payment_date TIMESTAMP WITH TIME ZONE,\n",
+  "    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,\n",
+  "    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL\n",
+  ");\n",
+  "\n",
+  "-- Enable RLS for all tables (including staff, just in case)\n",
+  "ALTER TABLE public.staff ENABLE ROW LEVEL SECURITY;\n",
+  "ALTER TABLE public.staff_attendance ENABLE ROW LEVEL SECURITY;\n",
+  "ALTER TABLE public.staff_payroll ENABLE ROW LEVEL SECURITY;\n",
+  "ALTER TABLE public.payroll_vouchers ENABLE ROW LEVEL SECURITY;\n",
+  "\n",
+  "-- Tenant Isolation policies\n",
+  "DO $$ \n",
+  "BEGIN \n",
+  "    -- Staff Policies\n",
+  "    DROP POLICY IF EXISTS \"Tenant Isolation\" ON public.staff;\n",
+  "    CREATE POLICY \"Tenant Isolation\" ON public.staff FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL);\n",
+  "\n",
+  "    -- Staff Attendance Policies\n",
+  "    DROP POLICY IF EXISTS \"Tenant Isolation\" ON public.staff_attendance;\n",
+  "    CREATE POLICY \"Tenant Isolation\" ON public.staff_attendance FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL);\n",
+  "    \n",
+  "    -- Staff Payroll Policies\n",
+  "    DROP POLICY IF EXISTS \"Tenant Isolation\" ON public.staff_payroll;\n",
+  "    CREATE POLICY \"Tenant Isolation\" ON public.staff_payroll FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL);\n",
+  "    \n",
+  "    -- Payroll Vouchers Policies\n",
+  "    DROP POLICY IF EXISTS \"Tenant Isolation\" ON public.payroll_vouchers;\n",
+  "    CREATE POLICY \"Tenant Isolation\" ON public.payroll_vouchers FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL);\n",
+  "END $$;\n",
+  "\n",
+  "-- Register tenant_id triggers to automatically assign tenant_id on insert\n",
+  "DROP TRIGGER IF EXISTS tr_set_tenant_id ON public.staff;\n",
+  "CREATE TRIGGER tr_set_tenant_id BEFORE INSERT ON public.staff FOR EACH ROW EXECUTE FUNCTION public.set_tenant_id_on_insert();\n",
+  "\n",
+  "DROP TRIGGER IF EXISTS tr_set_tenant_id ON public.staff_attendance;\n",
+  "CREATE TRIGGER tr_set_tenant_id BEFORE INSERT ON public.staff_attendance FOR EACH ROW EXECUTE FUNCTION public.set_tenant_id_on_insert();\n",
+  "\n",
+  "DROP TRIGGER IF EXISTS tr_set_tenant_id ON public.staff_payroll;\n",
+  "CREATE TRIGGER tr_set_tenant_id BEFORE INSERT ON public.staff_payroll FOR EACH ROW EXECUTE FUNCTION public.set_tenant_id_on_insert();\n",
+  "\n",
+  "DROP TRIGGER IF EXISTS tr_set_tenant_id ON public.payroll_vouchers;\n",
+  "CREATE TRIGGER tr_set_tenant_id BEFORE INSERT ON public.payroll_vouchers FOR EACH ROW EXECUTE FUNCTION public.set_tenant_id_on_insert();\n",
+  "\n",
+  "-- Grant permissions\n",
+  "GRANT ALL ON public.staff TO anon, authenticated, service_role;\n",
+  "GRANT ALL ON public.staff_attendance TO anon, authenticated, service_role;\n",
+  "GRANT ALL ON public.staff_payroll TO anon, authenticated, service_role;\n",
+  "GRANT ALL ON public.payroll_vouchers TO anon, authenticated, service_role;\n",
+  "\\\n"
+].join("");
 
 export default function StaffManagementPage() {
   const { tenant, isAdmin } = useMultiTenant();
@@ -225,9 +227,9 @@ export default function StaffManagementPage() {
               queryClient.invalidateQueries({ queryKey: ['staff-attendance'] });
               queryClient.invalidateQueries({ queryKey: ['staff-payroll'] });
               queryClient.invalidateQueries({ queryKey: ['staff-vouchers'] });
-              return `Successfully synced ${res.staffCount} staff members and ${res.attendanceCount} attendance records to cloud!`;
+              return "Successfully synced " + (res?.staffCount || 0) + " staff members and " + (res?.attendanceCount || 0) + " attendance records to cloud!";
             },
-            error: (err) => `Sync failed: ${err.message}`
+            error: (err: any) => "Sync failed: " + err.message
           }
         );
       }
@@ -505,7 +507,7 @@ export default function StaffManagementPage() {
     // Generate unique Voucher ID: PV-YYYYMM-XXXX (last 4 chars of staff ID or random)
     const shortId = payroll.staff_id.slice(0, 4).toUpperCase();
     const cleanMonth = selectedMonth.replace('-', '');
-    const voucher_id = `PV-${cleanMonth}-${shortId}`;
+    const voucher_id = "PV-" + cleanMonth + "-" + shortId;
 
     const voucherPayload = {
       voucher_id,
@@ -781,41 +783,45 @@ export default function StaffManagementPage() {
                                   <div className="flex justify-center items-center gap-1">
                                     <button
                                       onClick={() => handleAttendanceChange(staff.id, 'present')}
-                                      className={`px-3 py-1 rounded text-xs font-black uppercase transition ${
-                                        att?.status === 'present' 
-                                          ? 'bg-emerald-500 text-white shadow-sm' 
-                                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                      }`}
+                                      className={
+                                        "px-3 py-1 rounded text-xs font-black uppercase transition " +
+                                        (att?.status === 'present'
+                                          ? 'bg-emerald-500 text-white shadow-sm'
+                                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200')
+                                      }
                                     >
                                       Present
                                     </button>
                                     <button
                                       onClick={() => handleAttendanceChange(staff.id, 'absent')}
-                                      className={`px-3 py-1 rounded text-xs font-black uppercase transition ${
-                                        att?.status === 'absent' 
-                                          ? 'bg-rose-500 text-white shadow-sm' 
-                                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                      }`}
+                                      className={
+                                        "px-3 py-1 rounded text-xs font-black uppercase transition " +
+                                        (att?.status === 'absent'
+                                          ? 'bg-rose-500 text-white shadow-sm'
+                                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200')
+                                      }
                                     >
                                       Absent
                                     </button>
                                     <button
                                       onClick={() => handleAttendanceChange(staff.id, 'half_day')}
-                                      className={`px-3 py-1 rounded text-xs font-black uppercase transition ${
-                                        att?.status === 'half_day' 
-                                          ? 'bg-amber-500 text-white shadow-sm' 
-                                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                      }`}
+                                      className={
+                                        "px-3 py-1 rounded text-xs font-black uppercase transition " +
+                                        (att?.status === 'half_day'
+                                          ? 'bg-amber-500 text-white shadow-sm'
+                                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200')
+                                      }
                                     >
                                       Half Day
                                     </button>
                                     <button
                                       onClick={() => handleAttendanceChange(staff.id, 'leave')}
-                                      className={`px-3 py-1 rounded text-xs font-black uppercase transition ${
-                                        att?.status === 'leave' 
-                                          ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100' 
-                                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                      }`}
+                                      className={
+                                        "px-3 py-1 rounded text-xs font-black uppercase transition " +
+                                        (att?.status === 'leave'
+                                          ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200')
+                                      }
                                     >
                                       Leave
                                     </button>
