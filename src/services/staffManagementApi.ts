@@ -121,10 +121,6 @@ export const probeStaffSchema = async (): Promise<boolean> => {
   // Desktop / offline always use local storage
   if (isDesktop() || !offline.isOnline()) return false;
 
-  // If we already know from a previous probe or 404 this session, skip the HTTP call
-  const alreadyKnown = Object.values(TABLE_OK).some(v => v === false);
-  if (alreadyKnown) return false;
-
   try {
     // Lightweight probe — select 0 rows, just checks the table exists
     const { error } = await supabase
@@ -137,6 +133,10 @@ export const probeStaffSchema = async (): Promise<boolean> => {
       markAllTablesMissing();
       return false;
     }
+
+    // Success! Tables exist — clear any stale "missing" flags from previous sessions
+    Object.keys(TABLE_OK).forEach(t => { TABLE_OK[t] = true; });
+    try { sessionStorage.removeItem(LOCAL_STORAGE_SESSION_KEY); } catch { /* ignore */ }
     return true;
   } catch {
     // Network error, schema error, anything — fall back to local
@@ -150,6 +150,82 @@ const OFFLINE_KEYS = {
   STAFF_ATTENDANCE: 'pos_offline_staff_attendance',
   STAFF_PAYROLL: 'pos_offline_staff_payroll',
   PAYROLL_VOUCHERS: 'pos_offline_payroll_vouchers',
+};
+
+export const syncLocalData = async (tenantId: string): Promise<{ staffCount: number; attendanceCount: number }> => {
+  if (isDesktop() || !offline.isOnline()) {
+    throw new Error('Sync is not available in desktop/offline mode.');
+  }
+
+  // Load local staff
+  const localUsers: any[] = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
+  
+  // Load local attendance
+  const localAttendance: any[] = JSON.parse(localStorage.getItem(OFFLINE_KEYS.STAFF_ATTENDANCE) || '[]');
+
+  if (localUsers.length === 0 && localAttendance.length === 0) {
+    return { staffCount: 0, attendanceCount: 0 };
+  }
+
+  let staffCount = 0;
+  let attendanceCount = 0;
+
+  // 1. Upload staff (using upsert so we don't duplicate on primary key id)
+  if (localUsers.length > 0) {
+    const staffToUpload = localUsers.map(u => ({
+      id: u.id,
+      name: u.full_name || u.name,
+      role: u.role || 'waiter',
+      phone: u.phone || null,
+      email: u.email || null,
+      salary_type: u.salary_type || 'monthly',
+      salary_amount: Number(u.salary_amount || 0),
+      joining_date: u.joining_date || new Date().toISOString().split('T')[0],
+      is_active: u.is_active !== false,
+      tenant_id: u.tenant_id || tenantId,
+    }));
+
+    const { error } = await supabase
+      .from('staff')
+      .upsert(staffToUpload, { onConflict: 'id' });
+
+    if (error) {
+      console.error('[Sync] Staff upsert failed:', error);
+      throw new Error(`Failed to upload staff: ${error.message}`);
+    }
+    staffCount = staffToUpload.length;
+  }
+
+  // 2. Upload attendance
+  if (localAttendance.length > 0) {
+    const attendanceToUpload = localAttendance.map(a => ({
+      id: a.id,
+      staff_id: a.staff_id,
+      date: a.date,
+      status: a.status,
+      check_in: a.check_in || null,
+      check_out: a.check_out || null,
+      tenant_id: a.tenant_id || tenantId,
+    }));
+
+    const { error } = await supabase
+      .from('staff_attendance')
+      .upsert(attendanceToUpload, { onConflict: 'staff_id,date' });
+
+    if (error) {
+      console.error('[Sync] Attendance upsert failed:', error);
+      throw new Error(`Failed to upload attendance: ${error.message}`);
+    }
+    attendanceCount = attendanceToUpload.length;
+  }
+
+  // 3. Clear local storage records
+  localStorage.removeItem('pos_local_users');
+  localStorage.removeItem(OFFLINE_KEYS.STAFF_ATTENDANCE);
+  localStorage.removeItem(OFFLINE_KEYS.STAFF_PAYROLL);
+  localStorage.removeItem(OFFLINE_KEYS.PAYROLL_VOUCHERS);
+
+  return { staffCount, attendanceCount };
 };
 
 // Check if a Supabase error means the table / column is missing

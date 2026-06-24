@@ -16,6 +16,7 @@ import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
 import CreditPage from "./pages/CreditPage";
 import StaffManagementPage from "./pages/StaffManagementPage";
+import InventoryPage from "./modules/inventory/InventoryPage";
 
 import Welcome from "./pages/Welcome";
 import LoginPage from "./pages/LoginPage";
@@ -122,6 +123,12 @@ const AppContent = () => {
           <Route path="/staff-management" element={
             <ProtectedRoute adminOnly={true}>
               <StaffManagementPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/inventory" element={
+            <ProtectedRoute adminOnly={true}>
+              <InventoryPage />
             </ProtectedRoute>
           } />
 

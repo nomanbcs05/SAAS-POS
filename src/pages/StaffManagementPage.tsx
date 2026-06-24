@@ -1,6 +1,6 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { staffManagementApi, probeStaffSchema, Staff, StaffAttendance, StaffPayroll, PayrollVoucher } from '@/services/staffManagementApi';
+import { staffManagementApi, probeStaffSchema, syncLocalData, Staff, StaffAttendance, StaffPayroll, PayrollVoucher } from '@/services/staffManagementApi';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,8 +31,124 @@ import {
   XCircle,
   Clock,
   Briefcase,
-  AlertCircle
+  AlertCircle,
+  Database,
+  ExternalLink
 } from 'lucide-react';
+
+const MIGRATION_SQL_STRING = `-- =============================================
+-- GENX CLOUD POS - Staff Management Tables Setup
+-- =============================================
+
+-- Ensure UUID extension exists
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Create 'staff' table if it does not exist
+CREATE TABLE IF NOT EXISTS public.staff (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'waiter',
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Alter existing 'staff' table to add payroll and basic details columns safely
+ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS salary_type TEXT DEFAULT 'monthly' CHECK (salary_type IN ('monthly', 'daily'));
+ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS salary_amount NUMERIC DEFAULT 0;
+ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS joining_date DATE DEFAULT CURRENT_DATE;
+
+-- Create 'staff_attendance' table
+CREATE TABLE IF NOT EXISTS public.staff_attendance (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    staff_id UUID REFERENCES public.staff(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('present', 'absent', 'half_day', 'leave')),
+    check_in TIME,
+    check_out TIME,
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE(staff_id, date)
+);
+
+-- Create 'staff_payroll' table
+CREATE TABLE IF NOT EXISTS public.staff_payroll (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    staff_id UUID REFERENCES public.staff(id) ON DELETE CASCADE,
+    month TEXT NOT NULL,
+    base_salary NUMERIC NOT NULL DEFAULT 0,
+    present_days INTEGER NOT NULL DEFAULT 0,
+    absent_days INTEGER NOT NULL DEFAULT 0,
+    bonus NUMERIC DEFAULT 0,
+    advances NUMERIC DEFAULT 0,
+    deductions NUMERIC DEFAULT 0,
+    net_salary NUMERIC NOT NULL,
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE(staff_id, month)
+);
+
+-- Create 'payroll_vouchers' table
+CREATE TABLE IF NOT EXISTS public.payroll_vouchers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    voucher_id TEXT UNIQUE NOT NULL,
+    staff_id UUID REFERENCES public.staff(id) ON DELETE CASCADE,
+    payroll_id UUID REFERENCES public.staff_payroll(id) ON DELETE CASCADE,
+    month TEXT NOT NULL,
+    net_salary NUMERIC NOT NULL,
+    payment_status TEXT NOT NULL CHECK (payment_status IN ('Paid', 'Pending')),
+    payment_date TIMESTAMP WITH TIME ZONE,
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Enable RLS for all tables (including staff, just in case)
+ALTER TABLE public.staff ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.staff_attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.staff_payroll ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payroll_vouchers ENABLE ROW LEVEL SECURITY;
+
+-- Tenant Isolation policies
+DO $$ 
+BEGIN 
+    -- Staff Policies
+    DROP POLICY IF EXISTS "Tenant Isolation" ON public.staff;
+    CREATE POLICY "Tenant Isolation" ON public.staff FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL);
+
+    -- Staff Attendance Policies
+    DROP POLICY IF EXISTS "Tenant Isolation" ON public.staff_attendance;
+    CREATE POLICY "Tenant Isolation" ON public.staff_attendance FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL);
+    
+    -- Staff Payroll Policies
+    DROP POLICY IF EXISTS "Tenant Isolation" ON public.staff_payroll;
+    CREATE POLICY "Tenant Isolation" ON public.staff_payroll FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL);
+    
+    -- Payroll Vouchers Policies
+    DROP POLICY IF EXISTS "Tenant Isolation" ON public.payroll_vouchers;
+    CREATE POLICY "Tenant Isolation" ON public.payroll_vouchers FOR ALL USING (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL) WITH CHECK (tenant_id = public.get_auth_tenant_id() OR tenant_id IS NULL);
+END $$;
+
+-- Register tenant_id triggers to automatically assign tenant_id on insert
+DROP TRIGGER IF EXISTS tr_set_tenant_id ON public.staff;
+CREATE TRIGGER tr_set_tenant_id BEFORE INSERT ON public.staff FOR EACH ROW EXECUTE FUNCTION public.set_tenant_id_on_insert();
+
+DROP TRIGGER IF EXISTS tr_set_tenant_id ON public.staff_attendance;
+CREATE TRIGGER tr_set_tenant_id BEFORE INSERT ON public.staff_attendance FOR EACH ROW EXECUTE FUNCTION public.set_tenant_id_on_insert();
+
+DROP TRIGGER IF EXISTS tr_set_tenant_id ON public.staff_payroll;
+CREATE TRIGGER tr_set_tenant_id BEFORE INSERT ON public.staff_payroll FOR EACH ROW EXECUTE FUNCTION public.set_tenant_id_on_insert();
+
+DROP TRIGGER IF EXISTS tr_set_tenant_id ON public.payroll_vouchers;
+CREATE TRIGGER tr_set_tenant_id BEFORE INSERT ON public.payroll_vouchers FOR EACH ROW EXECUTE FUNCTION public.set_tenant_id_on_insert();
+
+-- Grant permissions
+GRANT ALL ON public.staff TO anon, authenticated, service_role;
+GRANT ALL ON public.staff_attendance TO anon, authenticated, service_role;
+GRANT ALL ON public.staff_payroll TO anon, authenticated, service_role;
+GRANT ALL ON public.payroll_vouchers TO anon, authenticated, service_role;
+\`;
 
 export default function StaffManagementPage() {
   const { tenant, isAdmin } = useMultiTenant();
@@ -51,6 +167,7 @@ export default function StaffManagementPage() {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<Staff | null>(null);
+  const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
 
   // Printing state
   const [printingVoucher, setPrintingVoucher] = useState<PayrollVoucher | null>(null);
@@ -84,9 +201,38 @@ export default function StaffManagementPage() {
     queryFn: probeStaffSchema,
     retry: 0,
     refetchOnWindowFocus: false,
-    staleTime: Infinity, // only probe once per browser session
-    gcTime: Infinity,
+    staleTime: 5 * 60 * 1000, // re-probe every 5 min so it picks up new tables after migration
+    gcTime: 10 * 60 * 1000,
   });
+
+  // Auto-sync local data when schema becomes ready
+  useEffect(() => {
+    if (schemaReady && tenant?.id) {
+      const localUsers = localStorage.getItem('pos_local_users');
+      const localAttendance = localStorage.getItem('pos_offline_staff_attendance');
+      
+      const hasLocalStaff = localUsers && JSON.parse(localUsers).length > 0;
+      const hasLocalAttendance = localAttendance && JSON.parse(localAttendance).length > 0;
+
+      if (hasLocalStaff || hasLocalAttendance) {
+        toast.promise(
+          syncLocalData(tenant.id),
+          {
+            loading: 'Syncing local staff data to cloud database...',
+            success: (res) => {
+              // Invalidate queries so the page updates with cloud data
+              queryClient.invalidateQueries({ queryKey: ['staff-mgmt'] });
+              queryClient.invalidateQueries({ queryKey: ['staff-attendance'] });
+              queryClient.invalidateQueries({ queryKey: ['staff-payroll'] });
+              queryClient.invalidateQueries({ queryKey: ['staff-vouchers'] });
+              return `Successfully synced ${res.staffCount} staff members and ${res.attendanceCount} attendance records to cloud!`;
+            },
+            error: (err) => `Sync failed: ${err.message}`
+          }
+        );
+      }
+    }
+  }, [schemaReady, tenant?.id, queryClient]);
 
   // Queries — all gated behind !isCheckingSchema so they only fire
   // after the probe has finished (and pre-set any missing-table flags).
@@ -423,6 +569,32 @@ export default function StaffManagementPage() {
         </header>
 
         <main className="flex-1 overflow-auto p-6">
+          {!isCheckingSchema && !schemaReady && (
+            <Card className="border-amber-200 bg-amber-50/50 shadow-sm mb-6">
+              <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-amber-900 text-sm">Database Sync Disabled (Local Storage Mode)</h4>
+                    <p className="text-xs text-amber-700 mt-1 max-w-2xl font-medium">
+                      The staff database tables were not found in your Supabase project. The application is running in local storage mode. Staff data is saved locally on this browser and will not sync to other devices.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="border-amber-300 hover:bg-amber-100 text-amber-900 text-xs font-bold gap-1.5"
+                    onClick={() => setIsSetupDialogOpen(true)}
+                  >
+                    <Database className="h-3.5 w-3.5" /> Run One-Time Setup
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Tabs value={activeTab} onValueChange={(tab) => {
             setActiveTab(tab);
             setPayrollAdjustments({});
@@ -1060,6 +1232,71 @@ export default function StaffManagementPage() {
                 disabled={deleteStaffMutation.isPending}
               >
                 {deleteStaffMutation.isPending ? 'Deleting...' : 'Delete Permanently'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* MODAL: DATABASE SETUP GUIDE */}
+        <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 font-black uppercase text-lg text-slate-900">
+                <Database className="h-5 w-5 text-primary" /> Setup Staff Management Tables
+              </DialogTitle>
+              <DialogDescription className="font-semibold text-slate-600">
+                Follow these 2 simple steps to enable cloud database synchronization for staff members, attendance, and payroll.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 my-2 text-sm text-slate-700">
+              <div className="border rounded-md p-4 bg-slate-50 space-y-2">
+                <h5 className="font-bold text-slate-800 flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white text-xs font-semibold">1</span>
+                  Open Supabase SQL Editor
+                </h5>
+                <p className="text-xs text-slate-600 pl-7 font-medium">
+                  Click the link below to open the SQL editor in your Supabase dashboard:
+                </p>
+                <div className="pl-7 pt-1">
+                  <a
+                    href="https://supabase.com/dashboard/project/jrzpsrmticjbpobloqej/sql/new"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-black uppercase"
+                  >
+                    Open Supabase SQL Editor <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </div>
+
+              <div className="border rounded-md p-4 bg-slate-50 space-y-2">
+                <h5 className="font-bold text-slate-800 flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white text-xs font-semibold">2</span>
+                  Copy & Run SQL Migration Script
+                </h5>
+                <p className="text-xs text-slate-600 pl-7 font-medium">
+                  Copy the SQL code block below, paste it into the Supabase editor window, and click <strong className="text-slate-800">Run</strong>.
+                </p>
+                <div className="pl-7 relative">
+                  <pre className="text-[10px] bg-slate-900 text-slate-200 p-3 rounded-md overflow-x-auto max-h-60 font-mono">
+                    {MIGRATION_SQL_STRING}
+                  </pre>
+                  <Button
+                    size="sm"
+                    className="absolute right-2 top-2 h-7 px-2.5 text-xs font-bold"
+                    onClick={() => {
+                      navigator.clipboard.writeText(MIGRATION_SQL_STRING);
+                      toast.success("SQL script copied to clipboard!");
+                    }}
+                  >
+                    Copy SQL
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0 border-t pt-4">
+              <Button onClick={() => window.location.reload()} className="w-full sm:w-auto font-bold uppercase">
+                I've run the SQL (Refresh Page)
               </Button>
             </DialogFooter>
           </DialogContent>

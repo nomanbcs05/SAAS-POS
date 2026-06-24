@@ -21,7 +21,8 @@ import {
   Download,
   CheckCircle2,
   Utensils,
-  Wallet
+  Wallet,
+  Boxes
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -110,6 +111,7 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
     { name: 'Customers', href: '/customers', icon: Users, adminOnly: true, management: true },
     { name: 'Credit Ledger', href: '/credit', icon: Wallet, adminOnly: true, management: true },
     { name: 'Staff Management', href: '/staff-management', icon: Users, adminOnly: true, management: true },
+    { name: 'Inventory', href: '/inventory', icon: Boxes, adminOnly: true, management: true },
     { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true, management: true },
     { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true, management: true },
   ].filter(item => {
