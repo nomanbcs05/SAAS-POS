@@ -170,10 +170,7 @@ export default function StaffManagementPage() {
   const [staffToDelete, setStaffToDelete] = useState<Staff | null>(null);
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
 
-  // Printing state
-  const [printingVoucher, setPrintingVoucher] = useState<PayrollVoucher | null>(null);
-  const printRef = useRef<HTMLDivElement>(null);
-
+// Printing state moved to later section (printModalOpen and printingVoucher are defined below)
   // Form states for staff
   const [formName, setFormName] = useState('');
   const [formRole, setFormRole] = useState<'cashier' | 'waiter' | 'chef' | 'cleaner' | 'manager'>('waiter');
@@ -502,45 +499,70 @@ export default function StaffManagementPage() {
     setPayrollAdjustments({}); // clear adjustments after saving
   };
 
-  const handleGenerateVoucher = (payroll: StaffPayroll) => {
+  const handleGenerateVoucher = async (payroll: StaffPayroll) => {
     // Generate unique Voucher ID: PV-YYYYMM-XXXX (last 4 chars of staff ID or random)
     const shortId = payroll.staff_id.slice(0, 4).toUpperCase();
     const cleanMonth = selectedMonth.replace('-', '');
-    const voucher_id = "PV-" + cleanMonth + "-" + shortId;
+    const voucher_id = `PV-${cleanMonth}-${shortId}`;
 
     const voucherPayload = {
       voucher_id,
       staff_id: payroll.staff_id,
-      payroll_id: payroll.id!,
+      // payroll_id will be filled after ensuring payroll is persisted
       month: selectedMonth,
       net_salary: payroll.net_salary,
       payment_status: 'Pending' as const,
       tenant_id: tenant?.id || null
+    } as const;
+
+    // Ensure payroll record exists and has an ID
+    const ensurePayroll = async () => {
+      if (payroll.id) {
+        return payroll.id;
+      }
+      // Save payroll first
+      toast.info('Saving payroll before voucher...');
+      const saved = await savePayrollMutation.mutateAsync([payroll]);
+      // The mutation returns an array of saved payrolls
+      const savedPayroll = saved[0];
+      if (!savedPayroll?.id) {
+        throw new Error('Failed to obtain payroll ID for voucher.');
+      }
+      // Update local state with the new payroll ID so UI reflects it
+      setFinalPayrolls((prev) =>
+        prev.map((p) => (p.staff_id === savedPayroll.staff_id ? savedPayroll : p))
+      );
+      return savedPayroll.id;
     };
 
-    // First save the payroll record if it doesn't have an ID, or simply update payroll and then voucher
-    if (!payroll.id) {
-      // Need to save payroll first to get a foreign key ID
-      toast.info('Saving payroll calculations first...');
-      savePayrollMutation.mutateAsync([payroll]).then((savedList) => {
-        const savedPayroll = savedList[0];
-        if (savedPayroll && savedPayroll.id) {
-          generateVoucherMutation.mutate([{
-            ...voucherPayload,
-            payroll_id: savedPayroll.id
-          }]);
+    try {
+      const payrollId = await ensurePayroll();
+      generateVoucherMutation.mutate([
+        {
+          ...voucherPayload,
+          payroll_id: payrollId
         }
-      });
-    } else {
-      generateVoucherMutation.mutate([voucherPayload]);
+      ]);
+    } catch (e) {
+      console.error(e);
+      toast.error('Could not generate voucher.');
     }
   };
 
+  // State for print modal
+  const [printModalOpen, setPrintModalOpen] = React.useState(false);
+  const [printingVoucher, setPrintingVoucher] = React.useState<PayrollVoucher | null>(null);
+
   const handlePrintVoucher = (voucher: PayrollVoucher) => {
     setPrintingVoucher(voucher);
+    setPrintModalOpen(true);
+  };
+
+  const handlePrint = () => {
+    // Use a short timeout to ensure modal content is rendered
     setTimeout(() => {
-      handlePrint();
-    }, 150);
+      window.print();
+    }, 100);
   };
 
   // Filters

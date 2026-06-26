@@ -115,7 +115,13 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
     { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true, management: true },
     { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true, management: true },
   ].filter(item => {
+    // Hide certain sections for cashier role irrespective of admin status
+    if (profile?.role === 'cashier' && ['Reports', 'Settings', 'Credit Ledger', 'Staff Management'].includes(item.name)) {
+      return false;
+    }
+    // Super admin bypass
     if (item.superAdminOnly) return profile?.role === 'super-admin';
+    // Admin only items
     if (item.adminOnly) {
       if (!isAdmin) return false;
       if (hideManagement && item.management) return false;
