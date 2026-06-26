@@ -148,8 +148,7 @@ const MIGRATION_SQL_STRING = [
   "GRANT ALL ON public.staff TO anon, authenticated, service_role;\n",
   "GRANT ALL ON public.staff_attendance TO anon, authenticated, service_role;\n",
   "GRANT ALL ON public.staff_payroll TO anon, authenticated, service_role;\n",
-  "GRANT ALL ON public.payroll_vouchers TO anon, authenticated, service_role;\n",
-  "\\\n"
+  "GRANT ALL ON public.payroll_vouchers TO anon, authenticated, service_role;\n"
 ].join("");
 
 export default function StaffManagementPage() {
