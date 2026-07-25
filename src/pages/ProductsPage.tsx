@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, Plus, Edit, Trash2, MoreHorizontal, Package, AlertTriangle, Loader2, Settings, ChefHat, Utensils, Tag, X, Save, ImagePlus } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,12 @@ import { api, Category } from '@/services/api';
 import { DEFAULT_INDUS_DATA } from '@/components/pos/IndusMenuModal';
 import { DEFAULT_FRESHBASKET_DATA } from '@/components/pos/FreshBasketMenuModal';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
+
+const initialStaticCategories = [
+  { id: 'freshbasket_fruits', name: 'Fruits', key: 'pos_menu_freshbasket_fruits', icon: Package },
+  { id: 'freshbasket_vegetables', name: 'Vegetables', key: 'pos_menu_freshbasket_vegetables', icon: Package },
+  { id: 'freshbasket_essentials', name: 'Daily Essentials', key: 'pos_menu_freshbasket_essentials', icon: Package },
+];
 
 const ProductsPage = () => {
   const { tenant } = useMultiTenant();
@@ -98,11 +105,41 @@ const ProductsPage = () => {
     });
   };
 
-  const virtualCategories = [
-    { id: 'freshbasket_fruits', name: 'Fruits', key: 'pos_menu_freshbasket_fruits', icon: Package },
-    { id: 'freshbasket_vegetables', name: 'Vegetables', key: 'pos_menu_freshbasket_vegetables', icon: Package },
-    { id: 'freshbasket_essentials', name: 'Daily Essentials', key: 'pos_menu_freshbasket_essentials', icon: Package },
-  ];
+  const [virtualCategories, setVirtualCategories] = useState<any[]>(() => {
+    // Load custom categories from localStorage
+    const saved = localStorage.getItem('custom_virtual_categories');
+    const custom = saved ? JSON.parse(saved) : [];
+    return [...initialStaticCategories, ...custom];
+  });
+
+  const { toast: uiToast } = useToast();
+
+  // Helper to persist custom categories
+  const persistCustomCategories = (categories: any[]) => {
+    const custom = categories.filter(cat => !initialStaticCategories.find(s => s.id === cat.id));
+    localStorage.setItem('custom_virtual_categories', JSON.stringify(custom));
+  };
+
+  const handleAddCard = (name: string, iconName: string = 'Package') => {
+    const id = name.toLowerCase().replace(/\s+/g, '_') + '_' + Date.now();
+    const IconComponent = (LucideIcons as any)[iconName] || Package;
+    const newCat = { id, name, key: `pos_menu_custom_${id}`, icon: IconComponent };
+    setVirtualCategories((prev: any[]) => {
+      const updated = [...prev, newCat];
+      persistCustomCategories(updated);
+      return updated;
+    });
+    uiToast({ title: "Success", description: `${name} card added` });
+  };
+
+  const handleRemoveCard = (id: string) => {
+    setVirtualCategories((prev: any[]) => {
+      const updated = prev.filter(cat => cat.id !== id);
+      persistCustomCategories(updated);
+      return updated;
+    });
+    uiToast({ title: "Success", description: `Card removed` });
+  };
 
   const openVirtualMenuEditor = (category: any) => {
     setSelectedVirtualCategory(category.name);
@@ -161,7 +198,8 @@ const ProductsPage = () => {
     }
   };
 
-  const { toast: uiToast } = useToast();
+
+
   const queryClient = useQueryClient();
 
   const { data: products = [], isLoading: isProductsLoading, isError, error } = useQuery({
@@ -557,29 +595,45 @@ const ProductsPage = () => {
               </DialogDescription>
             </DialogHeader>
             <div className="p-6 space-y-4">
+              <div className="flex justify-between items-center">
+                <p className="text-xs font-bold uppercase text-slate-500">Virtual Categories</p>
+                <Button size="sm" variant="outline" className="h-8 gap-2 font-bold rounded-xl" onClick={() => { const name = prompt('Enter card name'); if (name) { const icon = prompt('Enter icon name (lucide icon, default Package)'); handleAddCard(name, icon); } }}>
+                  <Plus className="h-3 w-3" /> New
+                </Button>
+              </div>
               <ScrollArea className="h-[400px] pr-4">
                 <div className="space-y-2">
                   {virtualCategories.map((cat) => (
-                    <div key={cat.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div key={cat.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 group">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-white rounded-lg shadow-sm">
                           <cat.icon className="h-4 w-4 text-slate-600" />
                         </div>
                         <span className="font-bold text-sm text-slate-700">{cat.name}</span>
                       </div>
-                      <Button
-                        variant={cardVisibility[cat.id] !== false ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => toggleVisibility(cat.id)}
-                        className={cn(
-                          "rounded-xl px-4 h-9 font-bold transition-all",
-                          cardVisibility[cat.id] !== false 
-                            ? "bg-emerald-500 hover:bg-emerald-600 text-white" 
-                            : "bg-slate-200 text-slate-500 hover:bg-slate-300"
-                        )}
-                      >
-                        {cardVisibility[cat.id] !== false ? 'Visible' : 'Hidden'}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant={cardVisibility[cat.id] !== false ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => toggleVisibility(cat.id)}
+                          className={cn(
+                            "rounded-xl px-4 h-9 font-bold transition-all",
+                            cardVisibility[cat.id] !== false 
+                              ? "bg-emerald-500 hover:bg-emerald-600 text-white" 
+                              : "bg-slate-200 text-slate-500 hover:bg-slate-300"
+                          )}
+                        >
+                          {cardVisibility[cat.id] !== false ? 'Visible' : 'Hidden'}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 text-slate-400 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => handleRemoveCard(cat.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>

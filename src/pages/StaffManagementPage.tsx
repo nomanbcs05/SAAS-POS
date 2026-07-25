@@ -151,7 +151,11 @@ const MIGRATION_SQL_STRING = [
   "GRANT ALL ON public.payroll_vouchers TO anon, authenticated, service_role;\n"
 ].join("");
 
-export default function StaffManagementPage() {
+
+
+// Trigger redeploy after fixing handlePrint duplicate
+
+function StaffManagementPage() {
   const { tenant, isAdmin } = useMultiTenant();
   const queryClient = useQueryClient();
 
@@ -558,12 +562,7 @@ export default function StaffManagementPage() {
     setPrintModalOpen(true);
   };
 
-  const handlePrint = () => {
-    // Use a short timeout to ensure modal content is rendered
-    setTimeout(() => {
-      window.print();
-    }, 100);
-  };
+
 
   // Filters
   const filteredStaff = staffList.filter(s => 
@@ -1410,3 +1409,5 @@ export default function StaffManagementPage() {
     </MainLayout>
   );
 }
+
+export default StaffManagementPage;
