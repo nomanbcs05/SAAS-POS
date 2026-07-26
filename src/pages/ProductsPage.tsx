@@ -448,27 +448,35 @@ const ProductsPage = () => {
     setIsProductDialogOpen(true);
   };
 
+  const getVirtualCategoryItems = (vCatKey: string) => {
+    const saved = localStorage.getItem(vCatKey);
+    if (saved) {
+      try { return JSON.parse(saved); } catch { return []; }
+    }
+    if (RESTR_MENU_ITEMS[vCatKey]) {
+      return RESTR_MENU_ITEMS[vCatKey];
+    }
+    if (vCatKey === 'pos_menu_freshbasket_fruits') {
+      return DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'FRUITS');
+    }
+    if (vCatKey === 'pos_menu_freshbasket_vegetables') {
+      return DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'VEGETABLES');
+    }
+    if (vCatKey === 'pos_menu_freshbasket_essentials') {
+      return DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'DAILY ESSENTIALS');
+    }
+    return [];
+  };
+
   const handleDeleteVirtualProduct = (id: string) => {
-    const match = id.match(/^virtual-(.+)-(\d+)$/);
+    const match = id.match(/^virtual-(.+?)-(\d+)(?:-(.+))?$/);
     if (match) {
       const catId = match[1];
       const idx = parseInt(match[2], 10);
       const vCat = virtualCategories.find(c => c.id === catId);
       if (vCat) {
-        const saved = localStorage.getItem(vCat.key);
-        let items = [];
-        if (saved) {
-          items = JSON.parse(saved);
-        } else {
-          if (vCat.key === 'pos_menu_freshbasket_fruits') {
-            items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'FRUITS');
-          } else if (vCat.key === 'pos_menu_freshbasket_vegetables') {
-            items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'VEGETABLES');
-          } else if (vCat.key === 'pos_menu_freshbasket_essentials') {
-            items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'DAILY ESSENTIALS');
-          }
-        }
-        const updated = items.filter((_, i) => i !== idx);
+        const items = getVirtualCategoryItems(vCat.key);
+        const updated = items.filter((_: any, i: number) => i !== idx);
         localStorage.setItem(vCat.key, JSON.stringify(updated));
         setLocalUpdateTrigger(prev => prev + 1);
         uiToast({
@@ -502,29 +510,24 @@ const ProductsPage = () => {
 
     if (editingProduct) {
       if (editingProduct.isVirtual) {
-        const match = editingProduct.id.match(/^virtual-(.+)-(\d+)$/);
+        const match = editingProduct.id.match(/^virtual-(.+?)-(\d+)(?:-(.+))?$/);
         if (match) {
           const catId = match[1];
           const idx = parseInt(match[2], 10);
+          const sizeName = match[3];
           const vCat = virtualCategories.find(c => c.id === catId);
           if (vCat) {
-            const saved = localStorage.getItem(vCat.key);
-            let items = [];
-            if (saved) {
-              items = JSON.parse(saved);
-            } else {
-              if (vCat.key === 'pos_menu_freshbasket_fruits') {
-                items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'FRUITS');
-              } else if (vCat.key === 'pos_menu_freshbasket_vegetables') {
-                items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'VEGETABLES');
-              } else if (vCat.key === 'pos_menu_freshbasket_essentials') {
-                items = DEFAULT_FRESHBASKET_DATA.filter(item => item.category === 'DAILY ESSENTIALS');
-              }
-            }
+            const items = getVirtualCategoryItems(vCat.key);
             if (items[idx]) {
-              items[idx].name = productData.name;
-              items[idx].price = productData.price;
-              items[idx].image = productData.image;
+              if (sizeName && items[idx].sizes && items[idx].sizes[sizeName] !== undefined) {
+                items[idx].sizes[sizeName] = productData.price;
+              } else {
+                items[idx].name = productData.name;
+                items[idx].price = productData.price;
+              }
+              if (productData.image) {
+                items[idx].image = productData.image;
+              }
               localStorage.setItem(vCat.key, JSON.stringify(items));
               setLocalUpdateTrigger(prev => prev + 1);
               uiToast({
@@ -570,51 +573,45 @@ const ProductsPage = () => {
 
     let allDisplayProducts = products.filter(p => isAllowedCategory(p.category));
 
-    // Add virtual products to the display list only for Fresh Basket tenant
-    if (isFreshBasket) {
-      virtualCategories.forEach(vCat => {
-        const saved = localStorage.getItem(vCat.key);
-        let items = [];
-        if (saved) {
-          items = JSON.parse(saved);
-        } else if (vCat.key === 'pos_menu_freshbasket_fruits') {
-          items = DEFAULT_FRESHBASKET_DATA
-            .filter(item => item.category === 'FRUITS')
-            .map(item => ({
-              name: item.name,
-              price: item.price || 0
-            }));
-        } else if (vCat.key === 'pos_menu_freshbasket_vegetables') {
-          items = DEFAULT_FRESHBASKET_DATA
-            .filter(item => item.category === 'VEGETABLES')
-            .map(item => ({
-              name: item.name,
-              price: item.price || 0
-            }));
-        } else if (vCat.key === 'pos_menu_freshbasket_essentials') {
-          items = DEFAULT_FRESHBASKET_DATA
-            .filter(item => item.category === 'DAILY ESSENTIALS')
-            .map(item => ({
-              name: item.name,
-              price: item.price || 0
-            }));
-        }
+    // Add virtual products from all virtual categories (Karahi, BBQ, Handi, Chinese, Beverages, etc.)
+    virtualCategories.forEach(vCat => {
+      const items = getVirtualCategoryItems(vCat.key);
 
-        items.forEach((item: any, idx: number) => {
+      items.forEach((item: any, idx: number) => {
+        if (item.sizes && typeof item.sizes === 'object' && Object.keys(item.sizes).length > 0) {
+          Object.entries(item.sizes).forEach(([sizeName, sizePrice]) => {
+            allDisplayProducts.push({
+              id: `virtual-${vCat.id}-${idx}-${sizeName.toLowerCase()}`,
+              name: `${item.name} (${sizeName})`,
+              sku: `GX-${vCat.name.substring(0, 3).toUpperCase()}-${sizeName[0]}`,
+              category: vCat.name,
+              cost: 0,
+              price: Number(sizePrice) || 0,
+              stock: 999,
+              image: item.image || '🍽️',
+              isVirtual: true,
+              vCatKey: vCat.key,
+              itemIndex: idx,
+              sizeName,
+            } as any);
+          });
+        } else {
           allDisplayProducts.push({
             id: `virtual-${vCat.id}-${idx}`,
             name: item.name,
-            sku: `VIRTUAL-${vCat.name.substring(0, 3).toUpperCase()}`,
+            sku: `GX-${vCat.name.substring(0, 3).toUpperCase()}`,
             category: vCat.name,
             cost: 0,
-            price: item.price,
-            stock: 0,
-            image: item.image || '📦',
-            isVirtual: true
+            price: item.price || 0,
+            stock: 999,
+            image: item.image || '🍽️',
+            isVirtual: true,
+            vCatKey: vCat.key,
+            itemIndex: idx,
           } as any);
-        });
+        }
       });
-    }
+    });
 
     return allDisplayProducts.filter(product => {
       const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -623,7 +620,7 @@ const ProductsPage = () => {
       const matchesCategory = selectedCategory === 'all' || productCategoryName === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [products, searchQuery, selectedCategory, localUpdateTrigger, isFreshBasket, categories]);
+  }, [products, searchQuery, selectedCategory, localUpdateTrigger, isFreshBasket, categories, virtualCategories]);
 
   const lowStockCount = products.filter(p => p.stock <= 10).length;
 
@@ -1207,7 +1204,7 @@ const ProductsPage = () => {
                 </Button>
               ))}
               {/* Filter out virtual categories that match database category names to remove duplicates */}
-              {isFreshBasket && virtualCategories
+              {virtualCategories
                 .filter(vCat => !categories.some(dbCat => dbCat.name.toLowerCase() === vCat.name.toLowerCase()))
                 .map((vCat) => (
                 <Button
@@ -1264,10 +1261,10 @@ const ProductsPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        ${(product.cost || 0).toFixed(2)}
+                        Rs. {(product.cost || 0).toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right font-semibold">
-                        ${(product.price || 0).toFixed(2)}
+                        Rs. {(product.price || 0).toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right">
                         {product.stock <= 10 ? (
