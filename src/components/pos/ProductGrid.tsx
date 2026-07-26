@@ -30,8 +30,10 @@ import AlaCartSelectionModal from './AlaCartSelectionModal';
 import IndusMenuModal, { DEFAULT_INDUS_DATA } from './IndusMenuModal';
 import KhanshinwariMenuModal, { DEFAULT_KHANSHINWARI_DATA } from './KhanshinwariMenuModal';
 import FreshBasketMenuModal, { DEFAULT_FRESHBASKET_DATA } from './FreshBasketMenuModal';
+import GenXRestaurantMenuModal from './GenXRestaurantMenuModal';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 import ProductAmountCalculatorModal from './ProductAmountCalculatorModal';
+import { RESTR_CATEGORIES } from '@/data/restaurantMenuData';
 
 const ProductGrid = () => {
   const navigate = useNavigate();
@@ -55,9 +57,11 @@ const ProductGrid = () => {
   const [showIndusModal, setShowIndusModal] = useState(false);
   const [showKhanshinwariModal, setShowKhanshinwariModal] = useState(false);
   const [showFreshBasketModal, setShowFreshBasketModal] = useState(false);
+  const [showGenxRestaurantModal, setShowGenxRestaurantModal] = useState(false);
   const [selectedIndusCategory, setSelectedIndusCategory] = useState<string | undefined>(undefined);
   const [selectedKhanshinwariCategory, setSelectedKhanshinwariCategory] = useState<string | undefined>(undefined);
   const [selectedFreshBasketCategory, setSelectedFreshBasketCategory] = useState<string | undefined>(undefined);
+  const [selectedGenxCategory, setSelectedGenxCategory] = useState<{ name: string; key: string; iconName: string } | undefined>(undefined);
   const [localUpdateTrigger, setLocalUpdateTrigger] = useState(0);
   const [isCalculatorModalOpen, setIsCalculatorModalOpen] = useState(false);
 
@@ -598,6 +602,29 @@ const ProductGrid = () => {
         });
       }
 
+      // GenX Restaurant Categories (9 menu categories):
+      RESTR_CATEGORIES.forEach(cat => {
+        const isCatSelected = selectedCategory === cat.name;
+        const isAllSelected = selectedCategory === 'all';
+
+        if ((isAllSelected || isCatSelected) && isCardVisible(cat.id)) {
+          const virtualCard = {
+            id: `virtual-genx-card-${cat.id}`,
+            name: cat.name,
+            price: 0,
+            category: cat.name,
+            image: localStorage.getItem('pos_category_image_' + cat.key) || '🍽️',
+            isVirtual: true,
+            modalType: 'genx_restaurant',
+            genxCategory: cat,
+          };
+
+          if (!searchQuery.trim() || virtualCard.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+            products = [virtualCard as any, ...products];
+          }
+        }
+      });
+
       // Special logic for Fresh Basket Categories:
       if (isFreshBasket) {
         const freshBasketCategories = [
@@ -801,6 +828,9 @@ const ProductGrid = () => {
       } else if ((product as any).modalType === 'freshbasket') {
         setSelectedFreshBasketCategory((product as any).freshBasketCategory);
         setShowFreshBasketModal(true);
+      } else if ((product as any).modalType === 'genx_restaurant') {
+        setSelectedGenxCategory((product as any).genxCategory);
+        setShowGenxRestaurantModal(true);
       } else if ((product as any).modalType === 'simple') {
         // Direct add for simple virtual items
         addItem(product, 1);
@@ -1099,6 +1129,18 @@ const ProductGrid = () => {
             onAdd={handleAddToCart}
             category={selectedFreshBasketCategory}
             dbProducts={freshBasketDbProducts}
+          />
+
+          <GenXRestaurantMenuModal
+            isOpen={showGenxRestaurantModal}
+            onClose={() => {
+              setShowGenxRestaurantModal(false);
+              setSelectedGenxCategory(undefined);
+            }}
+            onAdd={handleAddToCart}
+            categoryName={selectedGenxCategory?.name}
+            menuKey={selectedGenxCategory?.key}
+            iconName={selectedGenxCategory?.iconName}
           />
 
           <ProductAmountCalculatorModal

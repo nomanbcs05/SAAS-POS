@@ -41,6 +41,7 @@ import { api, Category } from '@/services/api';
 import { DEFAULT_INDUS_DATA } from '@/components/pos/IndusMenuModal';
 import { DEFAULT_FRESHBASKET_DATA } from '@/components/pos/FreshBasketMenuModal';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
+import { RESTR_CATEGORIES, RESTR_MENU_ITEMS, initializeRestaurantMenuDefaults } from '@/data/restaurantMenuData';
 
 const getCatIconComponent = (cat: any) => {
   if (typeof cat?.icon === 'function' || (typeof cat?.icon === 'object' && cat?.icon?.$$typeof)) {
@@ -51,9 +52,15 @@ const getCatIconComponent = (cat: any) => {
 };
 
 const initialStaticCategories = [
-  { id: 'freshbasket_fruits', name: 'Fruits', key: 'pos_menu_freshbasket_fruits', iconName: 'Package', icon: Package },
-  { id: 'freshbasket_vegetables', name: 'Vegetables', key: 'pos_menu_freshbasket_vegetables', iconName: 'Package', icon: Package },
-  { id: 'freshbasket_essentials', name: 'Daily Essentials', key: 'pos_menu_freshbasket_essentials', iconName: 'Package', icon: Package },
+  { id: 'karahi', name: 'Karahi', key: 'pos_menu_karahi', iconName: 'Flame', icon: Flame },
+  { id: 'barbq', name: 'Bar.B.Q', key: 'pos_menu_barbq_menu', iconName: 'Flame', icon: Flame },
+  { id: 'handi', name: 'Handi', key: 'pos_menu_handi', iconName: 'ChefHat', icon: ChefHat },
+  { id: 'side_items', name: 'Side Items', key: 'pos_menu_side_items', iconName: 'Package', icon: Package },
+  { id: 'salad_raita', name: 'Salad & Raita', key: 'pos_menu_salad_raita', iconName: 'Utensils', icon: Utensils },
+  { id: 'chinese', name: 'Chinese', key: 'pos_menu_chinese', iconName: 'Utensils', icon: Utensils },
+  { id: 'beverages', name: 'Beverages', key: 'pos_menu_beverages_menu', iconName: 'Coffee', icon: Coffee },
+  { id: 'ice_cream_drinks', name: 'Ice Cream & Drinks', key: 'pos_menu_ice_cream_drinks', iconName: 'Coffee', icon: Coffee },
+  { id: 'tandoor_bread', name: 'Tandoor / Bread', key: 'pos_menu_tandoor_bread', iconName: 'Layers', icon: Layers },
 ];
 
 const PRESET_ICONS = [
@@ -105,6 +112,7 @@ const ProductsPage = () => {
   const [selectedIconName, setSelectedIconName] = useState('Package');
 
   useEffect(() => {
+    initializeRestaurantMenuDefaults();
     const savedVisibility = localStorage.getItem('pos_card_visibility');
     if (savedVisibility) {
       setCardVisibility(JSON.parse(savedVisibility));
@@ -208,37 +216,13 @@ const ProductsPage = () => {
     if (saved) {
       setVirtualMenuItems(JSON.parse(saved));
     } else {
-      let defaults: any[] = [];
-      if (category.key.startsWith('pos_menu_indus')) {
+      let defaults: any[] = RESTR_MENU_ITEMS[category.key] || [];
+      if (defaults.length === 0 && category.key.startsWith('pos_menu_indus')) {
         defaults = DEFAULT_INDUS_DATA
           .filter(item => item.category === category.filter)
           .map(item => ({
             name: item.name,
             price: item.price || (item.sizes ? item.sizes.Full : 0),
-            image: (item as any).image || ''
-          }));
-      } else if (category.key === 'pos_menu_freshbasket_fruits') {
-        defaults = DEFAULT_FRESHBASKET_DATA
-          .filter(item => item.category === 'FRUITS')
-          .map(item => ({
-            name: item.name,
-            price: item.price || 0,
-            image: (item as any).image || ''
-          }));
-      } else if (category.key === 'pos_menu_freshbasket_vegetables') {
-        defaults = DEFAULT_FRESHBASKET_DATA
-          .filter(item => item.category === 'VEGETABLES')
-          .map(item => ({
-            name: item.name,
-            price: item.price || 0,
-            image: (item as any).image || ''
-          }));
-      } else if (category.key === 'pos_menu_freshbasket_essentials') {
-        defaults = DEFAULT_FRESHBASKET_DATA
-          .filter(item => item.category === 'DAILY ESSENTIALS')
-          .map(item => ({
-            name: item.name,
-            price: item.price || 0,
             image: (item as any).image || ''
           }));
       }
