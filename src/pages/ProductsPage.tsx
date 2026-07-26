@@ -648,16 +648,16 @@ const ProductsPage = () => {
       <div className="flex flex-col h-full">
         {/* Dashboard Card Visibility Modal */}
         <Dialog open={isVisibilityModalOpen} onOpenChange={(open) => { setIsVisibilityModalOpen(open); if (!open) setIsAddCardOpen(false); }}>
-          <DialogContent className="max-w-lg w-full rounded-3xl p-0 overflow-hidden bg-white border border-slate-200/80 shadow-2xl flex flex-col sm:max-w-lg">
-            {/* Header */}
-            <div className="p-6 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white relative overflow-hidden shrink-0">
+          <DialogContent className="max-w-lg w-full max-h-[85vh] rounded-3xl p-0 overflow-hidden bg-white border border-slate-200/80 shadow-2xl flex flex-col sm:max-w-lg">
+            {/* Fixed Header */}
+            <div className="p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white relative overflow-hidden shrink-0">
               <div className="absolute -right-8 -top-8 w-36 h-36 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
-              <div className="flex items-center gap-3.5 relative z-10">
-                <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shadow-inner">
-                  <LayoutGrid className="h-6 w-6" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="p-2.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shadow-inner">
+                  <LayoutGrid className="h-5 w-5" />
                 </div>
                 <div>
-                  <DialogTitle className="text-xl font-black font-heading tracking-tight text-white">
+                  <DialogTitle className="text-lg font-black font-heading tracking-tight text-white">
                     Dashboard Cards
                   </DialogTitle>
                   <DialogDescription className="text-slate-400 text-xs font-medium mt-0.5">
@@ -667,7 +667,8 @@ const ProductsPage = () => {
               </div>
             </div>
 
-            <div className="p-6 space-y-4 flex-1 overflow-hidden flex flex-col">
+            {/* Scrollable Body (Form + List together stay inside 85vh) */}
+            <div className="p-5 space-y-3.5 flex-1 overflow-y-auto min-h-0">
               {/* Category List Header */}
               <div className="flex justify-between items-center pb-1">
                 <div className="flex items-center gap-2">
@@ -693,61 +694,61 @@ const ProductsPage = () => {
 
               {/* Inline Add Card Form */}
               {isAddCardOpen && (
-                <form onSubmit={handleCreateCardSubmit} className="p-4 bg-slate-50 rounded-2xl border border-indigo-100 space-y-3.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                <form onSubmit={handleCreateCardSubmit} className="p-3.5 bg-slate-50 rounded-2xl border border-indigo-100 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Create Custom Card
                     </span>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <Label htmlFor="card-name" className="text-xs font-semibold text-slate-600">Card Name</Label>
                     <Input
                       id="card-name"
                       placeholder="e.g. Special Combos, Deals..."
                       value={newCardNameInput}
                       onChange={(e) => setNewCardNameInput(e.target.value)}
-                      className="h-9 rounded-xl bg-white border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500"
+                      className="h-8.5 rounded-xl bg-white border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500"
                       autoFocus
                     />
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <Label className="text-xs font-semibold text-slate-600">Select Icon</Label>
-                    <div className="grid grid-cols-5 gap-2">
+                    <div className="grid grid-cols-5 gap-1.5">
                       {PRESET_ICONS.map(({ name, icon: IconComp }) => (
                         <button
                           key={name}
                           type="button"
                           onClick={() => setSelectedIconName(name)}
                           className={cn(
-                            "p-2 rounded-xl border text-xs font-medium flex flex-col items-center gap-1 transition-all",
+                            "p-1.5 rounded-xl border text-[10px] font-medium flex flex-col items-center gap-0.5 transition-all",
                             selectedIconName === name
                               ? "bg-indigo-600 text-white border-indigo-600 shadow-xs scale-105"
                               : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50"
                           )}
                         >
-                          <IconComp className="h-4 w-4" />
-                          <span className="text-[9px] truncate max-w-full font-bold">{name}</span>
+                          <IconComp className="h-3.5 w-3.5" />
+                          <span className="truncate max-w-full font-bold">{name}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-2 pt-1">
+                  <div className="flex justify-end gap-2 pt-0.5">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={() => setIsAddCardOpen(false)}
-                      className="h-8 text-xs font-bold rounded-xl"
+                      className="h-7.5 text-xs font-bold rounded-xl"
                     >
                       Cancel
                     </Button>
                     <Button
                       type="submit"
                       size="sm"
-                      className="h-8 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                      className="h-7.5 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
                     >
                       Save Card
                     </Button>
@@ -756,87 +757,85 @@ const ProductsPage = () => {
               )}
 
               {/* Cards List */}
-              <ScrollArea className="max-h-[340px] pr-2">
-                <div className="space-y-2.5">
-                  {virtualCategories.map((cat) => {
-                    const CatIcon = getCatIconComponent(cat);
-                    const isVisible = cardVisibility[cat.id] !== false;
-                    const isSystemCard = initialStaticCategories.some(s => s.id === cat.id);
+              <div className="space-y-2">
+                {virtualCategories.map((cat) => {
+                  const CatIcon = getCatIconComponent(cat);
+                  const isVisible = cardVisibility[cat.id] !== false;
+                  const isSystemCard = initialStaticCategories.some(s => s.id === cat.id);
 
-                    return (
-                      <div
-                        key={cat.id}
-                        className={cn(
-                          "flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-200 group",
+                  return (
+                    <div
+                      key={cat.id}
+                      className={cn(
+                        "flex items-center justify-between p-3 rounded-2xl border transition-all duration-200 group",
+                        isVisible
+                          ? "bg-slate-50/80 hover:bg-white border-slate-200/80 hover:border-indigo-200 shadow-2xs hover:shadow-md"
+                          : "bg-slate-100/60 border-slate-200/50 opacity-75 hover:opacity-100"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "p-2 rounded-xl border shadow-2xs transition-all duration-200 group-hover:scale-105",
                           isVisible
-                            ? "bg-slate-50/80 hover:bg-white border-slate-200/80 hover:border-indigo-200 shadow-2xs hover:shadow-md"
-                            : "bg-slate-100/60 border-slate-200/50 opacity-75 hover:opacity-100"
-                        )}
-                      >
-                        <div className="flex items-center gap-3.5">
-                          <div className={cn(
-                            "p-2.5 rounded-xl border shadow-2xs transition-all duration-200 group-hover:scale-105",
-                            isVisible
-                              ? "bg-white text-indigo-600 border-slate-200/80 group-hover:bg-indigo-50"
-                              : "bg-slate-200/60 text-slate-400 border-slate-200"
-                          )}>
-                            <CatIcon className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <span className="font-bold text-sm text-slate-800 tracking-tight block">
-                              {cat.name}
-                            </span>
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                              {isSystemCard ? 'System Card' : 'Custom Card'}
-                            </span>
-                          </div>
+                            ? "bg-white text-indigo-600 border-slate-200/80 group-hover:bg-indigo-50"
+                            : "bg-slate-200/60 text-slate-400 border-slate-200"
+                        )}>
+                          <CatIcon className="h-4 w-4" />
                         </div>
-
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleVisibility(cat.id)}
-                            className={cn(
-                              "rounded-xl px-3.5 h-8 text-xs font-bold transition-all gap-1.5 border shadow-2xs",
-                              isVisible
-                                ? "bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 shadow-emerald-500/20"
-                                : "bg-slate-200 text-slate-600 hover:bg-slate-300 border-slate-300"
-                            )}
-                          >
-                            {isVisible ? (
-                              <>
-                                <Eye className="h-3.5 w-3.5" />
-                                Visible
-                              </>
-                            ) : (
-                              <>
-                                <EyeOff className="h-3.5 w-3.5" />
-                                Hidden
-                              </>
-                            )}
-                          </Button>
-
-                          {!isSystemCard && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                              onClick={() => handleRemoveCard(cat.id)}
-                              title="Remove custom card"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
+                        <div>
+                          <span className="font-bold text-sm text-slate-800 tracking-tight block">
+                            {cat.name}
+                          </span>
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                            {isSystemCard ? 'System Card' : 'Custom Card'}
+                          </span>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleVisibility(cat.id)}
+                          className={cn(
+                            "rounded-xl px-3 h-8 text-xs font-bold transition-all gap-1.5 border shadow-2xs",
+                            isVisible
+                              ? "bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 shadow-emerald-500/20"
+                              : "bg-slate-200 text-slate-600 hover:bg-slate-300 border-slate-300"
+                          )}
+                        >
+                          {isVisible ? (
+                            <>
+                              <Eye className="h-3.5 w-3.5" />
+                              Visible
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff className="h-3.5 w-3.5" />
+                              Hidden
+                            </>
+                          )}
+                        </Button>
+
+                        {!isSystemCard && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                            onClick={() => handleRemoveCard(cat.id)}
+                            title="Remove custom card"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Footer */}
+            {/* Fixed Footer */}
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
