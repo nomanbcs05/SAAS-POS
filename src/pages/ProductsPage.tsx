@@ -58,7 +58,7 @@ const initialStaticCategories = [
   { id: 'side_items', name: 'Side Items', key: 'pos_menu_side_items', iconName: 'Package', icon: Package },
   { id: 'salad_raita', name: 'Salad & Raita', key: 'pos_menu_salad_raita', iconName: 'Utensils', icon: Utensils },
   { id: 'chinese', name: 'Chinese', key: 'pos_menu_chinese', iconName: 'Utensils', icon: Utensils },
-  { id: 'beverages', name: 'Beverages', key: 'pos_menu_beverages_menu', iconName: 'Coffee', icon: Coffee },
+  { id: 'beverages_menu', name: 'Beverages', key: 'pos_menu_beverages_menu', iconName: 'Coffee', icon: Coffee },
   { id: 'ice_cream_drinks', name: 'Ice Cream & Drinks', key: 'pos_menu_ice_cream_drinks', iconName: 'Coffee', icon: Coffee },
   { id: 'tandoor_bread', name: 'Tandoor / Bread', key: 'pos_menu_tandoor_bread', iconName: 'Layers', icon: Layers },
 ];

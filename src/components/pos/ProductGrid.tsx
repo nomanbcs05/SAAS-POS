@@ -33,7 +33,7 @@ import FreshBasketMenuModal, { DEFAULT_FRESHBASKET_DATA } from './FreshBasketMen
 import GenXRestaurantMenuModal from './GenXRestaurantMenuModal';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 import ProductAmountCalculatorModal from './ProductAmountCalculatorModal';
-import { RESTR_CATEGORIES } from '@/data/restaurantMenuData';
+import { RESTR_CATEGORIES, initializeRestaurantMenuDefaults } from '@/data/restaurantMenuData';
 
 const ProductGrid = () => {
   const navigate = useNavigate();
@@ -64,6 +64,11 @@ const ProductGrid = () => {
   const [selectedGenxCategory, setSelectedGenxCategory] = useState<{ name: string; key: string; iconName: string } | undefined>(undefined);
   const [localUpdateTrigger, setLocalUpdateTrigger] = useState(0);
   const [isCalculatorModalOpen, setIsCalculatorModalOpen] = useState(false);
+
+  // Seed restaurant menu defaults on mount (runs before POS renders cards)
+  useEffect(() => {
+    initializeRestaurantMenuDefaults();
+  }, []);
 
   // Re-render product grid whenever Fresh Basket modal saves prices to localStorage
   useEffect(() => {

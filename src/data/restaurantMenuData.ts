@@ -13,7 +13,7 @@ export const RESTR_CATEGORIES = [
   { id: 'side_items', name: 'Side Items', key: 'pos_menu_side_items', iconName: 'Package' },
   { id: 'salad_raita', name: 'Salad & Raita', key: 'pos_menu_salad_raita', iconName: 'Utensils' },
   { id: 'chinese', name: 'Chinese', key: 'pos_menu_chinese', iconName: 'Utensils' },
-  { id: 'beverages', name: 'Beverages', key: 'pos_menu_beverages_menu', iconName: 'Coffee' },
+  { id: 'beverages_menu', name: 'Beverages', key: 'pos_menu_beverages_menu', iconName: 'Coffee' },
   { id: 'ice_cream_drinks', name: 'Ice Cream & Drinks', key: 'pos_menu_ice_cream_drinks', iconName: 'Coffee' },
   { id: 'tandoor_bread', name: 'Tandoor / Bread', key: 'pos_menu_tandoor_bread', iconName: 'Layers' },
 ];
@@ -117,9 +117,12 @@ export const initializeRestaurantMenuDefaults = () => {
     }
   });
 
-  // Setup card visibility: Hide old cards, show only these 9 categories
-  const visibility: Record<string, boolean> = {
-    // Hide old default cards
+  // Setup card visibility
+  const existingVisRaw = localStorage.getItem('pos_card_visibility');
+  const existingVis: Record<string, boolean> = existingVisRaw ? JSON.parse(existingVisRaw) : {};
+
+  // Always hide legacy cards
+  const legacyHide: Record<string, boolean> = {
     freshbasket_fruits: false,
     freshbasket_vegetables: false,
     freshbasket_essentials: false,
@@ -128,24 +131,39 @@ export const initializeRestaurantMenuDefaults = () => {
     broast: false,
     alacart: false,
     fries: false,
-    beverages: false,
+    beverages: false,  // legacy "beverages" card
     deals: false,
     roll: false,
-    // Show new restaurant categories
+    sauce: false,
+  };
+
+  // Restaurant category IDs that must be visible (only set if not explicitly managed by user)
+  const restaurantShow: Record<string, boolean> = {
     karahi: true,
     barbq: true,
     handi: true,
     side_items: true,
     salad_raita: true,
     chinese: true,
-    beverages_menu: true,
+    beverages_menu: true,   // RESTR_CATEGORIES id for Beverages
     ice_cream_drinks: true,
     tandoor_bread: true,
   };
 
-  // Merge with existing custom cards if any
-  const existingVisRaw = localStorage.getItem('pos_card_visibility');
-  const existingVis = existingVisRaw ? JSON.parse(existingVisRaw) : {};
-  const mergedVisibility = { ...existingVis, ...visibility };
-  localStorage.setItem('pos_card_visibility', JSON.stringify(mergedVisibility));
+  // Merge: existing overrides legacy hides for restaurant cards,
+  // but always hide legacy and default-show restaurant cards if not set
+  const merged: Record<string, boolean> = {
+    ...legacyHide,
+    ...existingVis,   // user's Manage Cards choices survive
+  };
+
+  // Always ensure restaurant categories have at least a "true" default if not set
+  Object.entries(restaurantShow).forEach(([id, val]) => {
+    if (merged[id] === undefined) {
+      merged[id] = val;
+    }
+  });
+
+  localStorage.setItem('pos_card_visibility', JSON.stringify(merged));
 };
+
