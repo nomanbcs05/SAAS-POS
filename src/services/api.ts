@@ -306,8 +306,16 @@ export const api = {
       await recacheProducts();
       return data;
     },
-    decrementStock: async (orderItems: Array<{ product_id: string | null | undefined; quantity: number }>) => {
+    decrementStock: async (orderItems: Array<{ product_id: string | null | undefined; name?: string; quantity: number }>) => {
       try {
+        // ALWAYS run ingredient deduction (BOM recipe or smart auto-matching)
+        try {
+          const { deductIngredientsForSoldProducts } = await import('@/modules/inventory/inventoryApi');
+          await deductIngredientsForSoldProducts(orderItems);
+        } catch (invErr) {
+          console.error('[Inventory Hook] Failed to deduct raw materials:', invErr);
+        }
+
         const validItems = orderItems.filter(
           (item) => item.product_id && isValidUUID(item.product_id as string)
         );
@@ -356,14 +364,6 @@ export const api = {
 
         // Refresh local cache so POS dashboard shows updated stock instantly
         await recacheProducts();
-
-        // Call the modular inventory hook to deduct raw materials based on recipes
-        try {
-          const { deductIngredientsForSoldProducts } = await import('@/modules/inventory/inventoryApi');
-          await deductIngredientsForSoldProducts(orderItems);
-        } catch (invErr) {
-          console.error('[Inventory Hook] Failed to deduct raw materials:', invErr);
-        }
       } catch (err) {
         // Never block the sale — log silently
         console.error('[Stock] Failed to decrement stock after sale:', err);

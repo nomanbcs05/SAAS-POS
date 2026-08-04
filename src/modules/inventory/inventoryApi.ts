@@ -786,41 +786,84 @@ export const inventoryApi = {
 // POS Checkout Integration Hook
 // ---------------------------------------------------------------------------
 export const deductIngredientsForSoldProducts = async (
-    orderItems: Array<{ product_id: string | null | undefined; quantity: number }>
+    orderItems: Array<{ product_id?: string | null; name?: string; product_name?: string; quantity: number }>
 ): Promise<void> => {
     try {
         console.log('[Inventory Hook] Triggering ingredient deductions for orderItems:', orderItems);
-        
-        // 1. Fetch recipes mapped to the products sold
+        if (!orderItems || orderItems.length === 0) return;
+
         const recipes = await inventoryApi.recipes.getAll();
-        const itemsToDeduct: Array<{ item_id: string; totalQty: number; product_id: string }> = [];
+        const allInventoryItems = await inventoryApi.items.getAll();
+
+        if (allInventoryItems.length === 0) {
+            console.log('[Inventory Hook] No inventory items exist to deduct.');
+            return;
+        }
+
+        const itemsToDeduct: Array<{ item_id: string; totalQty: number; reason: string }> = [];
 
         for (const oItem of orderItems) {
-            if (!oItem.product_id) continue;
-            
-            // Get recipes for this product
-            const productRecipes = recipes.filter(r => r.product_id === oItem.product_id);
-            for (const rec of productRecipes) {
-                const deductionQty = rec.quantity * oItem.quantity;
-                itemsToDeduct.push({
-                    item_id: rec.item_id,
-                    totalQty: deductionQty,
-                    product_id: oItem.product_id
-                });
+            const soldQty = Number(oItem.quantity) || 1;
+            const pId = (oItem.product_id || '').trim();
+            const pName = (oItem.name || oItem.product_name || oItem.product_id || '').trim();
+            if (!pId && !pName) continue;
+
+            // 1. Try explicit BOM recipe matching (by product_id OR product_name)
+            const productRecipes = recipes.filter(r => 
+                (pId && r.product_id?.toLowerCase() === pId.toLowerCase()) || 
+                (pName && r.product_id?.toLowerCase() === pName.toLowerCase())
+            );
+
+            if (productRecipes.length > 0) {
+                // BOM exists -> deduct explicit BOM recipe ingredients
+                for (const rec of productRecipes) {
+                    itemsToDeduct.push({
+                        item_id: rec.item_id,
+                        totalQty: rec.quantity * soldQty,
+                        reason: `POS sale: ${pName || pId}`
+                    });
+                }
+            } else {
+                // 2. Fallback: Smart automatic ingredient matching (BOM is optional)
+                // Compare sold product name with inventory raw material names
+                const pNameLower = pName.toLowerCase();
+
+                // Determine portion weight factor
+                let portionFactor = 1.0;
+                if (pNameLower.includes('(half)') || pNameLower.includes(' half') || pNameLower.includes('1/2')) {
+                    portionFactor = 0.5;
+                } else if (pNameLower.includes('(quarter)') || pNameLower.includes(' quarter') || pNameLower.includes('1/4')) {
+                    portionFactor = 0.25;
+                }
+
+                for (const invItem of allInventoryItems) {
+                    const invNameLower = invItem.name.toLowerCase().trim();
+                    if (!invNameLower) continue;
+
+                    // Match if product name contains inventory item name (e.g. "Chicken Handi" contains "chicken")
+                    // or inventory item name contains product name
+                    if (pNameLower.includes(invNameLower) || invNameLower.includes(pNameLower)) {
+                        const deductionQty = portionFactor * soldQty;
+                        itemsToDeduct.push({
+                            item_id: invItem.id,
+                            totalQty: deductionQty,
+                            reason: `Auto deduction (POS sale: ${pName} [${portionFactor}x])`
+                        });
+                    }
+                }
             }
         }
 
         if (itemsToDeduct.length === 0) return;
 
-        // 2. Perform stock deductions and adjustment logs
+        // Perform stock deductions and adjustment logs
         for (const deduct of itemsToDeduct) {
             try {
-                // Log adjustment transaction (negative quantity for sale deduction)
                 await inventoryApi.items.adjustStock({
                     item_id: deduct.item_id,
                     type: 'sale_deduction',
                     quantity: -deduct.totalQty,
-                    reason: `Sales deduction (Product ID: ${deduct.product_id})`,
+                    reason: deduct.reason,
                     created_by: 'POS Cashier'
                 });
             } catch (err) {

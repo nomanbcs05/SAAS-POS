@@ -163,8 +163,42 @@ export default function InventoryPage() {
     });
 
     const { data: productsList = [] } = useQuery({
-        queryKey: ['products'],
-        queryFn: () => api.products.getAll(),
+        queryKey: ['all-pos-products'],
+        queryFn: async () => {
+            const dbProds = await api.products.getAll().catch(() => []);
+            const productMap = new Map<string, any>();
+
+            dbProds.forEach((p: any) => {
+                if (p.id && p.name) productMap.set(p.id, p);
+            });
+
+            // Scan localStorage for all virtual menu items (pos_menu_*)
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('pos_menu_')) {
+                    try {
+                        const items = JSON.parse(localStorage.getItem(key) || '[]');
+                        if (Array.isArray(items)) {
+                            items.forEach((item: any) => {
+                                if (item.name) {
+                                    const pId = item.id || item.name;
+                                    if (!productMap.has(pId)) {
+                                        productMap.set(pId, {
+                                            id: pId,
+                                            name: item.name,
+                                            price: item.price || 0,
+                                            category: item.category || 'Menu Item'
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    } catch (_) {}
+                }
+            }
+
+            return Array.from(productMap.values());
+        },
         enabled: !isCheckingSchema && activeTab === 'recipes',
     });
 
@@ -715,7 +749,7 @@ export default function InventoryPage() {
                                                                 {isLow && <span className="ml-1 text-[9px] bg-rose-100 text-rose-600 px-1 py-0.5 rounded font-bold">LOW</span>}
                                                             </td>
                                                             <td className="px-4 py-3 font-bold text-slate-500">{item.min_stock} {item.unit}</td>
-                                                            <td className="px-4 py-3 font-bold text-blue-700">₹{item.cost_price.toFixed(2)}</td>
+                                                            <td className="px-4 py-3 font-bold text-blue-700">Rs. {item.cost_price.toFixed(2)}</td>
                                                             <td className="px-4 py-3 text-right">
                                                                 <div className="flex justify-end gap-2">
                                                                     <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => handleOpenEditItem(item)}>
@@ -746,7 +780,7 @@ export default function InventoryPage() {
                                     <CardContent className="p-4 flex items-center justify-between">
                                         <div>
                                             <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Total Value</p>
-                                            <h3 className="text-2xl font-black text-slate-800 mt-1">₹{stockValuation.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</h3>
+                                            <h3 className="text-2xl font-black text-slate-800 mt-1">Rs. {stockValuation.toLocaleString('en-PK', { maximumFractionDigits: 2 })}</h3>
                                         </div>
                                         <div className="p-3 rounded-full bg-emerald-50 text-emerald-600"><DollarSign className="h-6 w-6" /></div>
                                     </CardContent>
@@ -826,8 +860,8 @@ export default function InventoryPage() {
                                                                 <td className={`px-4 py-3 font-black ${isLow ? 'text-rose-600' : 'text-slate-800'}`}>
                                                                     {item.current_stock} {item.unit}
                                                                 </td>
-                                                                <td className="px-4 py-3">₹{item.cost_price.toFixed(2)}</td>
-                                                                <td className="px-4 py-3 font-black text-slate-900">₹{(item.current_stock * item.cost_price).toFixed(2)}</td>
+                                                                <td className="px-4 py-3">Rs. {item.cost_price.toFixed(2)}</td>
+                                                                <td className="px-4 py-3 font-black text-slate-900">Rs. {(item.current_stock * item.cost_price).toFixed(2)}</td>
                                                                 <td className="px-4 py-3 text-right">
                                                                     <Button size="sm" variant="outline" className="font-bold text-xs h-8 border-slate-300" onClick={() => handleOpenAdjustment(item)}>
                                                                         Adjust Stock
@@ -881,7 +915,7 @@ export default function InventoryPage() {
                                                             <td className="px-4 py-3 font-bold text-slate-900">{p.invoice_number}</td>
                                                             <td className="px-4 py-3">{p.vendor_name}</td>
                                                             <td className="px-4 py-3">{p.purchase_date}</td>
-                                                            <td className="px-4 py-3 font-bold">₹{p.total_amount.toFixed(2)}</td>
+                                                            <td className="px-4 py-3 font-bold">Rs. {p.total_amount.toFixed(2)}</td>
                                                             <td className="px-4 py-3">
                                                                 {p.status === 'Approved' ? (
                                                                     <Badge className="bg-emerald-500 text-white font-semibold text-[10px] flex items-center gap-1 w-max">
@@ -942,7 +976,7 @@ export default function InventoryPage() {
                                                     >
                                                         <span>{prod.name}</span>
                                                         <Badge variant="outline" className={`font-mono text-[9px] ${recipeProductId === prod.id ? 'border-white text-white' : 'border-slate-300'}`}>
-                                                            ₹{prod.price}
+                                                            Rs. {prod.price}
                                                         </Badge>
                                                     </button>
                                                 ))}
@@ -1157,7 +1191,7 @@ export default function InventoryPage() {
                                             </div>
                                             <div>
                                                 <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Cost of Goods Sold</p>
-                                                <p className="text-2xl font-black text-blue-800 mt-0.5">₹{dailyReportData.totalCOGS.toFixed(2)}</p>
+                                                <p className="text-2xl font-black text-blue-800 mt-0.5">Rs. {dailyReportData.totalCOGS.toFixed(2)}</p>
                                                 <p className="text-[10px] text-blue-500 font-medium">Ingredient cost consumed</p>
                                             </div>
                                         </div>
@@ -1167,7 +1201,7 @@ export default function InventoryPage() {
                                             </div>
                                             <div>
                                                 <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">POS Revenue</p>
-                                                <p className="text-2xl font-black text-emerald-800 mt-0.5">₹{dailyReportData.totalRevenue.toFixed(2)}</p>
+                                                <p className="text-2xl font-black text-emerald-800 mt-0.5">Rs. {dailyReportData.totalRevenue.toFixed(2)}</p>
                                                 <p className="text-[10px] text-emerald-500 font-medium">{dailyReportData.dayOrders.length} completed orders</p>
                                             </div>
                                         </div>
@@ -1192,7 +1226,7 @@ export default function InventoryPage() {
                                                 }`}>Gross Profit</p>
                                                 <p className={`text-2xl font-black mt-0.5 ${
                                                     dailyReportData.totalProfit >= 0 ? 'text-violet-800' : 'text-rose-700'
-                                                }`}>₹{dailyReportData.totalProfit.toFixed(2)}</p>
+                                                }`}>Rs. {dailyReportData.totalProfit.toFixed(2)}</p>
                                                 <p className={`text-[10px] font-medium ${
                                                     dailyReportData.totalProfit >= 0 ? 'text-violet-500' : 'text-rose-500'
                                                 }`}>Revenue − Ingredient COGS</p>
@@ -1228,10 +1262,10 @@ export default function InventoryPage() {
                                                                 {row.qty_used.toFixed(3)} {row.item_unit}
                                                             </td>
                                                             <td className="px-4 py-3 text-blue-700 font-semibold">
-                                                                ₹{row.cost_price.toFixed(2)}
+                                                                Rs. {row.cost_price.toFixed(2)}
                                                             </td>
                                                             <td className="px-4 py-3 font-black text-rose-600">
-                                                                ₹{row.cogs.toFixed(2)}
+                                                                Rs. {row.cogs.toFixed(2)}
                                                             </td>
                                                         </tr>
                                                     ))}
@@ -1239,17 +1273,17 @@ export default function InventoryPage() {
                                                 <tfoot className="bg-slate-50 border-t-2 border-slate-300">
                                                     <tr>
                                                         <td className="px-4 py-3 font-black text-slate-800 text-xs uppercase tracking-wide" colSpan={3}>Total COGS</td>
-                                                        <td className="px-4 py-3 font-black text-rose-700 text-base">₹{dailyReportData.totalCOGS.toFixed(2)}</td>
+                                                        <td className="px-4 py-3 font-black text-rose-700 text-base">Rs. {dailyReportData.totalCOGS.toFixed(2)}</td>
                                                     </tr>
                                                     <tr className="border-t border-slate-200">
                                                         <td className="px-4 py-3 font-black text-slate-800 text-xs uppercase tracking-wide" colSpan={3}>Total POS Revenue</td>
-                                                        <td className="px-4 py-3 font-black text-emerald-700 text-base">₹{dailyReportData.totalRevenue.toFixed(2)}</td>
+                                                        <td className="px-4 py-3 font-black text-emerald-700 text-base">Rs. {dailyReportData.totalRevenue.toFixed(2)}</td>
                                                     </tr>
                                                     <tr className="border-t-2 border-slate-400">
                                                         <td className="px-4 py-3 font-black text-slate-800 text-xs uppercase tracking-wide" colSpan={3}>Gross Profit</td>
                                                         <td className={`px-4 py-3 font-black text-base ${
                                                             dailyReportData.totalProfit >= 0 ? 'text-violet-700' : 'text-rose-700'
-                                                        }`}>₹{dailyReportData.totalProfit.toFixed(2)}</td>
+                                                        }`}>Rs. {dailyReportData.totalProfit.toFixed(2)}</td>
                                                     </tr>
                                                 </tfoot>
                                             </table>
@@ -1300,7 +1334,7 @@ export default function InventoryPage() {
                                     <CardContent>
                                         <div className="text-center py-6 border rounded-md bg-rose-50/20 border-rose-100">
                                             <p className="text-xs font-bold text-rose-700">Financial Value of Waste / Loss</p>
-                                            <h3 className="text-3xl font-black text-rose-600 mt-1">₹{totalWasteCost.toFixed(2)}</h3>
+                                            <h3 className="text-3xl font-black text-rose-600 mt-1">Rs. {totalWasteCost.toFixed(2)}</h3>
                                             <p className="text-[10px] text-rose-500 font-medium mt-1">Sum of manual waste and expired stock logs.</p>
                                         </div>
                                     </CardContent>
@@ -1462,16 +1496,16 @@ export default function InventoryPage() {
 
                         {/* Row 4: Cost Price */}
                         <div className="space-y-1">
-                            <Label className="text-xs font-bold">Cost Price per {itemUnit} (₹)</Label>
+                            <Label className="text-xs font-bold">Cost Price per {itemUnit} (Rs.)</Label>
                             <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm">₹</span>
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs">Rs.</span>
                                 <Input
                                     type="number"
                                     step="any"
                                     min="0"
                                     value={itemCostPrice}
                                     onChange={(e) => setItemCostPrice(e.target.value)}
-                                    className="bg-slate-50 pl-8"
+                                    className="bg-slate-50 pl-10"
                                     placeholder="e.g. 250"
                                 />
                             </div>
@@ -1604,7 +1638,7 @@ export default function InventoryPage() {
                                             <Input type="number" step="any" className="bg-slate-50 h-8 mt-1" value={row.quantity} onChange={(e) => handlePurchaseRowChange(index, 'quantity', Number(e.target.value))} />
                                         </div>
                                         <div className="w-28">
-                                            <Label className="text-[10px] font-bold text-slate-500">Unit Price (₹)</Label>
+                                            <Label className="text-[10px] font-bold text-slate-500">Unit Price (Rs.)</Label>
                                             <Input type="number" className="bg-slate-50 h-8 mt-1" value={row.unit_price} onChange={(e) => handlePurchaseRowChange(index, 'unit_price', Number(e.target.value))} />
                                         </div>
                                         {purchaseRows.length > 1 && (
