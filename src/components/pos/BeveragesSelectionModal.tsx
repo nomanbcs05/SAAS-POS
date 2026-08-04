@@ -121,10 +121,7 @@ export default function BeveragesSelectionModal({ isOpen, onClose, onAdd, dbProd
       quantity: qty
     };
     
-    for (let i = 0; i < qty; i++) {
-      onAdd(beverageProduct);
-    }
-    
+    onAdd(beverageProduct, qty);
     setQuantityPrefix('');
   };
 

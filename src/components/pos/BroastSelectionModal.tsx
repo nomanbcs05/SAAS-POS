@@ -118,10 +118,7 @@ export default function BroastSelectionModal({ isOpen, onClose, onAdd, dbProduct
       quantity: qty
     };
     
-    for (let i = 0; i < qty; i++) {
-      onAdd(broastProduct);
-    }
-    
+    onAdd(broastProduct, qty);
     setQuantityPrefix('');
   };
 

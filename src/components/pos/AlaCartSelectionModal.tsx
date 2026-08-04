@@ -118,10 +118,7 @@ export default function AlaCartSelectionModal({ isOpen, onClose, onAdd, dbProduc
       quantity: qty
     };
     
-    for (let i = 0; i < qty; i++) {
-      onAdd(product);
-    }
-    
+    onAdd(product, qty);
     setQuantityPrefix('');
   };
 

@@ -153,10 +153,7 @@ export default function PizzaSelectionModal({ isOpen, onClose, onAdd, dbProducts
       quantity: qty
     };
     
-    for (let i = 0; i < qty; i++) {
-      onAdd(pizzaProduct);
-    }
-    
+    onAdd(pizzaProduct, qty);
     setQuantityPrefix('');
   };
 

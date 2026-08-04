@@ -147,10 +147,7 @@ export default function BarBQSelectionModal({ isOpen, onClose, onAdd, dbProducts
       quantity: qty
     };
     
-    for (let i = 0; i < qty; i++) {
-      onAdd(bbqProduct);
-    }
-    
+    onAdd(bbqProduct, qty);
     setQuantityPrefix('');
   };
 

@@ -838,12 +838,12 @@ const ProductGrid = () => {
         setShowGenxRestaurantModal(true);
       } else if ((product as any).modalType === 'simple') {
         // Direct add for simple virtual items
-        addItem(product, 1);
+        addItem(product, quantity || 1);
       }
       return;
     }
-    // Directly add to cart with quantity 1 — no calculator modal
-    addItem(product, 1);
+    // Directly add to cart with quantity — no calculator modal
+    addItem(product, quantity || 1);
   }, [addItem]);
 
   const handleClearSearch = () => {

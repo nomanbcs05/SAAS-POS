@@ -132,10 +132,7 @@ export default function RollSelectionModal({ isOpen, onClose, onAdd, dbProducts 
       quantity: qty
     };
     
-    for (let i = 0; i < qty; i++) {
-      onAdd(rollProduct);
-    }
-    
+    onAdd(rollProduct, qty);
     setQuantityPrefix('');
   };
 

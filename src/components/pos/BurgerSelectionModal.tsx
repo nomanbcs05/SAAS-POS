@@ -123,10 +123,7 @@ export default function BurgerSelectionModal({ isOpen, onClose, onAdd, dbProduct
       quantity: qty
     };
     
-    for (let i = 0; i < qty; i++) {
-      onAdd(burgerProduct);
-    }
-    
+    onAdd(burgerProduct, qty);
     setQuantityPrefix('');
   };
 

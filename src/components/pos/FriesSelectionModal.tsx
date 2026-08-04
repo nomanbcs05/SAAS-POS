@@ -119,10 +119,7 @@ export default function FriesSelectionModal({ isOpen, onClose, onAdd, dbProducts
       quantity: qty
     };
     
-    for (let i = 0; i < qty; i++) {
-      onAdd(friesProduct);
-    }
-    
+    onAdd(friesProduct, qty);
     setQuantityPrefix('');
   };
 

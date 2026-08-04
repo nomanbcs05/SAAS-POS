@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
     inventoryApi, 
@@ -40,8 +40,27 @@ import {
     DollarSign, 
     Loader2, 
     TrendingUp, 
-    AlertTriangle 
+    AlertTriangle,
+    TrendingDown,
+    PackageOpen,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
+
+const UNIT_OPTIONS = [
+    { value: 'kg', label: 'kg (Kilogram)' },
+    { value: 'g', label: 'g (Grams)' },
+    { value: 'liter', label: 'Liter' },
+    { value: 'ml', label: 'ml (Milliliter)' },
+    { value: 'pieces', label: 'Pieces' },
+    { value: 'dozen', label: 'Dozen' },
+    { value: 'packet', label: 'Packet' },
+    { value: 'box', label: 'Box' },
+    { value: 'tray', label: 'Tray' },
+    { value: 'bag', label: 'Bag' },
+    { value: 'bottle', label: 'Bottle' },
+    { value: 'can', label: 'Can' },
+];
 
 export default function InventoryPage() {
     const { tenant } = useMultiTenant();
@@ -67,6 +86,10 @@ export default function InventoryPage() {
     const [itemUnit, setItemUnit] = useState('kg');
     const [itemMinStock, setItemMinStock] = useState('5');
     const [itemCostPrice, setItemCostPrice] = useState('0');
+    const [itemInitialQty, setItemInitialQty] = useState('0');
+
+    // Report state
+    const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
 
     // Form states - Vendor
     const [vendorName, setVendorName] = useState('');
@@ -269,6 +292,7 @@ export default function InventoryPage() {
         setItemUnit('kg');
         setItemMinStock('5');
         setItemCostPrice('0');
+        setItemInitialQty('0');
     };
 
     const handleOpenAddItem = () => {
@@ -284,6 +308,7 @@ export default function InventoryPage() {
         setItemUnit(item.unit);
         setItemMinStock(String(item.min_stock));
         setItemCostPrice(String(item.cost_price));
+        setItemInitialQty(String(item.current_stock));
         setIsItemModalOpen(true);
     };
 
@@ -300,7 +325,7 @@ export default function InventoryPage() {
             unit: itemUnit,
             min_stock: Number(itemMinStock) || 0,
             cost_price: Number(itemCostPrice) || 0,
-            current_stock: editingItem ? editingItem.current_stock : 0
+            current_stock: editingItem ? editingItem.current_stock : Number(itemInitialQty) || 0
         });
     };
 
@@ -483,6 +508,56 @@ export default function InventoryPage() {
         }, 0);
 
     // ---------------------------------------------------------------------------
+    // End-of-Day Report Calculations
+    // ---------------------------------------------------------------------------
+    const dailyReportData = useMemo(() => {
+        // Filter sale_deduction adjustments for the selected report date
+        const dateAdjs = adjustmentsList.filter(a => {
+            if (a.type !== 'sale_deduction') return false;
+            if (!a.created_at) return false;
+            const adjDate = new Date(a.created_at).toISOString().split('T')[0];
+            return adjDate === reportDate;
+        });
+
+        // Group by item_id, summing deducted quantities
+        const itemMap: Record<string, { item_id: string; item_name: string; item_unit: string; qty_used: number; cost_price: number }> = {};
+        for (const adj of dateAdjs) {
+            const qtyUsed = Math.abs(adj.quantity);
+            if (!itemMap[adj.item_id]) {
+                const item = itemsList.find(i => i.id === adj.item_id);
+                itemMap[adj.item_id] = {
+                    item_id: adj.item_id,
+                    item_name: adj.item_name || 'Unknown',
+                    item_unit: adj.item_unit || '',
+                    qty_used: 0,
+                    cost_price: item ? Number(item.cost_price) : 0
+                };
+            }
+            itemMap[adj.item_id].qty_used += qtyUsed;
+        }
+
+        // Calculate revenue from orders on the selected date
+        const dayOrders = (completedOrders as any[]).filter(o => {
+            if (!o.created_at) return false;
+            const oDate = new Date(o.created_at).toISOString().split('T')[0];
+            return oDate === reportDate;
+        });
+
+        // Total revenue from completed orders that day
+        const totalRevenue = dayOrders.reduce((sum: number, o: any) => sum + Number(o.total || o.total_amount || 0), 0);
+
+        const rows = Object.values(itemMap).map(row => ({
+            ...row,
+            cogs: row.qty_used * row.cost_price
+        }));
+
+        const totalCOGS = rows.reduce((s, r) => s + r.cogs, 0);
+        const totalProfit = totalRevenue - totalCOGS;
+
+        return { rows, totalCOGS, totalRevenue, totalProfit, dayOrders };
+    }, [adjustmentsList, itemsList, completedOrders, reportDate]);
+
+    // ---------------------------------------------------------------------------
     // Render
     // ---------------------------------------------------------------------------
     return (
@@ -620,20 +695,27 @@ export default function InventoryPage() {
                                                         <th className="px-4 py-3">SKU</th>
                                                         <th className="px-4 py-3">Category</th>
                                                         <th className="px-4 py-3">Unit</th>
+                                                        <th className="px-4 py-3">In Stock</th>
                                                         <th className="px-4 py-3">Min Level</th>
-                                                        <th className="px-4 py-3">WAC Cost</th>
+                                                        <th className="px-4 py-3">Cost Price</th>
                                                         <th className="px-4 py-3 text-right">Actions</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-200 bg-white font-medium text-slate-700">
-                                                    {filteredItems.map(item => (
+                                                    {filteredItems.map(item => {
+                                                        const isLow = item.current_stock <= item.min_stock;
+                                                        return (
                                                         <tr key={item.id} className="hover:bg-slate-50/50">
                                                             <td className="px-4 py-3 font-bold text-slate-900">{item.name}</td>
                                                             <td className="px-4 py-3 text-xs font-mono">{item.sku || '-'}</td>
                                                             <td className="px-4 py-3 capitalize">{item.category.replace('_', ' ')}</td>
                                                             <td className="px-4 py-3">{item.unit}</td>
+                                                            <td className={`px-4 py-3 font-black ${isLow ? 'text-rose-600' : 'text-emerald-700'}`}>
+                                                                {item.current_stock} {item.unit}
+                                                                {isLow && <span className="ml-1 text-[9px] bg-rose-100 text-rose-600 px-1 py-0.5 rounded font-bold">LOW</span>}
+                                                            </td>
                                                             <td className="px-4 py-3 font-bold text-slate-500">{item.min_stock} {item.unit}</td>
-                                                            <td className="px-4 py-3 font-bold text-emerald-700">₹{item.cost_price.toFixed(2)}</td>
+                                                            <td className="px-4 py-3 font-bold text-blue-700">₹{item.cost_price.toFixed(2)}</td>
                                                             <td className="px-4 py-3 text-right">
                                                                 <div className="flex justify-end gap-2">
                                                                     <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => handleOpenEditItem(item)}>
@@ -645,7 +727,8 @@ export default function InventoryPage() {
                                                                 </div>
                                                             </td>
                                                         </tr>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -1011,6 +1094,171 @@ export default function InventoryPage() {
                         {/* TAB 6: REPORTS & ALERTS */}
                         {/* ==================================================== */}
                         <TabsContent value="reports" className="m-0 space-y-6">
+
+                            {/* ---- End-of-Day Cost & Profit Report ---- */}
+                            <Card className="shadow-sm border-slate-200">
+                                <CardHeader className="pb-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                        <div>
+                                            <CardTitle className="flex items-center gap-2">
+                                                <TrendingUp className="h-5 w-5 text-emerald-600" />
+                                                Daily Cost &amp; Profit Report
+                                            </CardTitle>
+                                            <CardDescription>COGS vs POS revenue for ingredients consumed per day</CardDescription>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="icon"
+                                                className="h-9 w-9"
+                                                onClick={() => {
+                                                    const d = new Date(reportDate);
+                                                    d.setDate(d.getDate() - 1);
+                                                    setReportDate(d.toISOString().split('T')[0]);
+                                                }}
+                                            >
+                                                <ChevronLeft className="h-4 w-4" />
+                                            </Button>
+                                            <Input
+                                                type="date"
+                                                value={reportDate}
+                                                onChange={e => setReportDate(e.target.value)}
+                                                className="w-40 bg-white font-semibold text-center"
+                                            />
+                                            <Button
+                                                variant="outline"
+                                                size="icon"
+                                                className="h-9 w-9"
+                                                onClick={() => {
+                                                    const d = new Date(reportDate);
+                                                    d.setDate(d.getDate() + 1);
+                                                    setReportDate(d.toISOString().split('T')[0]);
+                                                }}
+                                            >
+                                                <ChevronRight className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="font-semibold text-xs"
+                                                onClick={() => setReportDate(new Date().toISOString().split('T')[0])}
+                                            >
+                                                Today
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-5">
+                                    {/* Summary Stat Cards */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="rounded-lg border bg-blue-50/50 border-blue-100 p-4 flex items-center gap-4">
+                                            <div className="p-2.5 rounded-full bg-blue-100 text-blue-600 shrink-0">
+                                                <PackageOpen className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Cost of Goods Sold</p>
+                                                <p className="text-2xl font-black text-blue-800 mt-0.5">₹{dailyReportData.totalCOGS.toFixed(2)}</p>
+                                                <p className="text-[10px] text-blue-500 font-medium">Ingredient cost consumed</p>
+                                            </div>
+                                        </div>
+                                        <div className="rounded-lg border bg-emerald-50/50 border-emerald-100 p-4 flex items-center gap-4">
+                                            <div className="p-2.5 rounded-full bg-emerald-100 text-emerald-600 shrink-0">
+                                                <DollarSign className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">POS Revenue</p>
+                                                <p className="text-2xl font-black text-emerald-800 mt-0.5">₹{dailyReportData.totalRevenue.toFixed(2)}</p>
+                                                <p className="text-[10px] text-emerald-500 font-medium">{dailyReportData.dayOrders.length} completed orders</p>
+                                            </div>
+                                        </div>
+                                        <div className={`rounded-lg border p-4 flex items-center gap-4 ${
+                                            dailyReportData.totalProfit >= 0
+                                                ? 'bg-violet-50/50 border-violet-100'
+                                                : 'bg-rose-50/50 border-rose-100'
+                                        }`}>
+                                            <div className={`p-2.5 rounded-full shrink-0 ${
+                                                dailyReportData.totalProfit >= 0
+                                                    ? 'bg-violet-100 text-violet-600'
+                                                    : 'bg-rose-100 text-rose-600'
+                                            }`}>
+                                                {dailyReportData.totalProfit >= 0
+                                                    ? <TrendingUp className="h-5 w-5" />
+                                                    : <TrendingDown className="h-5 w-5" />
+                                                }
+                                            </div>
+                                            <div>
+                                                <p className={`text-xs font-semibold uppercase tracking-wide ${
+                                                    dailyReportData.totalProfit >= 0 ? 'text-violet-700' : 'text-rose-700'
+                                                }`}>Gross Profit</p>
+                                                <p className={`text-2xl font-black mt-0.5 ${
+                                                    dailyReportData.totalProfit >= 0 ? 'text-violet-800' : 'text-rose-700'
+                                                }`}>₹{dailyReportData.totalProfit.toFixed(2)}</p>
+                                                <p className={`text-[10px] font-medium ${
+                                                    dailyReportData.totalProfit >= 0 ? 'text-violet-500' : 'text-rose-500'
+                                                }`}>Revenue − Ingredient COGS</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Per-Item Breakdown */}
+                                    {isLoadingAdjustments ? (
+                                        <div className="flex justify-center py-8"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div>
+                                    ) : dailyReportData.rows.length === 0 ? (
+                                        <div className="text-center py-10 border border-dashed rounded-lg bg-slate-50">
+                                            <PackageOpen className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                                            <p className="text-sm font-bold text-slate-600">No ingredient deductions recorded for this date.</p>
+                                            <p className="text-xs text-slate-400 mt-1">Complete POS orders with recipe-linked products to see daily consumption here.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-md border overflow-hidden">
+                                            <table className="w-full text-sm text-left">
+                                                <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] tracking-wider">
+                                                    <tr>
+                                                        <th className="px-4 py-3">Ingredient</th>
+                                                        <th className="px-4 py-3">Qty Used</th>
+                                                        <th className="px-4 py-3">Cost / Unit</th>
+                                                        <th className="px-4 py-3">COGS (Ingredient Cost)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200 bg-white font-medium text-slate-700">
+                                                    {dailyReportData.rows.map(row => (
+                                                        <tr key={row.item_id} className="hover:bg-slate-50/50">
+                                                            <td className="px-4 py-3 font-bold text-slate-900">{row.item_name}</td>
+                                                            <td className="px-4 py-3 font-semibold text-slate-700">
+                                                                {row.qty_used.toFixed(3)} {row.item_unit}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-blue-700 font-semibold">
+                                                                ₹{row.cost_price.toFixed(2)}
+                                                            </td>
+                                                            <td className="px-4 py-3 font-black text-rose-600">
+                                                                ₹{row.cogs.toFixed(2)}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                                <tfoot className="bg-slate-50 border-t-2 border-slate-300">
+                                                    <tr>
+                                                        <td className="px-4 py-3 font-black text-slate-800 text-xs uppercase tracking-wide" colSpan={3}>Total COGS</td>
+                                                        <td className="px-4 py-3 font-black text-rose-700 text-base">₹{dailyReportData.totalCOGS.toFixed(2)}</td>
+                                                    </tr>
+                                                    <tr className="border-t border-slate-200">
+                                                        <td className="px-4 py-3 font-black text-slate-800 text-xs uppercase tracking-wide" colSpan={3}>Total POS Revenue</td>
+                                                        <td className="px-4 py-3 font-black text-emerald-700 text-base">₹{dailyReportData.totalRevenue.toFixed(2)}</td>
+                                                    </tr>
+                                                    <tr className="border-t-2 border-slate-400">
+                                                        <td className="px-4 py-3 font-black text-slate-800 text-xs uppercase tracking-wide" colSpan={3}>Gross Profit</td>
+                                                        <td className={`px-4 py-3 font-black text-base ${
+                                                            dailyReportData.totalProfit >= 0 ? 'text-violet-700' : 'text-rose-700'
+                                                        }`}>₹{dailyReportData.totalProfit.toFixed(2)}</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* ---- Stock Alerts & Waste ---- */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Stock Alerts Widget */}
                                 <Card className="border-slate-200 shadow-sm">
@@ -1046,7 +1294,7 @@ export default function InventoryPage() {
                                 <Card className="border-slate-200 shadow-sm">
                                     <CardHeader className="pb-2">
                                         <CardTitle className="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                                            <AlertTriangle className="h-4.5 w-4.5 text-amber-500" /> Waste & Expired Cost Loss
+                                            <AlertTriangle className="h-4.5 w-4.5 text-amber-500" /> Waste &amp; Expired Cost Loss
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
@@ -1123,28 +1371,65 @@ export default function InventoryPage() {
 
             {/* MODAL: ADD/EDIT INGREDIENT */}
             <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
-                <DialogContent className="sm:max-w-[480px]">
+                <DialogContent className="sm:max-w-[500px]">
                     <DialogHeader>
                         <DialogTitle className="font-black uppercase text-slate-900">
-                            {editingItem ? 'Edit Ingredient' : 'Add Ingredient'}
+                            {editingItem ? 'Edit Ingredient' : 'Add New Ingredient'}
                         </DialogTitle>
-                        <DialogDescription>Setup ingredient boundaries and cataloging.</DialogDescription>
+                        <DialogDescription>
+                            {editingItem ? 'Update ingredient details and stock boundaries.' : 'Add a new raw material, consumable or packaging item to your inventory.'}
+                        </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleSubmitItem} className="space-y-4 pt-2">
+
+                        {/* Row 1: Item Name */}
                         <div className="space-y-1">
-                            <Label className="text-xs font-bold">Item Name</Label>
-                            <Input value={itemName} onChange={(e) => setItemName(e.target.value)} placeholder="e.g. Fresh Onions" className="bg-slate-50" />
+                            <Label className="text-xs font-bold">Item Name *</Label>
+                            <Input
+                                value={itemName}
+                                onChange={(e) => setItemName(e.target.value)}
+                                placeholder="e.g. Chicken, Mutton, Milk"
+                                className="bg-slate-50"
+                                required
+                            />
                         </div>
+
+                        {/* Row 2: Quantity + Unit */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1">
-                                <Label className="text-xs font-bold">SKU Code (Optional)</Label>
-                                <Input value={itemSku} onChange={(e) => setItemSku(e.target.value)} placeholder="e.g. RAW-ONION" className="bg-slate-50" />
+                                <Label className="text-xs font-bold">
+                                    {editingItem ? 'Current Quantity' : 'Initial Quantity *'}
+                                </Label>
+                                <Input
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    value={itemInitialQty}
+                                    onChange={(e) => setItemInitialQty(e.target.value)}
+                                    placeholder="e.g. 50"
+                                    className="bg-slate-50"
+                                    disabled={!!editingItem}
+                                />
+                                {editingItem && (
+                                    <p className="text-[10px] text-muted-foreground">Use Stock Control → Adjust Stock to change qty</p>
+                                )}
                             </div>
                             <div className="space-y-1">
-                                <Label className="text-xs font-bold">Portion Unit</Label>
-                                <Input value={itemUnit} onChange={(e) => setItemUnit(e.target.value)} placeholder="e.g. kg, grams, liters" className="bg-slate-50" />
+                                <Label className="text-xs font-bold">Unit *</Label>
+                                <Select value={itemUnit} onValueChange={setItemUnit}>
+                                    <SelectTrigger className="w-full bg-slate-50">
+                                        <SelectValue placeholder="Select unit" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {UNIT_OPTIONS.map(u => (
+                                            <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
+
+                        {/* Row 3: Category + Min Qty */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1">
                                 <Label className="text-xs font-bold">Category</Label>
@@ -1160,20 +1445,54 @@ export default function InventoryPage() {
                                 </Select>
                             </div>
                             <div className="space-y-1">
-                                <Label className="text-xs font-bold">Min Stock Alert Level</Label>
-                                <Input type="number" value={itemMinStock} onChange={(e) => setItemMinStock(e.target.value)} className="bg-slate-50" />
+                                <Label className="text-xs font-bold">Min Qty Alert Level</Label>
+                                <div className="relative">
+                                    <Input
+                                        type="number"
+                                        step="any"
+                                        min="0"
+                                        value={itemMinStock}
+                                        onChange={(e) => setItemMinStock(e.target.value)}
+                                        className="bg-slate-50 pr-10"
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-semibold">{itemUnit}</span>
+                                </div>
                             </div>
                         </div>
-                        {!editingItem && (
-                            <div className="space-y-1">
-                                <Label className="text-xs font-bold">Starting Cost Price (₹)</Label>
-                                <Input type="number" value={itemCostPrice} onChange={(e) => setItemCostPrice(e.target.value)} className="bg-slate-50" />
+
+                        {/* Row 4: Cost Price */}
+                        <div className="space-y-1">
+                            <Label className="text-xs font-bold">Cost Price per {itemUnit} (₹)</Label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm">₹</span>
+                                <Input
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    value={itemCostPrice}
+                                    onChange={(e) => setItemCostPrice(e.target.value)}
+                                    className="bg-slate-50 pl-8"
+                                    placeholder="e.g. 250"
+                                />
                             </div>
-                        )}
+                            <p className="text-[10px] text-muted-foreground">Used to calculate COGS in the daily profit report</p>
+                        </div>
+
+                        {/* Row 5: SKU (optional, at end) */}
+                        <div className="space-y-1">
+                            <Label className="text-xs font-bold">SKU Code <span className="font-normal text-slate-400">(Optional)</span></Label>
+                            <Input
+                                value={itemSku}
+                                onChange={(e) => setItemSku(e.target.value)}
+                                placeholder="e.g. RAW-CHICKEN"
+                                className="bg-slate-50"
+                            />
+                        </div>
+
                         <DialogFooter className="pt-4 border-t gap-2">
                             <Button type="button" variant="outline" onClick={() => setIsItemModalOpen(false)}>Cancel</Button>
-                            <Button type="submit" disabled={saveItemMutation.isPending}>
-                                {saveItemMutation.isPending ? 'Saving...' : 'Save Item'}
+                            <Button type="submit" disabled={saveItemMutation.isPending} className="min-w-24">
+                                {saveItemMutation.isPending ? 'Saving...' : (editingItem ? 'Update Item' : 'Add to Inventory')}
                             </Button>
                         </DialogFooter>
                     </form>
