@@ -215,22 +215,29 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
             <span>{order.deliveryFee}</span>
           </div>
         )}
-        {order.customer && order.customer.creditBalance > 0 && (
-          <div className="flex justify-between font-medium text-red-600 mt-1">
-            <span>Previous Due :</span>
-            <span>{Number(order.customer.creditBalance).toLocaleString()}</span>
-          </div>
-        )}
-        <div className="flex justify-between font-bold text-base mt-1 bg-gray-100 p-1 border border-black/10">
-          <span>Net Bill :</span>
-          <span>{(order.total || 0).toLocaleString()}</span>
-        </div>
-        {order.customer && order.customer.creditBalance > 0 && (
-          <div className="flex justify-between font-black text-lg mt-1 p-1 border-t border-black">
-            <span>Total Payable :</span>
-            <span>{((order.total || 0) + (order.customer.creditBalance || 0)).toLocaleString()}</span>
-          </div>
-        )}
+        {(() => {
+          const prevBalance = Number(order.customer?.creditBalance ?? order.customer?.credit_balance ?? (order as any).previousCreditBalance ?? 0);
+          return (
+            <>
+              {prevBalance > 0 && (
+                <div className="flex justify-between font-bold text-red-600 mt-1 border-t border-black pt-1">
+                  <span>Previous Credit Balance:</span>
+                  <span>Rs {prevBalance.toLocaleString()}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold text-base mt-1 bg-gray-100 p-1 border border-black/10">
+                <span>Current Order Total:</span>
+                <span>Rs {(order.total || 0).toLocaleString()}</span>
+              </div>
+              {prevBalance > 0 && (
+                <div className="flex justify-between font-black text-sm mt-1 p-1 border-t-2 border-black bg-gray-200">
+                  <span>TOTAL COMBINED BALANCE:</span>
+                  <span>Rs {((order.total || 0) + prevBalance).toLocaleString()}</span>
+                </div>
+              )}
+            </>
+          );
+        })()}
         {order.receivedCash !== undefined && order.receivedCash > 0 && (
           <div className="flex justify-between font-bold mt-1 border-t border-dotted border-black pt-1">
             <span>Cash Received:</span>

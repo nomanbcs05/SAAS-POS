@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { api } from '@/services/api';
 import { useCartStore } from '@/stores/cartStore';
 import { toast } from 'sonner';
-import { Users, X, UserCircle2, TreePine, Home } from 'lucide-react';
+import { Users, X, UserCircle2, TreePine, Home, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 
 interface TableSelectionModalProps {
@@ -18,11 +20,10 @@ interface TableSelectionModalProps {
 type TableStatus = 'available' | 'occupied' | 'reserved' | 'cleaning';
 type TableSection = 'indoor' | 'outdoor' | 'vip';
 
-// Layout definition: Indoor = 16 tables × 6 seats, Outdoor = 8 tables × 8 seats
 const SECTION_CONFIG: Record<TableSection, { count: number; capacity: number; label: string }> = {
   indoor:  { count: 16, capacity: 6, label: 'Indoor'  },
   outdoor: { count: 8,  capacity: 8, label: 'Outdoor' },
-  vip:     { count: 0,  capacity: 10, label: 'VIP'     },
+  vip:     { count: 4,  capacity: 10, label: 'VIP'    },
 };
 
 const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
@@ -33,7 +34,11 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
   const { setTableId, setOrderType, serverName, setServerName } = useCartStore();
   const queryClient = useQueryClient();
 
-  // Reset state when modal opens
+  const [isAddTableOpen, setIsAddTableOpen] = useState(false);
+  const [newTableSection, setNewTableSection] = useState<TableSection>('indoor');
+  const [newTableNumber, setNewTableNumber] = useState('');
+  const [newTableCapacity, setNewTableCapacity] = useState('6');
+
   useEffect(() => {
     if (isOpen) {
       setStep('server');
@@ -45,7 +50,7 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     }
   }, [isOpen]);
 
-  const { data: tables = [], isLoading } = useQuery({
+  const { data: dbTables = [], isLoading } = useQuery({
     queryKey: ['tables'],
     queryFn: api.tables.getAll,
     enabled: isOpen,
@@ -57,11 +62,10 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     enabled: isOpen,
   });
 
-  // Combine default with DB staff
   const displayServers = useMemo(() => {
     const dbNames = staffMembers.map((s: any) => s.name);
     if (dbNames.length > 0) return dbNames;
-    return serverList; // fallback to hardcoded if DB empty
+    return serverList;
   }, [staffMembers, serverList]);
 
   const { data: ongoingOrders = [] } = useQuery({
@@ -70,25 +74,23 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     enabled: isOpen,
   });
 
-  // Build the full table list from config, merging DB records
   const displayTables = useMemo(() => {
     const allTables: any[] = [];
     const isKhanshinwari = tenant?.restaurant_name?.toLowerCase().includes('khanshinwari') || tenant?.restaurant_name?.toLowerCase().includes('khan shinwari');
 
     if (isKhanshinwari) {
-      // Logic for Khanshinwari specific ranges: 1-30, 50-65, 90-100
       const ranges = [
         { start: 1, end: 30, section: 'indoor' as TableSection, capacity: 6 },
-        { start: 50, end: 65, section: 'outdoor' as TableSection, capacity: 8 },
-        { start: 90, end: 100, section: 'vip' as TableSection, capacity: 10 }
+        { start: 31, end: 46, section: 'outdoor' as TableSection, capacity: 8 },
+        { start: 47, end: 57, section: 'vip' as TableSection, capacity: 10 }
       ];
       
       ranges.forEach(range => {
         if (activeFilter === 'all' || activeFilter === range.section) {
           for (let i = range.start; i <= range.end; i++) {
             const tableNum = i.toString();
-            const existing = tables.find(
-              (t: any) => t.table_number === tableNum && t.section === range.section
+            const existing = dbTables.find(
+              (t: any) => t.table_number === tableNum || t.table_number === `Table ${tableNum}`
             );
             allTables.push(
               existing || {
@@ -102,36 +104,55 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
           }
         }
       });
+
+      dbTables.forEach((t: any) => {
+        if (!allTables.some(item => item.id === t.id || item.table_number === t.table_number)) {
+          if (activeFilter === 'all' || activeFilter === t.section) {
+            allTables.push(t);
+          }
+        }
+      });
+
       return allTables;
     }
 
-    const sections: TableSection[] = activeFilter === 'all' ? ['indoor', 'outdoor'] : [activeFilter as TableSection];
+    let sequentialNum = 1;
+    const sectionsToBuild: TableSection[] = ['indoor', 'outdoor', 'vip'];
 
-    for (const section of sections) {
-      if (section === 'vip' && !isKhanshinwari) continue;
-      const { count, capacity } = SECTION_CONFIG[section];
-      // Number tables per section: Indoor → T1–T16, Outdoor → O1–O8
-      const prefix = section === 'indoor' ? 'T' : (section === 'outdoor' ? 'O' : 'V');
+    sectionsToBuild.forEach((sec) => {
+      const { count, capacity } = SECTION_CONFIG[sec];
       for (let i = 1; i <= count; i++) {
-        const tableNum = `${prefix}${i}`;
-        const existing = tables.find(
-          (t: any) => t.table_number === tableNum && t.section === section
+        const tableNumStr = sequentialNum.toString();
+        const existing = dbTables.find(
+          (t: any) => t.table_number === tableNumStr || t.table_number === `Table ${tableNumStr}`
         );
-        allTables.push(
-          existing || {
-            table_number: tableNum,
-            section,
-            capacity,
-            status: 'available' as TableStatus,
-            isVirtual: true,
-          }
-        );
-      }
-    }
-    return allTables;
-  }, [tables, activeFilter, tenant]);
 
-  /* ── mutations ── */
+        if (activeFilter === 'all' || activeFilter === sec) {
+          allTables.push(
+            existing || {
+              table_number: tableNumStr,
+              section: sec,
+              capacity,
+              status: 'available' as TableStatus,
+              isVirtual: true,
+            }
+          );
+        }
+        sequentialNum++;
+      }
+    });
+
+    dbTables.forEach((t: any) => {
+      if (!allTables.some(item => item.id === t.id || item.table_number === t.table_number)) {
+        if (activeFilter === 'all' || activeFilter === t.section) {
+          allTables.push(t);
+        }
+      }
+    });
+
+    return allTables;
+  }, [dbTables, activeFilter, tenant]);
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TableStatus }) =>
       api.tables.updateStatus(id, status),
@@ -144,12 +165,26 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
       api.tables.create({
         table_number: table.table_number,
         section: table.section,
-        capacity: table.capacity,
+        capacity: Number(table.capacity) || 6,
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tables'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
+      toast.success('Table added successfully');
+      setIsAddTableOpen(false);
+      setNewTableNumber('');
+    },
+    onError: () => toast.error('Failed to create table'),
   });
 
-  /* ── handlers ── */
+  const deleteTableMutation = useMutation({
+    mutationFn: async (id: string) => api.tables.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
+      toast.success('Table removed');
+    },
+    onError: () => toast.error('Failed to delete table'),
+  });
+
   const handleServerSelect = (name: string) => {
     setServerName(name);
     setStep('table');
@@ -167,8 +202,8 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
       }
     }
 
-    const tableIdVal = tableToSelect.id || tableToSelect.table_id;
-    const isOccupied = ongoingOrders.some((o: any) => o.table_id === tableIdVal);
+    const tableIdVal = tableToSelect.id || tableToSelect.table_id || tableToSelect.table_number;
+    const isOccupied = ongoingOrders.some((o: any) => o.table_id === tableIdVal || o.table_id === tableToSelect.table_number);
 
     if (isOccupied) {
       setTableId(tableIdVal);
@@ -178,16 +213,10 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
       return;
     }
 
-    if (tableToSelect.status !== 'available' && tableToSelect.status !== 'occupied') return;
-
     setTableId(tableIdVal);
     setOrderType('dine_in');
     onClose();
     toast.success(`Table ${tableToSelect.table_number} selected`);
-
-    if (tableToSelect.status === 'available') {
-      updateStatusMutation.mutate({ id: tableIdVal, status: 'occupied' });
-    }
   };
 
   const handleSkipTable = () => {
@@ -204,17 +233,49 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     toast.success(`Table ${table.table_number} is now available`);
   };
 
+  const handleDeleteTable = (e: React.MouseEvent, table: any) => {
+    e.stopPropagation();
+    if (window.confirm(`Delete table ${table.table_number} from ${table.section.toUpperCase()}?`)) {
+      if (table.id) {
+        deleteTableMutation.mutate(table.id);
+      } else {
+        toast.info('Table removed');
+      }
+    }
+  };
+
+  const handleOpenAddModal = () => {
+    const maxNum = displayTables.reduce((max, t) => {
+      const n = parseInt(t.table_number.replace(/\D/g, ''), 10);
+      return !isNaN(n) && n > max ? n : max;
+    }, 0);
+    setNewTableNumber((maxNum + 1).toString());
+    setIsAddTableOpen(true);
+  };
+
+  const handleCreateNewTable = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTableNumber.trim()) {
+      toast.error('Table number is required');
+      return;
+    }
+    createTableMutation.mutate({
+      table_number: newTableNumber.trim(),
+      section: newTableSection,
+      capacity: Number(newTableCapacity) || 6,
+    });
+  };
+
   const getStatusColor = (status: TableStatus) => {
     switch (status) {
-      case 'available': return 'border-emerald-500 bg-emerald-50 hover:bg-emerald-100 text-emerald-700';
-      case 'occupied':  return 'border-red-500 bg-red-50 text-red-700';
-      case 'reserved':  return 'border-amber-500 bg-amber-50 text-amber-700';
-      case 'cleaning':  return 'border-gray-400 bg-gray-50 text-gray-500';
+      case 'available': return 'border-emerald-500 bg-emerald-50/80 hover:bg-emerald-100/90 text-emerald-800';
+      case 'occupied':  return 'border-red-500 bg-red-50/90 text-red-800';
+      case 'reserved':  return 'border-amber-500 bg-amber-50 text-amber-800';
+      case 'cleaning':  return 'border-gray-400 bg-gray-50 text-gray-600';
       default:          return 'border-gray-200';
     }
   };
 
-  /* ── filter tabs ── */
   const filterTabs: { key: TableSection | 'all'; label: string; icon: React.ReactNode }[] = [
     { key: 'all',     label: 'All Tables', icon: null },
     { key: 'indoor',  label: 'Indoor',     icon: <Home className="w-3.5 h-3.5" /> },
@@ -222,320 +283,330 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     { key: 'vip',     label: 'VIP',        icon: <Users className="w-3.5 h-3.5" /> },
   ];
 
-  /* ── counts for badges ── */
   const sectionCounts = useMemo(() => {
-    const isKhanshinwari = tenant?.restaurant_name?.toLowerCase().includes('khanshinwari') || tenant?.restaurant_name?.toLowerCase().includes('khan shinwari');
-    
-    if (isKhanshinwari) {
-      return {
-        all: 30 + 16 + 11,
-        indoor: 30,
-        outdoor: 16,
-        vip: 11
-      };
-    }
-
-    const countFor = (section: TableSection) => {
-      const { count } = SECTION_CONFIG[section];
-      return count;
-    };
+    const countSec = (sec: TableSection) => displayTables.filter(t => t.section === sec).length;
     return {
-      all:     SECTION_CONFIG.indoor.count + SECTION_CONFIG.outdoor.count,
-      indoor:  countFor('indoor'),
-      outdoor: countFor('outdoor'),
-      vip:     0,
+      all: displayTables.length,
+      indoor: countSec('indoor'),
+      outdoor: countSec('outdoor'),
+      vip: countSec('vip'),
     };
-  }, [tenant]);
+  }, [displayTables]);
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        className="max-w-[900px] w-[96vw] max-h-[92vh] p-0 overflow-hidden bg-background rounded-[2.5rem] shadow-2xl border-none"
-        aria-describedby={undefined}
-      >
-        <div className="flex flex-col h-full max-h-[92vh]">
-
-          {/* ── Header ── */}
-          <div className="p-7 pb-4 bg-slate-50/60 border-b border-slate-100 relative">
-            <div className="flex justify-between items-start">
-              <DialogHeader className="space-y-1">
-                <DialogTitle className="text-3xl font-black font-heading uppercase tracking-tight text-slate-900">
-                  {step === 'server' ? 'Select Server' : 'Choose Table'}
-                </DialogTitle>
-                <DialogDescription
-                  id="table-selection-description"
-                  className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]"
-                >
-                  {step === 'server'
-                    ? 'Step 1 of 2 · Assign a server'
-                    : `Step 2 of 2 · Indoor: 16 tables (6 chairs) · Outdoor: 8 tables (8 chairs)`}
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="flex items-center gap-3">
-                {step === 'table' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setStep('server')}
-                    className="text-[10px] h-9 px-4 font-black font-heading uppercase tracking-widest border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-xl"
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent
+          className="max-w-[950px] w-[96vw] max-h-[94vh] p-0 overflow-hidden bg-background rounded-[2.5rem] shadow-2xl border-none"
+          aria-describedby={undefined}
+        >
+          <div className="flex flex-col h-full max-h-[94vh]">
+            <div className="p-6 pb-4 bg-slate-50 border-b border-slate-100 relative">
+              <div className="flex justify-between items-start">
+                <DialogHeader className="space-y-1">
+                  <DialogTitle className="text-3xl font-black font-heading uppercase tracking-tight text-slate-900">
+                    {step === 'server' ? 'Select Server' : 'Choose Table'}
+                  </DialogTitle>
+                  <DialogDescription
+                    id="table-selection-description"
+                    className="text-[11px] font-bold text-slate-500 uppercase tracking-widest"
                   >
-                    ← Back
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onClose}
-                  className="h-9 w-9 rounded-full hover:bg-slate-200 transition-colors"
-                >
-                  <X className="h-5 w-5 text-slate-500" />
-                </Button>
-              </div>
-            </div>
+                    {step === 'server'
+                      ? 'Step 1 of 2 · Select assigned server'
+                      : `Indoor: 1-16 · Outdoor: 17-24 (Sequential) · VIP: 25-28`}
+                  </DialogDescription>
+                </DialogHeader>
 
-            {/* Step progress dots */}
-            <div className="flex items-center gap-2 mt-4">
-              <div className={cn('h-1.5 rounded-full transition-all duration-300', step === 'server' ? 'w-8 bg-slate-900' : 'w-4 bg-slate-300')} />
-              <div className={cn('h-1.5 rounded-full transition-all duration-300', step === 'table'  ? 'w-8 bg-slate-900' : 'w-4 bg-slate-300')} />
-            </div>
-          </div>
-
-          {/* ── Body ── */}
-          <div className="px-7 pb-7 pt-5 overflow-y-auto flex-1">
-
-            {/* ══ STEP 1: Server Selection ══ */}
-            {step === 'server' && (
-              <div className="space-y-5 py-2">
-                <p className="text-xs text-slate-400 font-semibold uppercase tracking-widest">
-                  Tap a server to continue
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {displayServers.map((name) => (
-                    <Button
-                      key={name}
-                      variant={serverName === name ? 'default' : 'outline'}
-                      onClick={() => handleServerSelect(name)}
-                      className={cn(
-                        'rounded-3xl text-sm font-black font-heading uppercase tracking-wider transition-all h-28 border-2 flex flex-col gap-3 shadow-sm',
-                        serverName === name
-                          ? 'bg-slate-900 border-slate-900 text-white shadow-xl scale-[1.04] z-10'
-                          : 'border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:shadow-md hover:scale-[1.02]'
-                      )}
-                    >
-                      <UserCircle2 className={cn('w-7 h-7', serverName === name ? 'text-blue-400' : 'text-slate-300')} />
-                      {name}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ══ STEP 2: Table Selection ══ */}
-            {step === 'table' && (
-              <div className="space-y-5">
-
-                {/* Filter Tabs */}
-                <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl sticky top-0 z-20">
-                  {filterTabs.map(({ key, label, icon }) => (
-                    <Button
-                      key={key}
-                      variant={activeFilter === key ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setActiveFilter(key as TableSection | 'all')}
-                      className={cn(
-                        'flex-1 rounded-xl text-[10px] font-black font-heading uppercase tracking-widest h-10 transition-all gap-1.5',
-                        activeFilter === key
-                          ? 'bg-white text-slate-900 shadow-md ring-1 ring-slate-200'
-                          : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50/50'
-                      )}
-                    >
-                      {icon}
-                      {label}
-                      <span className={cn(
-                        'ml-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold',
-                        activeFilter === key ? 'bg-slate-100 text-slate-600' : 'bg-slate-200/50 text-slate-400'
-                      )}>
-                        {key === 'all' ? sectionCounts.all : sectionCounts[key as TableSection]}
-                      </span>
-                    </Button>
-                  ))}
-                </div>
-
-                {/* Section headers + grids */}
-                <div className="min-h-[300px]">
-                  {isLoading ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3">
-                      <div className="w-8 h-8 border-[3px] border-slate-200 border-t-slate-900 rounded-full animate-spin" />
-                      <span className="text-xs font-black uppercase tracking-widest">Loading tables...</span>
-                    </div>
-                  ) : (
+                <div className="flex items-center gap-2">
+                  {step === 'table' && (
                     <>
-                      {/* When "all" is selected, render each section with its own header */}
-                      {activeFilter === 'all' ? (
-                        <div className="space-y-7">
-                          {(['indoor', 'outdoor', 'vip'] as TableSection[]).map((section) => {
-                            if (section === 'vip' && !(tenant?.restaurant_name?.toLowerCase().includes('khanshinwari') || tenant?.restaurant_name?.toLowerCase().includes('khan shinwari'))) return null;
-                            const { label, capacity } = SECTION_CONFIG[section];
-                            const Icon = section === 'indoor' ? Home : (section === 'outdoor' ? TreePine : Users);
-                            const sectionTables = displayTables.filter((t) => t.section === section);
-                            if (sectionTables.length === 0) return null;
-                            return (
-                              <div key={section}>
-                                {/* Section header */}
-                                <div className="flex items-center gap-2 mb-3">
-                                  <div className={cn(
-                                    'flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest',
-                                    section === 'indoor' ? 'bg-blue-50 text-blue-700' : 
-                                    section === 'outdoor' ? 'bg-green-50 text-green-700' : 'bg-purple-50 text-purple-700'
-                                  )}>
-                                    <Icon className="w-3 h-3" />
-                                    {label}
-                                  </div>
-                                  <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">
-                                    {sectionTables.length} tables · {capacity} chairs each
-                                  </span>
-                                </div>
-                                <TableGrid
-                                  tables={sectionTables}
-                                  ongoingOrders={ongoingOrders}
-                                  getStatusColor={getStatusColor}
-                                  onSelect={handleTableSelect}
-                                  onClear={handleClearTable}
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        /* Single-section view */
-                        <div>
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className={cn(
-                              'flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest',
-                              activeFilter === 'indoor' ? 'bg-blue-50 text-blue-700' : 
-                              activeFilter === 'outdoor' ? 'bg-green-50 text-green-700' : 'bg-purple-50 text-purple-700'
-                            )}>
-                              {activeFilter === 'indoor' ? <Home className="w-3 h-3" /> : (activeFilter === 'outdoor' ? <TreePine className="w-3 h-3" /> : <Users className="w-3 h-3" />)}
-                              {SECTION_CONFIG[activeFilter as TableSection].label}
-                            </div>
-                            <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">
-                              {displayTables.length} tables · {SECTION_CONFIG[activeFilter as TableSection].capacity} chairs each
-                            </span>
-                          </div>
-                          <TableGrid
-                            tables={displayTables}
-                            ongoingOrders={ongoingOrders}
-                            getStatusColor={getStatusColor}
-                            onSelect={handleTableSelect}
-                            onClear={handleClearTable}
-                          />
-                        </div>
-                      )}
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleOpenAddModal}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider rounded-xl h-9 px-3 gap-1 shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Add Table
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setStep('server')}
+                        className="text-[10px] h-9 px-3 font-black font-heading uppercase tracking-widest border-slate-200 bg-white text-slate-700 rounded-xl"
+                      >
+                        ← Back
+                      </Button>
                     </>
                   )}
-                </div>
-
-                {/* Footer */}
-                <div className="flex flex-col gap-4 pt-5 border-t border-slate-100">
-                  {/* Legend */}
-                  <div className="flex items-center justify-center gap-8 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Available
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-red-500" /> Occupied
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Reserved
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={handleSkipTable}
-                      className="flex-1 h-14 rounded-2xl text-[11px] font-black uppercase tracking-widest border-2 border-slate-100 text-slate-400 hover:text-slate-900 hover:border-slate-200"
-                    >
-                      Skip Table Selection
-                    </Button>
-                    {serverName && (
-                      <div className="flex-1 bg-slate-900 rounded-2xl px-6 flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Server</span>
-                        <div className="flex items-center gap-2">
-                          <UserCircle2 className="w-4 h-4 text-blue-400" />
-                          <span className="text-white font-black uppercase tracking-widest text-xs">{serverName}</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onClose}
+                    className="h-9 w-9 rounded-full hover:bg-slate-200"
+                  >
+                    <X className="h-5 w-5 text-slate-500" />
+                  </Button>
                 </div>
               </div>
-            )}
+
+              <div className="flex items-center gap-2 mt-3">
+                <div className={cn('h-1.5 rounded-full transition-all duration-300', step === 'server' ? 'w-8 bg-slate-900' : 'w-4 bg-slate-300')} />
+                <div className={cn('h-1.5 rounded-full transition-all duration-300', step === 'table'  ? 'w-8 bg-slate-900' : 'w-4 bg-slate-300')} />
+              </div>
+            </div>
+
+            <div className="px-6 pb-6 pt-4 overflow-y-auto flex-1">
+              {step === 'server' && (
+                <div className="space-y-5 py-2">
+                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-widest">
+                    Select a server to continue
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {displayServers.map((name) => (
+                      <Button
+                        key={name}
+                        variant={serverName === name ? 'default' : 'outline'}
+                        onClick={() => handleServerSelect(name)}
+                        className={cn(
+                          'rounded-3xl text-sm font-black font-heading uppercase tracking-wider transition-all h-28 border-2 flex flex-col gap-3 shadow-sm',
+                          serverName === name
+                            ? 'bg-slate-900 border-slate-900 text-white shadow-xl scale-[1.04] z-10'
+                            : 'border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:shadow-md hover:scale-[1.02]'
+                        )}
+                      >
+                        <UserCircle2 className={cn('w-7 h-7', serverName === name ? 'text-blue-400' : 'text-slate-300')} />
+                        {name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {step === 'table' && (
+                <div className="space-y-5">
+                  <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl sticky top-0 z-20">
+                    {filterTabs.map(({ key, label, icon }) => (
+                      <Button
+                        key={key}
+                        variant={activeFilter === key ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setActiveFilter(key as TableSection | 'all')}
+                        className={cn(
+                          'flex-1 rounded-xl text-[10px] font-black font-heading uppercase tracking-widest h-10 transition-all gap-1.5',
+                          activeFilter === key
+                            ? 'bg-white text-slate-900 shadow-md ring-1 ring-slate-200'
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50/50'
+                        )}
+                      >
+                        {icon}
+                        {label}
+                        <span className={cn(
+                          'ml-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold',
+                          activeFilter === key ? 'bg-slate-100 text-slate-600' : 'bg-slate-200/50 text-slate-400'
+                        )}>
+                          {sectionCounts[key as TableSection]}
+                        </span>
+                      </Button>
+                    ))}
+                  </div>
+
+                  <div className="min-h-[300px]">
+                    {isLoading ? (
+                      <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3">
+                        <div className="w-8 h-8 border-[3px] border-slate-200 border-t-slate-900 rounded-full animate-spin" />
+                        <span className="text-xs font-black uppercase tracking-widest">Loading tables...</span>
+                      </div>
+                    ) : (
+                      <TableGrid
+                        tables={displayTables}
+                        ongoingOrders={ongoingOrders}
+                        getStatusColor={getStatusColor}
+                        onSelect={handleTableSelect}
+                        onClear={handleClearTable}
+                        onDelete={handleDeleteTable}
+                      />
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-4 pt-4 border-t border-slate-100">
+                    <div className="flex items-center justify-center gap-8 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Available
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-500" /> Occupied
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Reserved
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <Button
+                        variant="outline"
+                        onClick={handleSkipTable}
+                        className="flex-1 h-12 rounded-2xl text-[11px] font-black uppercase tracking-widest border-2 border-slate-100 text-slate-400 hover:text-slate-900"
+                      >
+                        Skip Table Selection
+                      </Button>
+                      {serverName && (
+                        <div className="flex-1 bg-slate-900 rounded-2xl px-6 flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Server</span>
+                          <div className="flex items-center gap-2">
+                            <UserCircle2 className="w-4 h-4 text-blue-400" />
+                            <span className="text-white font-black uppercase tracking-widest text-xs">{serverName}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddTableOpen} onOpenChange={setIsAddTableOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black uppercase">Add New Table</DialogTitle>
+            <DialogDescription>Create a new table for Indoor, Outdoor, or VIP section.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateNewTable} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="font-bold text-xs uppercase">Section</Label>
+              <Select value={newTableSection} onValueChange={(val: any) => setNewTableSection(val)}>
+                <SelectTrigger className="h-11 font-bold">
+                  <SelectValue placeholder="Select section" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="indoor">Indoor (Main Hall)</SelectItem>
+                  <SelectItem value="outdoor">Outdoor (Lawn / Terrace)</SelectItem>
+                  <SelectItem value="vip">VIP Lounge</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="font-bold text-xs uppercase">Table Number / Name</Label>
+              <Input
+                value={newTableNumber}
+                onChange={(e) => setNewTableNumber(e.target.value)}
+                placeholder="e.g. 25 or T25"
+                className="h-11 font-bold"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="font-bold text-xs uppercase">Seating Capacity (Chairs)</Label>
+              <Input
+                type="number"
+                value={newTableCapacity}
+                onChange={(e) => setNewTableCapacity(e.target.value)}
+                placeholder="6"
+                className="h-11 font-bold"
+                required
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsAddTableOpen(false)}>Cancel</Button>
+              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 font-bold uppercase">Save Table</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
-/* ── Reusable Table Grid Sub-Component ── */
 interface TableGridProps {
   tables: any[];
   ongoingOrders: any[];
   getStatusColor: (status: TableStatus) => string;
   onSelect: (table: any) => void;
   onClear: (e: React.MouseEvent, table: any) => void;
+  onDelete: (e: React.MouseEvent, table: any) => void;
 }
 
-type TableStatus = 'available' | 'occupied' | 'reserved' | 'cleaning';
-
-const TableGrid = ({ tables, ongoingOrders, getStatusColor, onSelect, onClear }: TableGridProps) => (
+const TableGrid = ({ tables, ongoingOrders, getStatusColor, onSelect, onClear, onDelete }: TableGridProps) => (
   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 pb-2">
     {tables.map((table: any) => {
-      const tableIdVal = table.id || table.table_id;
-      const isOccupied = tableIdVal
-        ? ongoingOrders.some((o: any) => o.table_id === tableIdVal)
-        : false;
+      const tableIdVal = table.id || table.table_id || table.table_number;
+      const isOccupied = ongoingOrders.some(
+        (o: any) => o.table_id === tableIdVal || o.table_id === table.table_number
+      );
       const status: TableStatus = isOccupied ? 'occupied' : table.status;
+      const sec = (table.section || 'indoor').toLowerCase();
 
       return (
         <div
           key={`${table.section}-${table.table_number}`}
           onClick={() => onSelect(table)}
           className={cn(
-            'relative border-2 rounded-2xl p-3 flex flex-col items-center justify-center gap-1 transition-all duration-200 group cursor-pointer',
-            'h-24 shadow-sm',
+            'relative border-2 rounded-2xl p-2.5 flex flex-col items-center justify-between transition-all duration-200 group cursor-pointer',
+            'h-28 shadow-sm',
             getStatusColor(status),
-            'hover:-translate-y-1 hover:shadow-xl hover:border-blue-400'
+            'hover:-translate-y-1 hover:shadow-xl hover:border-blue-500'
           )}
         >
-          <span className="text-xl font-black font-heading tracking-tighter">{table.table_number}</span>
-          <div className="flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider opacity-60">
-            <Users className="w-2.5 h-2.5" />
-            <span>{table.capacity}</span>
-          </div>
           <div className={cn(
-            'text-[7px] uppercase tracking-[0.15em] font-black px-2 py-0.5 rounded-full mt-0.5',
-            status === 'available' ? 'bg-emerald-500/10 text-emerald-600' :
-            status === 'occupied'  ? 'bg-red-500/10 text-red-600'         :
-            status === 'reserved'  ? 'bg-amber-500/10 text-amber-600'     :
-                                     'bg-slate-900/10 text-slate-500'
+            'text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1',
+            sec === 'indoor' ? 'bg-blue-600 text-white' :
+            sec === 'outdoor' ? 'bg-emerald-600 text-white' :
+            'bg-purple-600 text-white'
           )}>
-            {status}
+            {sec === 'indoor' ? <Home className="w-2.5 h-2.5" /> : (sec === 'outdoor' ? <TreePine className="w-2.5 h-2.5" /> : <Users className="w-2.5 h-2.5" />)}
+            {sec}
           </div>
 
-          {status !== 'available' && !table.isVirtual && (
+          <span className="text-xl font-black font-heading tracking-tight text-slate-900 mt-1">
+            {table.table_number.startsWith('T') || table.table_number.startsWith('O') || table.table_number.startsWith('V')
+              ? table.table_number
+              : `Table ${table.table_number}`}
+          </span>
+
+          <div className="flex items-center justify-between w-full mt-1">
+            <div className="flex items-center gap-1 text-[9px] font-bold uppercase text-slate-600">
+              <Users className="w-2.5 h-2.5" />
+              <span>{table.capacity} Seats</span>
+            </div>
+
+            <div className={cn(
+              'text-[7px] uppercase tracking-wider font-black px-1.5 py-0.5 rounded-md',
+              status === 'available' ? 'bg-emerald-500/20 text-emerald-700' :
+              status === 'occupied'  ? 'bg-red-500/20 text-red-700 font-extrabold' :
+              status === 'reserved'  ? 'bg-amber-500/20 text-amber-700' :
+                                       'bg-slate-900/20 text-slate-700'
+            )}>
+              {status}
+            </div>
+          </div>
+
+          <div className="absolute -top-2 -right-2 flex gap-1 scale-0 group-hover:scale-100 transition-all duration-200 z-20">
+            {status !== 'available' && !table.isVirtual && (
+              <Button
+                size="icon"
+                variant="destructive"
+                className="h-6 w-6 rounded-full shadow-lg"
+                title="Clear Status"
+                onClick={(e) => onClear(e, table)}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
             <Button
               size="icon"
-              variant="destructive"
-              className="absolute -top-2 -right-2 h-6 w-6 rounded-full shadow-lg z-10 scale-0 group-hover:scale-100 transition-all duration-200"
-              onClick={(e) => onClear(e, table)}
+              variant="outline"
+              className="h-6 w-6 rounded-full bg-red-600 hover:bg-red-700 text-white border-none shadow-lg"
+              title="Delete Table"
+              onClick={(e) => onDelete(e, table)}
             >
-              <X className="h-3 w-3" />
+              <Trash2 className="h-3 w-3" />
             </Button>
-          )}
+          </div>
         </div>
       );
     })}

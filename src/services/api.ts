@@ -715,6 +715,26 @@ export const api = {
       } catch (err) {
         console.warn('[Tables] restaurant_tables clearReserved error:', err);
       }
+    },
+    delete: async (id: string) => {
+      if (isDesktop() || !offline.isOnline()) {
+        const tables = await offline.getCachedTables();
+        const filtered = tables.filter((t: any) => t.id !== id && t.table_number !== id);
+        await offline.cacheTables(filtered);
+        return true;
+      }
+
+      try {
+        const { error } = await supabase
+          .from('restaurant_tables')
+          .delete()
+          .eq('id', id);
+        if (error) throw error;
+        return true;
+      } catch (err) {
+        console.warn('[Tables] restaurant_tables delete error:', err);
+        return false;
+      }
     }
   },
   staff: {
@@ -1714,10 +1734,10 @@ export const api = {
       }
 
       try {
-        // Fetch current status before updating to check if we are transitioning to 'completed'
+        // Fetch current status and table_id before updating
         const { data: existingOrder } = await supabase
           .from('orders')
-          .select('status')
+          .select('status, table_id')
           .eq('id', id)
           .maybeSingle();
 
@@ -1738,6 +1758,18 @@ export const api = {
           console.warn('Network error during status update, falling back to offline update');
           offline.updateOrderStatus(id, status);
           return { id, status, _offline: true };
+        }
+
+        // Auto-release table when order is completed or cancelled
+        if (status === 'completed' || status === 'cancelled') {
+          const targetTableId = existingOrder?.table_id || data?.table_id;
+          if (targetTableId) {
+            try {
+              await api.tables.updateStatus(targetTableId, 'available');
+            } catch (tErr) {
+              console.warn('[Table Auto-Release] Failed to release table:', tErr);
+            }
+          }
         }
 
         // If transitioning to completed and was not completed before, decrement stock

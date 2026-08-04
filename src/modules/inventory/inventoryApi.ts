@@ -658,7 +658,7 @@ export const inventoryApi = {
                     if (isSchemaMissing(error)) { markTableMissing('inventory_recipes'); return getLocal(); }
                     throw error;
                 }
-                return (data ?? []).map((r: any) => ({
+                const dbRecipes = (data ?? []).map((r: any) => ({
                     id: r.id,
                     product_id: r.product_id,
                     item_id: r.item_id,
@@ -668,14 +668,21 @@ export const inventoryApi = {
                     item_name: r.item?.name || 'Unknown Item',
                     item_unit: r.item?.unit || ''
                 }));
+                // Merge with local recipes (for virtual menu items with string product_ids)
+                const localRecipes = getLocal();
+                const dbProductIds = new Set(dbRecipes.map(r => r.product_id));
+                const localOnly = localRecipes.filter(r => !dbProductIds.has(r.product_id));
+                return [...dbRecipes, ...localOnly];
             } catch (err: any) {
                 if (isSchemaMissing(err)) { markTableMissing('inventory_recipes'); return getLocal(); }
-                throw err;
+                return getLocal();
             }
         },
 
         saveRecipeItems: async (productId: string, ingredients: Array<{ item_id: string; quantity: number }>, tenantId?: string): Promise<void> => {
-            if (useLocal('inventory_recipes')) {
+            const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+            const saveLocal = () => {
                 const list = getLocalData<InventoryRecipe>(LOCAL_KEYS.RECIPES);
                 const rest = list.filter(r => r.product_id !== productId);
                 const newItems = ingredients.map(ing => ({
@@ -685,6 +692,10 @@ export const inventoryApi = {
                     tenant_id: tenantId || null
                 }));
                 setLocalData(LOCAL_KEYS.RECIPES, [...rest, ...newItems]);
+            };
+
+            if (useLocal('inventory_recipes') || !isUUID(productId)) {
+                saveLocal();
                 return;
             }
 
@@ -713,9 +724,10 @@ export const inventoryApi = {
 
                 if (insErr) throw insErr;
             } catch (err: any) {
-                if (isSchemaMissing(err)) {
-                    markTableMissing('inventory_recipes');
-                    return inventoryApi.recipes.saveRecipeItems(productId, ingredients, tenantId);
+                if (isSchemaMissing(err) || err?.code === '22P02' || err?.message?.includes('invalid input syntax for type uuid')) {
+                    if (isSchemaMissing(err)) markTableMissing('inventory_recipes');
+                    saveLocal();
+                    return;
                 }
                 throw err;
             }

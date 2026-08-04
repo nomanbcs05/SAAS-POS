@@ -21,6 +21,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
+import { RESTR_MENU_ITEMS } from '@/data/restaurantMenuData';
+import { DEFAULT_KHANSHINWARI_DATA } from '@/components/pos/KhanshinwariMenuModal';
+import { DEFAULT_INDUS_DATA } from '@/components/pos/IndusMenuModal';
+import { DEFAULT_FRESHBASKET_DATA } from '@/components/pos/FreshBasketMenuModal';
 import { toast } from 'sonner';
 import { 
     Plus, 
@@ -163,37 +167,95 @@ export default function InventoryPage() {
     });
 
     const { data: productsList = [] } = useQuery({
-        queryKey: ['all-pos-products'],
+        queryKey: ['all-pos-products', tenant?.id, tenant?.restaurant_name],
         queryFn: async () => {
             const dbProds = await api.products.getAll().catch(() => []);
             const productMap = new Map<string, any>();
 
+            // 1. Add DB products matching current tenant (or global)
             dbProds.forEach((p: any) => {
-                if (p.id && p.name) productMap.set(p.id, p);
+                if (p.id && p.name) {
+                    if (!tenant?.id || p.tenant_id === tenant.id || !p.tenant_id) {
+                        productMap.set(p.id, p);
+                    }
+                }
             });
 
-            // Scan localStorage for all virtual menu items (pos_menu_*)
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && key.startsWith('pos_menu_')) {
-                    try {
-                        const items = JSON.parse(localStorage.getItem(key) || '[]');
-                        if (Array.isArray(items)) {
-                            items.forEach((item: any) => {
-                                if (item.name) {
-                                    const pId = item.id || item.name;
-                                    if (!productMap.has(pId)) {
-                                        productMap.set(pId, {
-                                            id: pId,
-                                            name: item.name,
-                                            price: item.price || 0,
-                                            category: item.category || 'Menu Item'
-                                        });
-                                    }
-                                }
-                            });
-                        }
-                    } catch (_) {}
+            // 2. Identify active restaurant profile
+            const restName = (tenant?.restaurant_name || '').toLowerCase();
+            const isKhanshinwari = restName.includes('khanshinwari') || restName.includes('khan shinwari');
+            const isIndus = restName.includes('indus');
+            const isFreshBasket = restName.includes('fresh basket');
+
+            const addMenuItem = (name: string, price: number = 0, category: string = 'Menu Item', id?: string) => {
+                const pId = id || name;
+                if (!productMap.has(pId)) {
+                    productMap.set(pId, { id: pId, name, price, category });
+                }
+            };
+
+            if (isKhanshinwari) {
+                // Add Khanshinwari defaults & custom items from localStorage
+                DEFAULT_KHANSHINWARI_DATA.forEach(item => addMenuItem(item.name, item.price, item.category));
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('pos_menu_khanshinwari_')) {
+                        try {
+                            const items = JSON.parse(localStorage.getItem(key) || '[]');
+                            if (Array.isArray(items)) {
+                                items.forEach((item: any) => item.name && addMenuItem(item.name, item.price, item.category || 'Khanshinwari Menu', item.id));
+                            }
+                        } catch (_) {}
+                    }
+                }
+            } else if (isIndus) {
+                // Add Indus defaults & custom items
+                DEFAULT_INDUS_DATA.forEach(item => addMenuItem(item.name, item.price, item.category));
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('pos_menu_indus_')) {
+                        try {
+                            const items = JSON.parse(localStorage.getItem(key) || '[]');
+                            if (Array.isArray(items)) {
+                                items.forEach((item: any) => item.name && addMenuItem(item.name, item.price, item.category || 'Indus Menu', item.id));
+                            }
+                        } catch (_) {}
+                    }
+                }
+            } else if (isFreshBasket) {
+                // Add Fresh Basket defaults & custom items
+                DEFAULT_FRESHBASKET_DATA.forEach(item => addMenuItem(item.name, item.price, item.category));
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('pos_menu_freshbasket_')) {
+                        try {
+                            const items = JSON.parse(localStorage.getItem(key) || '[]');
+                            if (Array.isArray(items)) {
+                                items.forEach((item: any) => item.name && addMenuItem(item.name, item.price, item.category || 'Fresh Basket Menu', item.id));
+                            }
+                        } catch (_) {}
+                    }
+                }
+            } else {
+                // Default Restaurant / SM BUTT KARAHI profile:
+                // Add standard restaurant items (Karahi, Handi, BBQ, Chinese, Beverages, Tandoor, Side Items, etc.)
+                Object.entries(RESTR_MENU_ITEMS).forEach(([catKey, items]) => {
+                    const saved = localStorage.getItem(catKey);
+                    const catItems = saved ? (JSON.parse(saved) || items) : items;
+                    catItems.forEach((item: any) => item.name && addMenuItem(item.name, item.price, catKey.replace('pos_menu_', ''), item.id));
+                });
+
+                // Also scan general restaurant menu keys in localStorage
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('pos_menu_') && !key.includes('khanshinwari') && !key.includes('indus') && !key.includes('freshbasket')) {
+                        try {
+                            const items = JSON.parse(localStorage.getItem(key) || '[]');
+                            if (Array.isArray(items)) {
+                                items.forEach((item: any) => item.name && addMenuItem(item.name, item.price, item.category || 'Restaurant Menu', item.id));
+                            }
+                        } catch (_) {}
+                    }
                 }
             }
 

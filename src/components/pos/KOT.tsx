@@ -5,6 +5,9 @@ import { CartItem, Customer } from '@/stores/cartStore';
 interface Order {
   orderNumber: string;
   items: CartItem[];
+  previousItems?: CartItem[];
+  newlyAddedItems?: CartItem[];
+  revisionNumber?: number;
   customer: Customer | null;
   orderType?: 'dine_in' | 'take_away' | 'delivery';
   createdAt: Date;
@@ -20,6 +23,9 @@ interface KOTProps {
 }
 
 const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }, ref) => {
+  const hasRevisions = (order.previousItems && order.previousItems.length > 0) || (order.revisionNumber && order.revisionNumber > 1);
+  const displayNewItems = order.newlyAddedItems && order.newlyAddedItems.length > 0 ? order.newlyAddedItems : order.items;
+
   return (
     <div 
       ref={ref} 
@@ -37,7 +43,9 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
 
       {/* Header */}
       <div className="text-center mb-4">
-        <h1 className="text-xl font-bold border-2 border-black p-1 inline-block">KITCHEN TICKET</h1>
+        <h1 className="text-xl font-bold border-2 border-black p-1 inline-block">
+          {hasRevisions ? `KOT REVISION #${order.revisionNumber || 2}` : 'KITCHEN TICKET'}
+        </h1>
       </div>
 
       {/* Order Info */}
@@ -46,7 +54,7 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
         <p>Type: {order.orderType?.replace('_', ' ').toUpperCase() || 'DINE IN'}</p>
         <p>Date: {format(order.createdAt, 'yyyy-MM-dd HH:mm')}</p>
         {order.tableId != null && order.tableId !== '' && (
-          <p>Table: {order.tableId}</p>
+          <p>Table: {order.tableId.toString().startsWith('T') || order.tableId.toString().startsWith('O') || order.tableId.toString().startsWith('V') ? order.tableId : `Table ${order.tableId}`}</p>
         )}
         {order.orderType === 'delivery' && order.rider && (
           <p>Rider: {order.rider.name}</p>
@@ -62,6 +70,42 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
       {/* Divider */}
       <div className="border-t-2 border-black my-3" />
 
+      {/* Previous Order Items (If Edit) */}
+      {order.previousItems && order.previousItems.length > 0 && (
+        <div className="mb-4 opacity-75">
+          <div className="text-center text-[10px] font-black uppercase bg-gray-200 py-0.5 mb-2">
+            --- PREVIOUS ORDER ITEMS ---
+          </div>
+          <table className="w-full text-xs font-semibold">
+            <tbody>
+              {order.previousItems.map((rawItem, idx) => {
+                const item: any = rawItem;
+                const qty: number = item?.quantity ?? 1;
+                const name: string = item?.product?.name ?? item?.product_name ?? item?.name ?? 'Item';
+                return (
+                  <tr key={`prev-${idx}`}>
+                    <td className="py-1 pr-2 align-top w-10 text-sm line-through opacity-70">
+                      {qty % 1 === 0 ? qty : qty.toFixed(2)}
+                    </td>
+                    <td className="py-1 align-top line-through opacity-70">
+                      <div>{name}</div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="border-t-2 border-dashed border-black my-3" />
+        </div>
+      )}
+
+      {/* Newly Added Items Section Header */}
+      {hasRevisions && (
+        <div className="text-center text-xs font-black uppercase bg-black text-white py-1 mb-2">
+          *** NEWLY ADDED ITEMS (KOT EDIT #{order.revisionNumber || 2}) ***
+        </div>
+      )}
+
       {/* Items */}
       <table className="w-full text-sm font-bold">
         <thead>
@@ -71,7 +115,7 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
           </tr>
         </thead>
         <tbody>
-          {order.items.map((rawItem, idx) => {
+          {displayNewItems.map((rawItem, idx) => {
             const item: any = rawItem as any;
             const qty: number = item?.quantity ?? 1;
             const name: string =
@@ -82,11 +126,14 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
             const key = item?.product?.id ?? `${idx}-${name}`;
             return (
               <tr key={key}>
-                <td className="py-2 pr-2 align-top w-12 text-lg">
+                <td className="py-2 pr-2 align-top w-12 text-xl font-black">
                   {qty % 1 === 0 ? qty : qty.toFixed(2)}
                 </td>
                 <td className="py-2 align-top">
-                  <div className="text-lg">{name}</div>
+                  <div className="text-xl font-black">{name}</div>
+                  {item?.qtyMeasureLabel && (
+                    <div className="text-xs font-bold italic">({item.qtyMeasureLabel})</div>
+                  )}
                 </td>
               </tr>
             );
@@ -95,11 +142,13 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
       </table>
 
       {/* Divider */}
-      <div className="border-t-2 border-black my-3" />
+      <div className="border-t-4 border-black my-3" />
 
       {/* Footer */}
       <div className="text-center mt-4">
-        <p className="font-bold">*** KITCHEN COPY ***</p>
+        <p className="font-black text-sm">
+          {hasRevisions ? `*** KOT EDIT #${order.revisionNumber || 2} COPY ***` : '*** KITCHEN COPY ***'}
+        </p>
       </div>
     </div>
   );

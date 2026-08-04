@@ -275,9 +275,20 @@ const ReportsPage = () => {
       return isWithinInterval(orderDate, { start: previousStartDate, end: previousEndDate });
     });
 
-    // Calculate metrics
-    const currentRevenue = currentOrders.reduce((sum, order) => sum + Number(order.total_amount), 0);
-    const previousRevenue = previousOrders.reduce((sum, order) => sum + Number(order.total_amount), 0);
+    const isCreditOrder = (o: any) => o.payment_method === 'credit' || (o.payment_method || '').toLowerCase() === 'credit';
+
+    // Calculate metrics - Exclude unpaid Credit orders from Total Revenue & Sales Analytics!
+    const currentRevenue = currentOrders
+      .filter(order => !isCreditOrder(order))
+      .reduce((sum, order) => sum + Number(order.total_amount), 0);
+
+    const pendingCreditRevenue = currentOrders
+      .filter(order => isCreditOrder(order))
+      .reduce((sum, order) => sum + Number(order.total_amount), 0);
+
+    const previousRevenue = previousOrders
+      .filter(order => !isCreditOrder(order))
+      .reduce((sum, order) => sum + Number(order.total_amount), 0);
 
     const currentOrdersCount = currentOrders.length;
     const previousOrdersCount = previousOrders.length;
@@ -309,12 +320,12 @@ const ReportsPage = () => {
     const avgOrderValueGrowth = calculateGrowth(currentAvgOrderValue, previousAvgOrderValue);
     const customersGrowth = calculateGrowth(newCustomers, previousNewCustomers);
 
-    // Prepare Chart Data
+    // Prepare Chart Data (Excluding unpaid credit orders)
     const salesDataMap = new Map<string, number>();
     const chartFormat = differenceInCalendarDays(endDate, startDate) === 0 ? 'HH:00' : 'dd MMM';
 
     currentOrders.forEach(order => {
-      if (!order.created_at) return;
+      if (!order.created_at || isCreditOrder(order)) return;
       const orderDate = parseISO(order.created_at);
       const dateKey = format(orderDate, chartFormat);
       salesDataMap.set(dateKey, (salesDataMap.get(dateKey) || 0) + Number(order.total_amount));
@@ -371,6 +382,7 @@ const ReportsPage = () => {
       avgOrderValueGrowth,
       newCustomers,
       customersGrowth,
+      pendingCreditRevenue,
       salesData,
       categoryData,
       topProducts,
@@ -545,6 +557,24 @@ const ReportsPage = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Pending Credit Balance Card */}
+            {(stats?.pendingCreditRevenue || 0) > 0 && (
+              <Card className="border-amber-200 bg-amber-50/50">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-amber-700 font-semibold">Pending Credit (Udhaar)</p>
+                      <p className="text-2xl font-black text-amber-600">Rs {(stats?.pendingCreditRevenue || 0).toLocaleString()}</p>
+                      <p className="text-xs text-amber-600/70 mt-0.5">Excluded from Total Revenue until paid</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                      <DollarSign className="h-6 w-6 text-amber-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Charts Row */}

@@ -28,6 +28,20 @@ const SettingsPage = () => {
   const [hideManagement, setHideManagement] = useState(() => {
     return localStorage.getItem('pos_hide_management') === 'true';
   });
+  const [creditsEnabled, setCreditsEnabled] = useState(() => {
+    return localStorage.getItem('pos_credits_enabled') !== 'false';
+  });
+
+  const handleToggleCreditsEnabled = (checked: boolean) => {
+    setCreditsEnabled(checked);
+    localStorage.setItem('pos_credits_enabled', checked.toString());
+    window.dispatchEvent(new Event('pos-credits-setting-changed'));
+    if (checked) {
+      toast.success('Customer Credit / Udhaar system enabled');
+    } else {
+      toast.success('Customer Credit system disabled');
+    }
+  };
 
   const [businessName, setBusinessName] = useState(tenant?.restaurant_name || '');
   const [phone, setPhone] = useState(tenant?.phone || '');
@@ -1011,6 +1025,24 @@ const SettingsPage = () => {
                         />
                         <Button onClick={handleSaveLockPassword}>Save PIN</Button>
                       </div>
+                    </div>
+                  </div>
+
+                  <Separator className="my-6" />
+
+                  <div className="space-y-4 pt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-5 w-5 text-blue-600" />
+                        <div>
+                          <h3 className="text-lg font-bold">Enable Customer Credit / Udhaar System</h3>
+                          <p className="text-sm text-muted-foreground">Allows placing orders on Credit, reverting credit orders, and keeping credit revenue separate from total revenue.</p>
+                        </div>
+                      </div>
+                      <Switch 
+                        checked={creditsEnabled} 
+                        onCheckedChange={handleToggleCreditsEnabled}
+                      />
                     </div>
                   </div>
 
