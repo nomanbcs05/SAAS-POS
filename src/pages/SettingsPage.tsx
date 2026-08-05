@@ -1,4 +1,5 @@
-import { Store, Receipt, Users, CreditCard, Bell, Shield, Lock, Trash2, Edit, Image as ImageIcon, Upload, Plus, Loader2 } from 'lucide-react';
+import { Store, Receipt, Users, CreditCard, Bell, Shield, Lock, Trash2, Edit, Image as ImageIcon, Upload, Plus, Loader2, Wallet } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,9 @@ const SettingsPage = () => {
   const [creditsEnabled, setCreditsEnabled] = useState(() => {
     return localStorage.getItem('pos_credits_enabled') !== 'false';
   });
+  const [showCreditDialog, setShowCreditDialog] = useState(false);
+  const [creditOrdersCount, setCreditOrdersCount] = useState('');
+  const [isConvertingCredits, setIsConvertingCredits] = useState(false);
 
   const handleToggleCreditsEnabled = (checked: boolean) => {
     setCreditsEnabled(checked);
@@ -38,8 +42,54 @@ const SettingsPage = () => {
     window.dispatchEvent(new Event('pos-credits-setting-changed'));
     if (checked) {
       toast.success('Customer Credit / Udhaar system enabled');
+      setShowCreditDialog(true);
+      setCreditOrdersCount('');
     } else {
       toast.success('Customer Credit system disabled');
+    }
+  };
+
+  const handleConvertOrdersToCredit = async () => {
+    const count = parseInt(creditOrdersCount, 10);
+    if (isNaN(count) || count <= 0) {
+      toast.error('Please enter a valid number greater than 0');
+      return;
+    }
+    try {
+      setIsConvertingCredits(true);
+      // Fetch recent completed non-credit orders
+      const { data: recentOrders, error: fetchError } = await supabase
+        .from('orders')
+        .select('id, order_number')
+        .neq('payment_method', 'credit')
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(count);
+
+      if (fetchError) throw fetchError;
+      if (!recentOrders || recentOrders.length === 0) {
+        toast.error('No eligible orders found to convert');
+        setIsConvertingCredits(false);
+        return;
+      }
+
+      const orderIds = recentOrders.map((o: any) => o.id);
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ payment_method: 'credit' })
+        .in('id', orderIds);
+
+      if (updateError) throw updateError;
+
+      toast.success(`${recentOrders.length} order(s) converted to Credit successfully!`);
+      setShowCreditDialog(false);
+      setCreditOrdersCount('');
+      queryClient.invalidateQueries({ queryKey: ['credit-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-data'] });
+    } catch (err: any) {
+      toast.error('Failed to convert orders: ' + (err.message || err));
+    } finally {
+      setIsConvertingCredits(false);
     }
   };
 
@@ -1045,6 +1095,57 @@ const SettingsPage = () => {
                       />
                     </div>
                   </div>
+
+                  {/* Credit Orders Conversion Dialog */}
+                  <Dialog open={showCreditDialog} onOpenChange={setShowCreditDialog}>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-xl">
+                          <Wallet className="h-5 w-5 text-blue-600" />
+                          Add Orders to Credit
+                        </DialogTitle>
+                        <DialogDescription>
+                          Enter the number of recent completed orders you want to mark as Credit / Udhaar. These orders will be excluded from Total Revenue until paid.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="creditOrdersCount" className="font-bold">Number of Recent Orders</Label>
+                          <Input
+                            id="creditOrdersCount"
+                            type="number"
+                            min="1"
+                            placeholder="e.g. 5"
+                            value={creditOrdersCount}
+                            onChange={(e) => setCreditOrdersCount(e.target.value)}
+                            className="text-lg font-bold"
+                            autoFocus
+                          />
+                          <p className="text-xs text-muted-foreground">The most recent completed orders will be converted to Credit.</p>
+                        </div>
+                      </div>
+                      <DialogFooter className="gap-2 sm:gap-0">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowCreditDialog(false)}
+                          disabled={isConvertingCredits}
+                        >
+                          Skip
+                        </Button>
+                        <Button
+                          onClick={handleConvertOrdersToCredit}
+                          disabled={isConvertingCredits || !creditOrdersCount}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                        >
+                          {isConvertingCredits ? (
+                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Converting...</>
+                          ) : (
+                            `Convert to Credit`
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
 
                   <Separator className="my-6" />
 
