@@ -60,7 +60,7 @@ const SettingsPage = () => {
       // Fetch recent completed non-credit orders
       const { data: recentOrders, error: fetchError } = await supabase
         .from('orders')
-        .select('id, order_number')
+        .select('id')
         .neq('payment_method', 'credit')
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
