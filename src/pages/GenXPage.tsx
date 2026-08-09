@@ -578,6 +578,7 @@ const GenXPage: React.FC = () => {
       }
 
       queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
+      queryClient.refetchQueries({ queryKey: ['ongoing-orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['daily-order-count'] });
 
@@ -684,34 +685,6 @@ const GenXPage: React.FC = () => {
                 />
               </div>
             </div>
-
-            {/* Top Row 2: Waiter's Running Orders Bar (Highlighted Amber Bar as requested) */}
-            {waiterRunningOrders.length > 0 && (
-              <div className="flex items-center gap-2 bg-amber-100 dark:bg-amber-950/60 p-2 rounded border-2 border-amber-400 dark:border-amber-700 overflow-x-auto shadow-xs">
-                <span className="text-xs font-black uppercase text-amber-950 dark:text-amber-300 shrink-0 flex items-center gap-1">
-                  <Clock className="h-4 w-4 text-amber-700" /> RUNNING ({selectedWaiter}):
-                </span>
-                <div className="flex gap-2 overflow-x-auto">
-                  {waiterRunningOrders.map((ro: any) => {
-                    const isActive = activeOrderId === ro.id;
-                    const roNo = ro.daily_id ? String(ro.daily_id).padStart(2, '0') : ro.id.slice(0, 4);
-                    return (
-                      <button
-                        key={ro.id}
-                        onClick={() => handleSelectRunningOrder(ro)}
-                        className={`text-xs font-black px-3 py-1 rounded border-2 flex items-center gap-1.5 transition-all ${
-                          isActive
-                            ? 'bg-amber-600 text-white border-amber-800 shadow-md scale-105'
-                            : 'bg-white dark:bg-slate-900 text-amber-950 dark:text-amber-200 border-amber-400 dark:border-amber-700 hover:bg-amber-200'
-                        }`}
-                      >
-                        Order #{roNo} (Rs {Number(ro.total_amount || 0).toLocaleString()})
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Quick Item Code Search Box + Qty + Price Row */}
             <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-850 p-2 rounded border border-slate-400 dark:border-slate-700 shadow-xs">
@@ -827,6 +800,36 @@ const GenXPage: React.FC = () => {
                   )}
                 </TableBody>
               </Table>
+            </div>
+
+            {/* Running Orders Lower Box — shown below bill grid, above action buttons */}
+            <div className="bg-slate-100 dark:bg-slate-800 border border-slate-400 dark:border-slate-700 rounded px-2 py-1 flex items-center gap-2 overflow-x-auto min-h-[36px]">
+              <span className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-400 shrink-0 flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" /> RUNNING ORDERS :
+              </span>
+              {waiterRunningOrders.length === 0 ? (
+                <span className="text-[10px] text-slate-400 italic">No running orders for {selectedWaiter}</span>
+              ) : (
+                <div className="flex gap-1.5 overflow-x-auto">
+                  {waiterRunningOrders.map((ro: any) => {
+                    const isActive = activeOrderId === ro.id;
+                    const roNo = ro.daily_id ? String(ro.daily_id).padStart(2, '0') : ro.id.slice(0, 4);
+                    return (
+                      <button
+                        key={ro.id}
+                        onClick={() => handleSelectRunningOrder(ro)}
+                        className={`text-[11px] font-black px-2.5 py-0.5 rounded border-2 flex items-center gap-1 transition-all ${
+                          isActive
+                            ? 'bg-slate-800 text-white border-slate-900 shadow scale-105'
+                            : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-400 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        Order #{roNo} (Rs {Number(ro.total_amount || 0).toLocaleString()})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Bottom Controls Bar (4 Buttons: PRINT, REMOVE, KOT, CLOSE) + KOT No + TOTAL */}
