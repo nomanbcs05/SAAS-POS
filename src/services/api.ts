@@ -233,13 +233,124 @@ export const api = {
     }
   },
   products: {
+    seedRajputRestaurant: async () => {
+      const rajputItems = [
+        { sku: '61', name: 'Tea', price: 90, category: 'Soups' },
+        { sku: '62', name: 'Lasi', price: 130, category: 'Fast Food' },
+        { sku: '63', name: 'M-Water 1.5ltr', price: 120, category: 'English' },
+        { sku: '64', name: 'M-Water 500mg', price: 60, category: 'English' },
+        { sku: '65', name: 'S-drink (reg)', price: 60, category: 'Salads' },
+        { sku: '66', name: 'S-Drink 500ml', price: 120, category: 'English' },
+        { sku: '67', name: 'S-Drink 1.5ltr', price: 200, category: 'English' },
+        { sku: '68', name: 'S-Drink ( Tin )', price: 120, category: 'English' },
+        { sku: '69', name: 'Milk 500ml + Soda 250ml', price: 250, category: 'Beverage' },
+        { sku: '70', name: 'Milk 1000ml + Soda 500ml', price: 500, category: 'Beverage' },
+        { sku: '71', name: 'Milk (Sada) 250ml', price: 70, category: 'Beverage' },
+        { sku: '72', name: 'Milk (Sugar) 250ml', price: 60, category: 'Beverage' },
+        { sku: '73', name: 'Milk (Sada) 375ml', price: 90, category: 'Beverage' },
+        { sku: '74', name: 'Milk 500ml', price: 140, category: 'Beverage' },
+        { sku: '75', name: 'Milk (Sugar) 375ml', price: 110, category: 'Beverage' },
+        { sku: '76', name: 'Milk (sada) 500ml', price: 120, category: 'Beverage' },
+        { sku: '77', name: 'Dahi 250gm', price: 90, category: 'Beverage' },
+        { sku: '78', name: 'Dahi 500gm', price: 180, category: 'Beverage' },
+        { sku: '79', name: 'Dahi 1 Kg', price: 360, category: 'Beverage' },
+        { sku: '80', name: 'Chapati', price: 15, category: 'Chinese' },
+        { sku: '81', name: 'Roti', price: 20, category: 'Fast Food' },
+        { sku: '82', name: 'Raita', price: 50, category: 'Fast Food' },
+        { sku: '83', name: 'Salad', price: 50, category: 'Fast Food' },
+        { sku: '84', name: 'Per Head', price: 200, category: 'Salads' },
+        { sku: '85', name: 'Egg Omlate', price: 70, category: 'Fast Food' },
+        { sku: '86', name: 'Egg Half fry', price: 70, category: 'Fast Food' },
+        { sku: '88', name: 'Dal', price: 150, category: 'Pakistani' },
+        { sku: '89', name: 'Dal Fry', price: 200, category: 'Pakistani' },
+        { sku: '90', name: 'Chana', price: 180, category: 'Pakistani' },
+        { sku: '91', name: 'Chana Fry', price: 220, category: 'Pakistani' },
+        { sku: '94', name: 'Ch: Qurma', price: 250, category: 'Pakistani' },
+        { sku: '96', name: 'Dal (100)', price: 100, category: 'Pakistani' },
+        { sku: '99', name: 'Anda Garabe', price: 150, category: 'Pakistani' },
+        { sku: '100', name: 'Ch: Karahi (Q)', price: 500, category: 'Pakistani' },
+        { sku: '101', name: 'Ch: Karahi (H)', price: 1000, category: 'Pakistani' },
+        { sku: '102', name: 'Ch:Karahi (F)', price: 2000, category: 'Pakistani' },
+        { sku: '103', name: 'Ch: White Karahi (Q)', price: 550, category: 'Pakistani' },
+        { sku: '104', name: 'Ch: White Karahi (H)', price: 1100, category: 'Pakistani' },
+        { sku: '105', name: 'Ch: White Karahi (F)', price: 2200, category: 'Pakistani' },
+        { sku: '106', name: 'Ch: Green Karahi (Q)', price: 550, category: 'Pakistani' },
+        { sku: '107', name: 'Ch: Green Karahi (H)', price: 1100, category: 'Pakistani' },
+        { sku: '108', name: 'Ch: Green Karahi (F)', price: 2200, category: 'Pakistani' },
+        { sku: '109', name: 'Ch: Brown (Q)', price: 500, category: 'Pakistani' },
+        { sku: '110', name: 'Ch: Brown (H)', price: 1000, category: 'Pakistani' },
+        { sku: '111', name: 'Ch: Brown (F)', price: 2000, category: 'Pakistani' },
+        { sku: '112', name: 'Ch:white Bonless (750)', price: 2100, category: 'Pakistani' },
+        { sku: '113', name: 'Ch:white Bonless (H)', price: 1400, category: 'Pakistani' },
+        { sku: '114', name: 'Ch:handi Bonless 3 (pao)', price: 2100, category: 'Beverage' },
+        { sku: '115', name: 'Ch: Handi Bonless (Q)', price: 700, category: 'Pakistani' },
+        { sku: '116', name: 'Ch: Handi Bonless (H)', price: 1400, category: 'Pakistani' },
+        { sku: '117', name: 'Ch: Handi Bonless (F)', price: 2800, category: 'Pakistani' },
+        { sku: '118', name: 'Mutton Karahi (Q)', price: 1000, category: 'Chinese' },
+        { sku: '119', name: 'Mutton Karahi (H)', price: 2000, category: 'Chinese' },
+        { sku: '120', name: 'Mutton Karahi (F)', price: 4000, category: 'Chinese' },
+        { sku: '121', name: 'Mutton Brown (Q)', price: 1000, category: 'Chinese' },
+        { sku: '122', name: 'Mutton Brown (H)', price: 2000, category: 'Chinese' },
+        { sku: '123', name: 'Mutton Brown (F)', price: 4000, category: 'Chinese' },
+        { sku: '166', name: 'Bun', price: 60, category: 'Fast Food' },
+        { sku: '168', name: 'Milk (Sugar) 1ltr', price: 280, category: 'Beverage' },
+        { sku: '170', name: 'Tika Bihari', price: 400, category: 'Pakistani' },
+        { sku: '187', name: 'Chapati', price: 15, category: 'Chinese' },
+        { sku: '212', name: 'Labour Salan', price: 0, category: 'Pakistani' },
+        { sku: '213', name: 'Haff Cutt Labour', price: 0, category: 'Pakistani' },
+        { sku: '214', name: 'Labour Roti', price: 0, category: 'Fast Food' },
+      ];
+
+      try {
+        if (offline.isOnline()) {
+          const insertPayloads = rajputItems.map((item) => ({
+            name: item.name,
+            sku: item.sku,
+            price: item.price,
+            cost: Math.round(item.price * 0.6),
+            stock: 999,
+            category: item.category,
+          }));
+
+          const { data, error } = await supabase
+            .from('products')
+            .upsert(insertPayloads, { onConflict: 'sku' })
+            .select('*');
+
+          if (!error && data && data.length > 0) {
+            await offline.cacheProducts(data as any[]);
+            return true;
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase upsert failed, caching locally:', err);
+      }
+
+      // Offline fallback
+      const cached = (await offline.getCachedProducts()) || [];
+      const updatedList = [...cached];
+      rajputItems.forEach((item) => {
+        if (!updatedList.some((p: any) => p.sku === item.sku)) {
+          updatedList.push({
+            id: crypto.randomUUID(),
+            name: item.name,
+            sku: item.sku,
+            price: item.price,
+            cost: Math.round(item.price * 0.6),
+            stock: 999,
+            category: item.category,
+            created_at: new Date().toISOString(),
+          } as any);
+        }
+      });
+      await offline.cacheProducts(updatedList);
+      return true;
+    },
     seedPizzaBurgerHouse: async () => {
-      // Products seeding disabled to ensure a clean slate for new restaurants
       console.log("Seeding PizzaBurgerHouse disabled.");
       return true;
     },
     seedArabicBroast: async () => {
-      // Products seeding disabled to ensure a clean slate for new restaurants
       console.log("Seeding ArabicBroast disabled.");
       return true;
     },
@@ -252,6 +363,16 @@ export const api = {
             .order('name');
           if (error) throw error;
           
+          if (!data || data.length === 0) {
+            // Auto seed Rajput Restaurant items if table is empty
+            await api.products.seedRajputRestaurant();
+            const { data: seededData } = await supabase.from('products').select('*').order('name');
+            if (seededData && seededData.length > 0) {
+              await offline.cacheProducts(seededData as any[]);
+              return seededData as any[];
+            }
+          }
+
           await offline.cacheProducts(data as any[]);
           return data as any[];
         }
@@ -260,7 +381,12 @@ export const api = {
       }
 
       // Fallback
-      return await offline.getCachedProducts();
+      const cached = await offline.getCachedProducts();
+      if (!cached || cached.length === 0) {
+        await api.products.seedRajputRestaurant();
+        return await offline.getCachedProducts();
+      }
+      return cached;
     },
     create: async (product: ProductInsert) => {
       if (isDesktop() || !offline.isOnline()) {

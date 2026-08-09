@@ -103,6 +103,19 @@ const GenXPage: React.FC = () => {
     focusCodeInput();
   }, []);
 
+  const handleSeedRajputMenu = async () => {
+    try {
+      setIsSaving(true);
+      await api.products.seedRajputRestaurant();
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success('Rajput Restaurant menu items synced successfully! (64 items)', { duration: 2500 });
+    } catch (err: any) {
+      toast.error('Failed to sync menu: ' + (err.message || err));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const focusCodeInput = () => {
     setTimeout(() => {
       if (codeInputRef.current) {
@@ -810,9 +823,19 @@ const GenXPage: React.FC = () => {
             
             {/* Header & Search Bar */}
             <div className="flex items-center justify-between bg-slate-800 text-white p-2 rounded-t shadow-xs">
-              <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                <Zap className="h-4 w-4 text-emerald-400" /> Items Master List
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                  <Zap className="h-4 w-4 text-emerald-400" /> Items Master List
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSeedRajputMenu}
+                  className="text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 rounded shadow-xs transition-colors"
+                  title="Click to sync Rajput Restaurant items list"
+                >
+                  Sync Rajput Menu
+                </button>
+              </div>
 
               {/* Search Filter Box */}
               <div className="relative w-48">
