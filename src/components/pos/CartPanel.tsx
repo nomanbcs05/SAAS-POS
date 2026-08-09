@@ -275,8 +275,9 @@ const CartPanel = () => {
             }
           }
 
-          // Clear cart after printing bill if it's considered a completion action
+          // Clear cart and navigate away after printing bill
           clearCart();
+          navigate('/ongoing-orders');
         } catch (error) {
           console.error('Failed to auto-save order after bill print:', error);
           toast.error('Failed to save order');
@@ -359,14 +360,25 @@ const CartPanel = () => {
 
       // Prepare order data for KOT printing
       const orderData = await prepareOrderData();
+
       if (editingOrderId) {
         orderData.id = editingOrderId;
-        if (newOrder?.orderNumber) orderData.orderNumber = newOrder.orderNumber;
+        // Use the real daily_id/orderNumber from the saved order
+        if (newOrder?.daily_id) {
+          orderData.orderNumber = newOrder.daily_id.toString().padStart(2, '0');
+        } else if (newOrder?.orderNumber) {
+          orderData.orderNumber = newOrder.orderNumber;
+        }
       } else if (newOrder && typeof newOrder === 'object') {
         orderData.id = newOrder.id;
-        if (newOrder.orderNumber) orderData.orderNumber = newOrder.orderNumber;
+        // Use the real daily_id from the saved order as KOT number
+        if (newOrder.daily_id) {
+          orderData.orderNumber = newOrder.daily_id.toString().padStart(2, '0');
+        } else if (newOrder.orderNumber) {
+          orderData.orderNumber = newOrder.orderNumber;
+        }
       }
-      
+
       const targetId = orderData.id;
       const printedMap = JSON.parse(localStorage.getItem(`kot_printed_${targetId}`) || '{}');
       
