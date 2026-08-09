@@ -7,6 +7,7 @@ import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persist
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
+import GenXPage from "./pages/GenXPage";
 import OngoingOrdersPage from "./pages/OngoingOrdersPage";
 import CompletedOrdersPage from "./pages/CompletedOrdersPage";
 import OrdersPage from "./pages/OrdersPage";
@@ -76,6 +77,11 @@ const AppContent = () => {
           <Route path="/" element={
             <ProtectedRoute>
               <Index />
+            </ProtectedRoute>
+          } />
+          <Route path="/genx" element={
+            <ProtectedRoute>
+              <GenXPage />
             </ProtectedRoute>
           } />
           <Route path="/ongoing-orders" element={

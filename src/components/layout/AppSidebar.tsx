@@ -22,7 +22,8 @@ import {
   CheckCircle2,
   Utensils,
   Wallet,
-  Boxes
+  Boxes,
+  Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -104,6 +105,7 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutGrid },
+    { name: 'GenX', href: '/genx', icon: Zap },
     { name: 'SaaS Admin', href: '/saas-admin', icon: ShieldCheck, superAdminOnly: true },
     { name: 'Running Orders', href: '/ongoing-orders', icon: Clock },
     { name: 'Orders', href: '/orders', icon: ClipboardList },
