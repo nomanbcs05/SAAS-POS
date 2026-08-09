@@ -177,9 +177,9 @@ function StaffManagementPage() {
 // Printing state moved to later section (printModalOpen and printingVoucher are defined below)
   // Form states for staff
   const [formName, setFormName] = useState('');
-  const [formRole, setFormRole] = useState<'cashier' | 'waiter' | 'chef' | 'cleaner' | 'manager'>('waiter');
+  const [formRole, setFormRole] = useState<'cashier' | 'waiter' | 'chef' | 'cleaner' | 'manager'>('cashier');
   const [formPhone, setFormPhone] = useState('');
-  const [formEmail, setFormEmail] = useState('');
+  const [formPin, setFormPin] = useState('');
   const [formSalaryType, setFormSalaryType] = useState<'monthly' | 'daily'>('monthly');
   const [formSalaryAmount, setFormSalaryAmount] = useState('');
   const [formJoiningDate, setFormJoiningDate] = useState(new Date().toISOString().split('T')[0]);
@@ -356,7 +356,7 @@ function StaffManagementPage() {
     setFormName(staff.name);
     setFormRole(staff.role);
     setFormPhone(staff.phone || '');
-    setFormEmail(staff.email || '');
+    setFormPin(staff.pin || '');
     setFormSalaryType(staff.salary_type);
     setFormSalaryAmount(staff.salary_amount.toString());
     setFormJoiningDate(staff.joining_date);
@@ -370,6 +370,10 @@ function StaffManagementPage() {
       toast.error('Name is required');
       return;
     }
+    if (!formPin.trim() || formPin.trim().length !== 4) {
+      toast.error('Login PIN must be exactly 4 digits');
+      return;
+    }
     const amt = Number(formSalaryAmount);
     if (isNaN(amt) || amt < 0) {
       toast.error('Invalid salary amount');
@@ -380,7 +384,8 @@ function StaffManagementPage() {
       name: formName,
       role: formRole,
       phone: formPhone || undefined,
-      email: formEmail || undefined,
+      pin: formPin.trim(),
+      email: `${formName.toLowerCase().replace(/\s+/g, '')}@genxpos.com`,
       salary_type: formSalaryType,
       salary_amount: amt,
       joining_date: formJoiningDate,
@@ -408,9 +413,9 @@ function StaffManagementPage() {
 
   const resetStaffForm = () => {
     setFormName('');
-    setFormRole('waiter');
+    setFormRole('cashier');
     setFormPhone('');
-    setFormEmail('');
+    setFormPin('');
     setFormSalaryType('monthly');
     setFormSalaryAmount('');
     setFormJoiningDate(new Date().toISOString().split('T')[0]);
@@ -692,7 +697,7 @@ function StaffManagementPage() {
                               </td>
                               <td className="px-4 py-3 text-xs">
                                 <div>{staff.phone || 'No phone'}</div>
-                                <div className="text-slate-400">{staff.email || 'No email'}</div>
+                                <div className="text-emerald-700 font-bold">PIN: {staff.pin || 'N/A'}</div>
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-1.5">
@@ -1175,13 +1180,15 @@ function StaffManagementPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="staff-email" className="font-bold text-xs uppercase text-slate-600">Email (Optional)</Label>
+                  <Label htmlFor="staff-pin" className="font-bold text-xs uppercase text-slate-600">Login PIN (4 Digits) *</Label>
                   <Input 
-                    id="staff-email" 
-                    type="email"
-                    placeholder="Email address" 
-                    value={formEmail} 
-                    onChange={(e) => setFormEmail(e.target.value)} 
+                    id="staff-pin" 
+                    type="password"
+                    maxLength={4}
+                    placeholder="e.g. 1234" 
+                    value={formPin} 
+                    onChange={(e) => setFormPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    required 
                   />
                 </div>
                 <div className="space-y-1.5">

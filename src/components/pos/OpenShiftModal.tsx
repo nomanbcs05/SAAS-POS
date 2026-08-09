@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Sun, Wallet, LogOut, ArrowRight, Loader2 } from 'lucide-react';
+import { Sun, Wallet, KeyRound, LogOut, ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { shiftService, getCurrentCashierName } from '@/services/shiftService';
+import { staffManagementApi } from '@/services/staffManagementApi';
 import { supabase } from '@/integrations/supabase/client';
 import { isDesktop } from '@/lib/env';
 import { toast } from 'sonner';
@@ -13,6 +14,7 @@ export const OpenShiftModal: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [openingCash, setOpeningCash] = useState<string>('1');
+  const [loginPin, setLoginPin] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [isOpen, setIsOpen] = useState<boolean>(false);
 
@@ -53,12 +55,28 @@ export const OpenShiftModal: React.FC = () => {
       return;
     }
 
+    const cashierName = getCurrentCashierName();
+
     setLoading(true);
     try {
-      const cashierName = getCurrentCashierName();
+      // Validate PIN against staff management database
+      const staffList = await staffManagementApi.staff.getAll();
+      const staff = staffList.find(
+        (s) => s.name.toLowerCase() === cashierName.toLowerCase()
+      );
+
+      if (staff && staff.pin) {
+        if (loginPin.trim() !== staff.pin.trim()) {
+          toast.error(`Invalid 4-digit PIN for ${cashierName}`);
+          setLoading(false);
+          return;
+        }
+      }
+
       await shiftService.openShift(cashNum, cashierName);
       toast.success(`Shift opened successfully for ${cashierName} with Rs. ${cashNum.toLocaleString()}`);
       setIsOpen(false);
+      setLoginPin('');
     } catch (err: any) {
       toast.error('Failed to open shift: ' + (err.message || 'Unknown error'));
     } finally {
@@ -104,13 +122,34 @@ export const OpenShiftModal: React.FC = () => {
           Start Business Day
         </h2>
         <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-6">
-          Enter initial cash in drawer (Min: 1 Rs.)
+          Enter initial cash & 4-digit PIN to open shift for <strong className="text-slate-800 dark:text-slate-200">{getCurrentCashierName()}</strong>
         </p>
 
         {/* Opening Cash Input Form */}
-        <form onSubmit={handleOpenShift} className="w-full space-y-6">
+        <form onSubmit={handleOpenShift} className="w-full space-y-4">
           <div className="relative text-left">
-            <Label htmlFor="openingCash" className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-2 ml-1">
+            <Label htmlFor="loginPin" className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5 ml-1">
+              Cashier 4-Digit PIN
+            </Label>
+            <div className="relative flex items-center">
+              <div className="absolute left-3.5 text-slate-500 pointer-events-none flex items-center">
+                <KeyRound className="h-5 w-5 text-amber-600" />
+              </div>
+              <Input
+                id="loginPin"
+                type="password"
+                maxLength={4}
+                value={loginPin}
+                onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                required
+                className="pl-11 h-12 text-lg font-bold rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-[#002855] focus:ring-2 focus:ring-[#002855]/20 tracking-[0.3em]"
+                placeholder="••••"
+              />
+            </div>
+          </div>
+
+          <div className="relative text-left">
+            <Label htmlFor="openingCash" className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5 ml-1">
               Opening Cash (Rs.)
             </Label>
             <div className="relative flex items-center">
@@ -125,7 +164,7 @@ export const OpenShiftModal: React.FC = () => {
                 value={openingCash}
                 onChange={(e) => setOpeningCash(e.target.value)}
                 required
-                className="pl-11 h-13 text-lg font-bold rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-[#002855] focus:ring-2 focus:ring-[#002855]/20"
+                className="pl-11 h-12 text-lg font-bold rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-[#002855] focus:ring-2 focus:ring-[#002855]/20"
                 placeholder="1"
               />
             </div>

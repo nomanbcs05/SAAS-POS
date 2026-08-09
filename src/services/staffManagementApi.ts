@@ -9,6 +9,7 @@ export interface Staff {
   role: 'cashier' | 'waiter' | 'chef' | 'cleaner' | 'manager';
   phone?: string;
   email?: string;
+  pin?: string;
   salary_type: 'monthly' | 'daily';
   salary_amount: number;
   joining_date: string;
@@ -269,6 +270,7 @@ export const staffManagementApi = {
           role: u.role || 'cashier',
           phone: u.phone || '',
           email: u.email || '',
+          pin: u.pin || '',
           salary_type: u.salary_type || 'monthly',
           salary_amount: Number(u.salary_amount || 0),
           joining_date: u.joining_date || new Date().toISOString().split('T')[0],
@@ -301,6 +303,7 @@ export const staffManagementApi = {
         const entry = {
           ...staffData, id,
           full_name: staffData.name,
+          pin: staffData.pin || '',
           email: staffData.email || `${staffData.name.toLowerCase().replace(/\s+/g, '')}@offline.pos`,
           password: 'password123',
           is_active: true,
@@ -334,7 +337,7 @@ export const staffManagementApi = {
         users[idx] = { ...users[idx], ...staffData, full_name: staffData.name || users[idx].full_name };
         localStorage.setItem('pos_local_users', JSON.stringify(users));
         const u = users[idx];
-        return { id, name: u.full_name, role: u.role, phone: u.phone, email: u.email,
+        return { id, name: u.full_name, role: u.role, phone: u.phone, email: u.email, pin: u.pin,
           salary_type: u.salary_type, salary_amount: Number(u.salary_amount),
           joining_date: u.joining_date, is_active: u.is_active, tenant_id: u.tenant_id };
       };

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Shield, Users, LogIn, Globe, Plus, Check, X, Edit2 } from "lucide-react";
+import { User, Shield, Users, LogIn, Globe, Plus, Check, X, Edit2, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import { useMultiTenant } from "@/hooks/useMultiTenant";
 import { Input } from "@/components/ui/input";
 import { isDesktop } from "@/lib/env";
 import * as offline from "@/services/offlineStore";
+import { staffManagementApi, Staff } from "@/services/staffManagementApi";
 
 type Role = "admin" | "cashier" | "cashier2";
 
@@ -18,6 +19,7 @@ const Welcome = () => {
   const [cashierName, setCashierName] = useState('CASHIER');
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState('');
+  const [staffCashiers, setStaffCashiers] = useState<Staff[]>([]);
 
   useEffect(() => {
     if (tenant?.id) {
@@ -28,14 +30,27 @@ const Welcome = () => {
         setCashierName('Ali Hyder'); // Default
       }
     }
+
+    const fetchCashiers = async () => {
+      try {
+        const staff = await staffManagementApi.staff.getAll(tenant?.id);
+        const cashiers = staff.filter(
+          (s) => s.is_active && (s.role === 'cashier' || s.role === 'manager')
+        );
+        setStaffCashiers(cashiers);
+      } catch (err) {
+        console.warn('Could not load cashiers for Welcome page:', err);
+      }
+    };
+    fetchCashiers();
   }, [tenant]);
 
-  const handleRoleSelect = (role: Role) => {
+  const handleRoleSelect = (role: Role, customStaffName?: string) => {
     if (isEditing) return; // Don't navigate while editing
     
-    // If it's cashier, we might want to store the custom name for the session
+    const selectedName = customStaffName || cashierName;
     if (role === 'cashier') {
-      localStorage.setItem('active_staff_name', cashierName);
+      localStorage.setItem('active_staff_name', selectedName);
     }
     
     navigate("/login", { state: { role } });
@@ -113,23 +128,24 @@ const Welcome = () => {
         <p className="text-white/80 text-lg font-medium">{tenant?.restaurant_name || 'Modern Point of Sale System'}</p>
       </motion.div>
 
-      <div className="relative z-10 w-full max-w-4xl space-y-8 px-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="relative z-10 w-full max-w-5xl space-y-8 px-4">
+        {/* Top level Role Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Admin Card */}
           <RoleCard
             title="Administrator"
             icon={Shield}
-            description="Manage your restaurant"
+            description="Manage your restaurant & staff"
             onSelect={() => handleRoleSelect("admin")}
           />
 
-          {/* Cashier Card */}
+          {/* Default Cashier / Quick Cashier Card */}
           <div className="relative group">
             <RoleCard
               title={cashierName}
               icon={User}
-              description="Start serving customers"
-              onSelect={() => handleRoleSelect("cashier")}
+              description="Default Cashier Profile"
+              onSelect={() => handleRoleSelect("cashier", cashierName)}
             />
             
             <div className="absolute top-4 right-4 z-20">
@@ -172,6 +188,45 @@ const Welcome = () => {
             </div>
           </div>
         </div>
+
+        {/* Dynamic Cashier Profile Cards Section */}
+        {staffCashiers.length > 0 && (
+          <div className="space-y-4 pt-4 border-t border-white/20">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-white/90 text-center">
+              Cashier Profiles ({staffCashiers.length})
+            </h3>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {staffCashiers.map((cashier) => (
+                <motion.div
+                  key={cashier.id}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => handleRoleSelect("cashier", cashier.name)}
+                  className="cursor-pointer bg-white/90 backdrop-blur-md rounded-2xl p-4 shadow-lg border border-white/40 hover:border-primary flex flex-col items-center text-center transition-all group relative overflow-hidden"
+                >
+                  <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-lg mb-2 group-hover:bg-primary group-hover:text-white transition-colors">
+                    {cashier.name.charAt(0).toUpperCase()}
+                  </div>
+
+                  <h4 className="font-extrabold text-sm text-slate-900 truncate w-full group-hover:text-primary">
+                    {cashier.name}
+                  </h4>
+
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mt-0.5">
+                    {cashier.role}
+                  </span>
+
+                  {cashier.pin && (
+                    <div className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                      <KeyRound className="h-3 w-3" /> PIN Required
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {isDesktop() && (
           <motion.div
