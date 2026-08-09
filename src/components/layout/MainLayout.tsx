@@ -1,6 +1,7 @@
 import { ReactNode, useState, useEffect } from 'react';
 import AppSidebar from './AppSidebar';
 import { LockScreen } from '@/components/pos/LockScreen';
+import OpenShiftModal from '@/components/pos/OpenShiftModal';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -24,6 +25,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       </main>
       
       <LockScreen />
+      <OpenShiftModal />
     </div>
   );
 };

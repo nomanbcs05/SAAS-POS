@@ -3,6 +3,7 @@ import { supabaseSignup } from '@/integrations/supabase/supabaseAdmin';
 import { Database } from '@/integrations/supabase/types';
 import * as offline from './offlineStore';
 import { isDesktop } from '@/lib/env';
+import { shiftService } from './shiftService';
 
 declare global {
   interface Window {
@@ -85,6 +86,7 @@ export interface DailyRegister {
   ending_amount: number | null;
   status: 'open' | 'closed';
   notes: string | null;
+  cashier_name?: string;
 }
 
 // In-memory cache for daily order count to speed up receipt generation
@@ -128,30 +130,16 @@ const recacheCategories = async () => {
 export const api = {
   registers: {
     getOpen: async () => {
-      // Return a stable placeholder that uses a persistent UUID per session
-      let sessionId = localStorage.getItem('pos_session_id');
-      if (!sessionId) {
-        sessionId = crypto.randomUUID();
-        localStorage.setItem('pos_session_id', sessionId);
-      }
-      return {
-        id: sessionId,
-        status: 'open',
-        opened_at: new Date().toISOString(),
-        starting_amount: 0,
-      } as DailyRegister;
+      return shiftService.getCurrentCashierOpenShift() as unknown as DailyRegister | null;
     },
-    start: async (startingAmount: number, openedAt?: string) => {
-      // Mock success for any start calls (though they should be gone from UI)
-      return {
-        id: 'automatic-session',
-        status: 'open',
-        opened_at: openedAt || new Date().toISOString(),
-        starting_amount: startingAmount
-      } as DailyRegister;
+    getActiveShifts: async () => {
+      return shiftService.getActiveShifts();
     },
-    close: async (id: string, endingAmount: number, notes?: string) => {
-      return { id, status: 'closed' } as any;
+    start: async (startingAmount: number, cashierName?: string) => {
+      return (await shiftService.openShift(startingAmount, cashierName)) as unknown as DailyRegister;
+    },
+    close: async (id: string, endingAmount?: number) => {
+      return (await shiftService.closeShift(id, endingAmount)) as unknown as DailyRegister;
     }
   },
   categories: {

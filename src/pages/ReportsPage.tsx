@@ -9,7 +9,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { TrendingUp, DollarSign, ShoppingCart, Users, Package, ArrowUpRight, ArrowDownRight, Loader2, Printer, LogOut, Trash2, Calendar as CalendarIcon, Download } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { TrendingUp, DollarSign, ShoppingCart, Users, Package, ArrowUpRight, ArrowDownRight, Loader2, Printer, LogOut, Trash2, Calendar as CalendarIcon, Download, Clock } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -20,6 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
+import { shiftService } from '@/services/shiftService';
 import { useState, useMemo, useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import { DailyReport } from '@/components/pos/DailyReport';
@@ -92,8 +100,14 @@ const ReportsPage = () => {
   const queryClient = useQueryClient();
   const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date } | undefined>(undefined);
   const [productOrdersWithItems, setProductOrdersWithItems] = useState<any[]>([]);
+  const [isActiveShiftsOpen, setIsActiveShiftsOpen] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const productSummaryRef = useRef<HTMLDivElement>(null);
+
+  const { data: activeShifts = [], refetch: refetchActiveShifts } = useQuery({
+    queryKey: ['active-shifts'],
+    queryFn: async () => shiftService.getActiveShifts(),
+  });
 
   const { data, isLoading: isReportsLoading, isError, error } = useQuery({
     queryKey: ['reports-data'],
@@ -435,6 +449,17 @@ const ReportsPage = () => {
               <p className="text-muted-foreground">Business performance overview</p>
             </div>
             <div className="flex flex-wrap gap-2 md:gap-3">
+              <Button 
+                onClick={() => {
+                  refetchActiveShifts();
+                  setIsActiveShiftsOpen(true);
+                }} 
+                variant="outline" 
+                className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700 font-bold shadow-sm"
+              >
+                <Clock className="h-4 w-4" />
+                Active Shifts
+              </Button>
               <Button onClick={() => handlePrintSummary()} variant="outline" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
                 <Printer className="h-4 w-4" />
                 Print Order Summary
@@ -776,6 +801,75 @@ const ReportsPage = () => {
           />
         </div>
       </div>
+      {/* Active Shifts Dialog */}
+      <Dialog open={isActiveShiftsOpen} onOpenChange={setIsActiveShiftsOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+              <Clock className="h-6 w-6 text-emerald-600" />
+              Active Shifts
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-500">
+              All active cashier shift sessions currently open in the system.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            {activeShifts.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-slate-50 dark:bg-slate-900/50">
+                <Clock className="h-10 w-10 mx-auto text-slate-400 mb-2 opacity-60" />
+                <p className="font-semibold text-slate-600 dark:text-slate-300">No active shifts found</p>
+                <p className="text-xs text-slate-400 mt-1">Cashiers can open a new shift when logging into the system.</p>
+              </div>
+            ) : (
+              <div className="border rounded-2xl overflow-hidden shadow-sm divide-y divide-slate-100 dark:divide-slate-800">
+                <div className="bg-slate-100 dark:bg-slate-800/80 p-3.5 grid grid-cols-4 font-bold text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  <div>Cashier Name</div>
+                  <div>Started Time</div>
+                  <div>Opening Balance</div>
+                  <div className="text-right">Action</div>
+                </div>
+                {activeShifts.map((shift: any) => (
+                  <div key={shift.id} className="p-4 grid grid-cols-4 items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <div className="flex items-center gap-2.5 font-bold text-slate-800 dark:text-slate-100">
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-extrabold text-xs shadow-sm">
+                        {shift.cashier_name ? shift.cashier_name.charAt(0).toUpperCase() : 'C'}
+                      </div>
+                      <span className="truncate">{shift.cashier_name || 'Cashier'}</span>
+                    </div>
+
+                    <div className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                      {shift.opened_at ? format(new Date(shift.opened_at), 'MMM dd, yyyy - hh:mm a') : 'N/A'}
+                    </div>
+
+                    <div className="font-extrabold text-emerald-600 dark:text-emerald-400 text-sm">
+                      Rs. {Number(shift.starting_amount || 0).toLocaleString()}
+                    </div>
+
+                    <div className="text-right">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={async () => {
+                          if (window.confirm(`Are you sure you want to close shift for ${shift.cashier_name || 'Cashier'}?`)) {
+                            await shiftService.closeShift(shift.id);
+                            toast.success(`Shift for ${shift.cashier_name || 'Cashier'} closed successfully`);
+                            queryClient.invalidateQueries({ queryKey: ['active-shifts'] });
+                            refetchActiveShifts();
+                          }
+                        }}
+                        className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-sm h-9 px-4 text-xs"
+                      >
+                        Close Shift
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 };
