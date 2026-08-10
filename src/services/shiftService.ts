@@ -36,42 +36,52 @@ export const getCurrentCashierName = (): string => {
   return 'CASHIER';
 };
 
+// ---------------------------------------------------------------------------
+// Standalone helpers (declared before const shiftService) to avoid TDZ
+// when object-literal methods reference sibling namespaces on shiftService.
+// ---------------------------------------------------------------------------
+const getStoredShifts = (): ShiftSession[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveShifts = (shifts: ShiftSession[]) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(shifts));
+  window.dispatchEvent(new Event('shift_changed'));
+};
+
+const getActiveShifts = (): ShiftSession[] => {
+  const shifts = getStoredShifts();
+  return shifts.filter((s) => s.status === 'open');
+};
+
+const getCurrentCashierOpenShift = (): ShiftSession | null => {
+  const active = getActiveShifts();
+  if (active.length === 0) return null;
+
+  const currentName = getCurrentCashierName();
+  const found = active.find(
+    (s) => s.cashier_name.toLowerCase() === currentName.toLowerCase()
+  );
+  if (found) return found;
+
+  return active[active.length - 1] || null;
+};
+
 export const shiftService = {
-  getStoredShifts: (): ShiftSession[] => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  },
+  getStoredShifts,
 
-  saveShifts: (shifts: ShiftSession[]) => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(shifts));
-    window.dispatchEvent(new Event('shift_changed'));
-  },
+  saveShifts,
 
-  getActiveShifts: (): ShiftSession[] => {
-    const shifts = shiftService.getStoredShifts();
-    return shifts.filter((s) => s.status === 'open');
-  },
+  getActiveShifts,
 
-  getCurrentCashierOpenShift: (): ShiftSession | null => {
-    const active = shiftService.getActiveShifts();
-    if (active.length === 0) return null;
-
-    const currentName = getCurrentCashierName();
-    // Match by cashier_name first
-    const found = active.find(
-      (s) => s.cashier_name.toLowerCase() === currentName.toLowerCase()
-    );
-    if (found) return found;
-
-    // Fallback to the latest open shift if any
-    return active[active.length - 1] || null;
-  },
+  getCurrentCashierOpenShift,
 
   openShift: async (startingAmount: number, cashierName?: string): Promise<ShiftSession> => {
     const name = cashierName || getCurrentCashierName();
@@ -86,12 +96,11 @@ export const shiftService = {
       notes: 'Shift started',
     };
 
-    const shifts = shiftService.getStoredShifts();
+    const shifts = getStoredShifts();
     shifts.push(newShift);
-    shiftService.saveShifts(shifts);
+    saveShifts(shifts);
     localStorage.setItem('pos_current_shift_id', newShift.id);
 
-    // Sync online if available
     if (isOnline()) {
       try {
         await supabase.from('daily_registers').insert({
@@ -110,7 +119,7 @@ export const shiftService = {
   },
 
   closeShift: async (id: string, endingAmount?: number): Promise<ShiftSession | null> => {
-    const shifts = shiftService.getStoredShifts();
+    const shifts = getStoredShifts();
     const index = shifts.findIndex((s) => s.id === id);
     if (index === -1) return null;
 
@@ -123,14 +132,13 @@ export const shiftService = {
     };
 
     shifts[index] = updated;
-    shiftService.saveShifts(shifts);
+    saveShifts(shifts);
 
     const currentShiftId = localStorage.getItem('pos_current_shift_id');
     if (currentShiftId === id) {
       localStorage.removeItem('pos_current_shift_id');
     }
 
-    // Sync online if available
     if (isOnline()) {
       try {
         await supabase

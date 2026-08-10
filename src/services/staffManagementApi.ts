@@ -256,6 +256,89 @@ const isSchemaMissing = (error: any): boolean => {
 const useLocal = (tableName: string): boolean =>
   isDesktop() || !offline.isOnline() || TABLE_OK[tableName] === false;
 
+// ---------------------------------------------------------------------------
+// Standalone helpers (declared before const staffManagementApi) to avoid TDZ
+// when object-literal methods reference sibling namespaces on staffManagementApi.
+// ---------------------------------------------------------------------------
+const staffGetAllLocal = (tenantId?: string): Staff[] => {
+  const localUsers: any[] = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
+  return localUsers.map(u => ({
+    id: u.id,
+    name: u.full_name || u.name,
+    role: u.role || 'cashier',
+    phone: u.phone || '',
+    email: u.email || '',
+    pin: u.pin || '',
+    salary_type: u.salary_type || 'monthly',
+    salary_amount: Number(u.salary_amount || 0),
+    joining_date: u.joining_date || new Date().toISOString().split('T')[0],
+    is_active: u.is_active !== false,
+    tenant_id: u.tenant_id || tenantId,
+  }));
+};
+
+const staffGetAll = async (tenantId?: string): Promise<Staff[]> => {
+  if (useLocal('staff')) return staffGetAllLocal(tenantId);
+  try {
+    let q = supabase.from('staff').select('*');
+    if (tenantId) q = q.eq('tenant_id', tenantId);
+    const { data, error } = await q.order('name');
+    if (error) {
+      if (isSchemaMissing(error)) { markTableMissing('staff'); return staffGetAllLocal(tenantId); }
+      throw error;
+    }
+    return (data ?? []) as unknown as Staff[];
+  } catch (err: any) {
+    if (isSchemaMissing(err)) { markTableMissing('staff'); return staffGetAllLocal(tenantId); }
+    throw err;
+  }
+};
+
+const attendanceGetByMonthLocal = (month: string): StaffAttendance[] => {
+  const list: any[] = JSON.parse(localStorage.getItem(OFFLINE_KEYS.STAFF_ATTENDANCE) || '[]');
+  return list.filter(a => a.date.startsWith(month)) as StaffAttendance[];
+};
+
+const attendanceGetByMonth = async (month: string, tenantId?: string): Promise<StaffAttendance[]> => {
+  if (useLocal('staff_attendance')) return attendanceGetByMonthLocal(month);
+  try {
+    let q = supabase.from('staff_attendance').select('*')
+      .gte('date', `${month}-01`).lte('date', `${month}-31`);
+    if (tenantId) q = q.eq('tenant_id', tenantId);
+    const { data, error } = await q;
+    if (error) {
+      if (isSchemaMissing(error)) { markTableMissing('staff_attendance'); return attendanceGetByMonthLocal(month); }
+      throw error;
+    }
+    return (data ?? []) as unknown as StaffAttendance[];
+  } catch (err: any) {
+    if (isSchemaMissing(err)) { markTableMissing('staff_attendance'); return attendanceGetByMonthLocal(month); }
+    throw err;
+  }
+};
+
+const payrollGetByMonthLocal = (month: string): StaffPayroll[] => {
+  const list: any[] = JSON.parse(localStorage.getItem(OFFLINE_KEYS.STAFF_PAYROLL) || '[]');
+  return list.filter(p => p.month === month) as StaffPayroll[];
+};
+
+const payrollGetByMonth = async (month: string, tenantId?: string): Promise<StaffPayroll[]> => {
+  if (useLocal('staff_payroll')) return payrollGetByMonthLocal(month);
+  try {
+    let q = supabase.from('staff_payroll').select('*').eq('month', month);
+    if (tenantId) q = q.eq('tenant_id', tenantId);
+    const { data, error } = await q;
+    if (error) {
+      if (isSchemaMissing(error)) { markTableMissing('staff_payroll'); return payrollGetByMonthLocal(month); }
+      throw error;
+    }
+    return (data ?? []) as unknown as StaffPayroll[];
+  } catch (err: any) {
+    if (isSchemaMissing(err)) { markTableMissing('staff_payroll'); return payrollGetByMonthLocal(month); }
+    throw err;
+  }
+};
+
 export const staffManagementApi = {
   // ---------------------------------------------------------------------------
   // Staff CRUD
@@ -512,14 +595,14 @@ export const staffManagementApi = {
     },
 
     calculate: async (month: string, tenantId?: string): Promise<StaffPayroll[]> => {
-      const staffList = await staffManagementApi.staff.getAll(tenantId);
+      const staffList = await staffGetAll(tenantId);
       const activeStaff = staffList.filter(s => s.is_active);
-      const attendance = await staffManagementApi.attendance.getByMonth(month, tenantId);
+      const attendance = await attendanceGetByMonth(month, tenantId);
 
       const [yearStr, monthStr] = month.split('-');
       const totalDays = new Date(parseInt(yearStr), parseInt(monthStr), 0).getDate();
 
-      const existingPayrolls = await staffManagementApi.payroll.getByMonth(month, tenantId);
+      const existingPayrolls = await payrollGetByMonth(month, tenantId);
       const existingMap = new Map<string, StaffPayroll>(existingPayrolls.map(p => [p.staff_id, p]));
 
       return activeStaff.map(s => {
@@ -567,7 +650,7 @@ export const staffManagementApi = {
       const getLocal = async (): Promise<PayrollVoucher[]> => {
         const vouchers: any[] = JSON.parse(localStorage.getItem(OFFLINE_KEYS.PAYROLL_VOUCHERS) || '[]');
         const filtered = vouchers.filter(v => v.month === month);
-        const staff = await staffManagementApi.staff.getAll(tenantId);
+        const staff = await staffGetAll(tenantId);
         return filtered.map(v => {
           const s = staff.find(st => st.id === v.staff_id);
           return { ...v, staff_name: s?.name || 'Unknown', staff_role: s?.role || 'Unknown' };
@@ -611,7 +694,7 @@ export const staffManagementApi = {
           created_at: new Date().toISOString(),
         }));
         localStorage.setItem(OFFLINE_KEYS.PAYROLL_VOUCHERS, JSON.stringify([...list, ...newVouchers]));
-        const staff = await staffManagementApi.staff.getAll(vouchers[0]?.tenant_id ?? undefined);
+        const staff = await staffGetAll(vouchers[0]?.tenant_id ?? undefined);
         return newVouchers.map(v => {
           const s = staff.find(st => st.id === v.staff_id);
           return { ...v, staff_name: s?.name || 'Unknown', staff_role: s?.role || 'Unknown' };
@@ -628,7 +711,7 @@ export const staffManagementApi = {
           if (isSchemaMissing(error)) { markTableMissing('payroll_vouchers'); return saveLocal(); }
           throw error;
         }
-        const staff = await staffManagementApi.staff.getAll(vouchers[0]?.tenant_id ?? undefined);
+        const staff = await staffGetAll(vouchers[0]?.tenant_id ?? undefined);
         return (data as any[]).map(v => {
           const s = staff.find(st => st.id === v.staff_id);
           return { ...v, net_salary: Number(v.net_salary), staff_name: s?.name || 'Unknown', staff_role: s?.role || 'Unknown' };

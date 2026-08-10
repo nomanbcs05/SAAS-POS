@@ -13,16 +13,28 @@ export interface LicenseData {
   type: 'monthly' | 'yearly' | 'lifetime';
 }
 
+// ---------------------------------------------------------------------------
+// Standalone helpers (declared before const licenseService) to avoid TDZ
+// when object-literal methods reference sibling namespaces on licenseService.
+// ---------------------------------------------------------------------------
+const createSignature = (payload: string): string => {
+  let hash = 0;
+  const str = payload + SECRET_SALT;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(16);
+};
+
 export const licenseService = {
-  // Generate a license key (Admin only function - exposed here for demo/generator)
   generateLicense: (data: LicenseData): string => {
     const payload = JSON.stringify(data);
-    const signature = licenseService.createSignature(payload);
-    // Format: Base64(payload)|signature
+    const signature = createSignature(payload);
     return btoa(payload) + "." + signature;
   },
 
-  // Validate a license key
   validateLicense: (key: string): { valid: boolean; data?: LicenseData; error?: string } => {
     try {
       if (!key) return { valid: false, error: "No license key found" };
@@ -31,7 +43,7 @@ export const licenseService = {
       if (!encodedPayload || !signature) return { valid: false, error: "Invalid license format" };
 
       const payload = atob(encodedPayload);
-      const expectedSignature = licenseService.createSignature(payload);
+      const expectedSignature = createSignature(payload);
 
       if (signature !== expectedSignature) {
         return { valid: false, error: "Invalid license signature" };
@@ -52,17 +64,7 @@ export const licenseService = {
     }
   },
 
-  // Create a simple hash signature
-  createSignature: (payload: string): string => {
-    let hash = 0;
-    const str = payload + SECRET_SALT;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    return Math.abs(hash).toString(16);
-  },
+  createSignature,
 
   saveLicense: (key: string) => {
     localStorage.setItem(LICENSE_STORAGE_KEY, key);
@@ -71,7 +73,7 @@ export const licenseService = {
   getLicense: (): string | null => {
     return localStorage.getItem(LICENSE_STORAGE_KEY);
   },
-  
+
   clearLicense: () => {
     localStorage.removeItem(LICENSE_STORAGE_KEY);
   }

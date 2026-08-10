@@ -130,6 +130,148 @@ const defaultPermissions = (): Record<ModuleKey, boolean> => {
   return perms as Record<ModuleKey, boolean>;
 };
 
+// Standalone helpers (declared before const cashierApi) to avoid TDZ
+// when object-literal methods reference sibling namespaces on cashierApi.
+const authClearSession = () => {
+  localStorage.removeItem(CASHIER_SESSION_KEY);
+  localStorage.removeItem(CASHIER_PROFILE_KEY);
+  localStorage.removeItem(CASHIER_PERMISSIONS_KEY);
+};
+
+const authGetSession = () => {
+  try {
+    const raw = localStorage.getItem(CASHIER_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed.expires_at && parsed.expires_at < Date.now()) {
+      authClearSession();
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const authGetProfile = (): CashierAccount | null => {
+  try {
+    const raw = localStorage.getItem(CASHIER_PROFILE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const authGetPermissions = (): Record<ModuleKey, boolean> | null => {
+  try {
+    const raw = localStorage.getItem(CASHIER_PERMISSIONS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const authSetSession = (cashier: CashierAccount, permissions: Record<ModuleKey, boolean>, token: string) => {
+  const session = {
+    user: { id: cashier.id, role: 'cashier', name: cashier.name },
+    cashier_id: cashier.id,
+    tenant_id: cashier.tenant_id,
+    token,
+    expires_at: Date.now() + 1000 * 60 * 60 * 12,
+  };
+  localStorage.setItem(CASHIER_SESSION_KEY, JSON.stringify(session));
+  localStorage.setItem(CASHIER_PROFILE_KEY, JSON.stringify(cashier));
+  localStorage.setItem(CASHIER_PERMISSIONS_KEY, JSON.stringify(permissions));
+  offline.cacheSession(session as any);
+  offline.cacheProfile({
+    id: cashier.id,
+    full_name: cashier.name,
+    role: 'cashier',
+    tenant_id: cashier.tenant_id,
+  });
+  localStorage.setItem('active_staff_name', cashier.name);
+  window.dispatchEvent(new CustomEvent('cashier-permissions-changed', { detail: { cashier, permissions } }));
+};
+
+const authRefreshPermissions = async (tenantId: string, cashierId: string) => {
+  try {
+    // Re-use account.getAll — but call via local implementation to avoid TDZ
+    const localBuild = (): CashierWithPermissions[] => {
+      const cashiers = getOfflineCashiers();
+      const allPerms = getOfflinePermissions();
+      return cashiers
+        .filter(c => !tenantId || c.tenant_id === tenantId)
+        .map(c => ({
+          ...c,
+          permissions: (allPerms[c.id] || defaultPermissions()) as Record<ModuleKey, boolean>,
+        }));
+    };
+
+    let all: CashierWithPermissions[] = localBuild();
+    if (!shouldUseLocal()) {
+      try {
+        const { data, error } = await supabase
+          .from('cashier_accounts')
+          .select('*, cashier_permissions(*)')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false });
+        if (!error && data) {
+          all = (data as any[]).map(row => {
+            const perms: Record<string, boolean> = row.full_access
+              ? Object.fromEntries(ALL_MODULES.map(m => [m.key, true]))
+              : Object.fromEntries(ALL_MODULES.map(m => {
+                  const found = (row.cashier_permissions || []).find(
+                    (p: any) => p.module_key === m.key
+                  );
+                  return [m.key, found ? Boolean(found.allowed) : m.category === 'pos'];
+                }));
+            return {
+              id: row.id,
+              tenant_id: row.tenant_id,
+              name: row.name,
+              is_active: row.is_active,
+              full_access: row.full_access,
+              created_at: row.created_at,
+              updated_at: row.updated_at,
+              permissions: perms as Record<ModuleKey, boolean>,
+            };
+          });
+          saveOfflineCashiers(all.map(a => ({
+            id: a.id, tenant_id: a.tenant_id, name: a.name,
+            pin_hash: '', is_active: a.is_active,
+            full_access: a.full_access, created_at: a.created_at, updated_at: a.updated_at,
+          })));
+          const permsTable: Record<string, Record<ModuleKey, boolean>> = {};
+          all.forEach(a => { permsTable[a.id] = a.permissions; });
+          saveOfflinePermissions(permsTable);
+        }
+      } catch {
+        all = localBuild();
+      }
+    }
+
+    const match = all.find(c => c.id === cashierId);
+    if (match) {
+      localStorage.setItem(CASHIER_PERMISSIONS_KEY, JSON.stringify(match.permissions));
+      window.dispatchEvent(new CustomEvent('cashier-permissions-changed', {
+        detail: { cashier: match, permissions: match.permissions },
+      }));
+    }
+  } catch (err) {
+    console.warn('[Cashier] Could not refresh permissions', err);
+  }
+};
+
+const authCanAccessRoute = (route: string): boolean => {
+  const perms = authGetPermissions();
+  if (!perms) return true;
+  const mod = ALL_MODULES.find(m => m.route === route || (route !== '/' && route.startsWith(m.route + '/')));
+  if (!mod) return true;
+  return perms[mod.key] === true;
+};
+
+const authIsCashierSession = (): boolean => !!authGetSession();
+
 export const cashierApi = {
   account: {
     getAll: async (tenantId?: string): Promise<CashierWithPermissions[]> => {
@@ -477,92 +619,20 @@ export const cashierApi = {
       }
     },
 
-    setSession: (cashier: CashierAccount, permissions: Record<ModuleKey, boolean>, token: string) => {
-      const session = {
-        user: { id: cashier.id, role: 'cashier', name: cashier.name },
-        cashier_id: cashier.id,
-        tenant_id: cashier.tenant_id,
-        token,
-        expires_at: Date.now() + 1000 * 60 * 60 * 12,
-      };
-      localStorage.setItem(CASHIER_SESSION_KEY, JSON.stringify(session));
-      localStorage.setItem(CASHIER_PROFILE_KEY, JSON.stringify(cashier));
-      localStorage.setItem(CASHIER_PERMISSIONS_KEY, JSON.stringify(permissions));
-      offline.cacheSession(session as any);
-      offline.cacheProfile({
-        id: cashier.id,
-        full_name: cashier.name,
-        role: 'cashier',
-        tenant_id: cashier.tenant_id,
-      });
-      localStorage.setItem('active_staff_name', cashier.name);
-      window.dispatchEvent(new CustomEvent('cashier-permissions-changed', { detail: { cashier, permissions } }));
-    },
+    setSession: authSetSession,
 
-    getSession: () => {
-      try {
-        const raw = localStorage.getItem(CASHIER_SESSION_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        if (parsed.expires_at && parsed.expires_at < Date.now()) {
-          cashierApi.clearSession();
-          return null;
-        }
-        return parsed;
-      } catch {
-        return null;
-      }
-    },
+    getSession: authGetSession,
 
-    getProfile: (): CashierAccount | null => {
-      try {
-        const raw = localStorage.getItem(CASHIER_PROFILE_KEY);
-        return raw ? JSON.parse(raw) : null;
-      } catch {
-        return null;
-      }
-    },
+    getProfile: authGetProfile,
 
-    getPermissions: (): Record<ModuleKey, boolean> | null => {
-      try {
-        const raw = localStorage.getItem(CASHIER_PERMISSIONS_KEY);
-        return raw ? JSON.parse(raw) : null;
-      } catch {
-        return null;
-      }
-    },
+    getPermissions: authGetPermissions,
 
-    refreshPermissions: async (tenantId: string, cashierId: string) => {
-      try {
-        const all = await cashierApi.account.getAll(tenantId);
-        const match = all.find(c => c.id === cashierId);
-        if (match) {
-          localStorage.setItem(CASHIER_PERMISSIONS_KEY, JSON.stringify(match.permissions));
-          window.dispatchEvent(new CustomEvent('cashier-permissions-changed', {
-            detail: { cashier: match, permissions: match.permissions },
-          }));
-        }
-      } catch (err) {
-        console.warn('[Cashier] Could not refresh permissions', err);
-      }
-    },
+    refreshPermissions: authRefreshPermissions,
 
-    clearSession: () => {
-      localStorage.removeItem(CASHIER_SESSION_KEY);
-      localStorage.removeItem(CASHIER_PROFILE_KEY);
-      localStorage.removeItem(CASHIER_PERMISSIONS_KEY);
-    },
+    clearSession: authClearSession,
 
-    canAccessRoute: (route: string): boolean => {
-      const perms = cashierApi.auth.getPermissions();
-      if (!perms) return true;
-      const mod = ALL_MODULES.find(m => m.route === route || (route !== '/' && route.startsWith(m.route + '/')));
-      if (!mod) return true;
-      return perms[mod.key] === true;
-    },
+    canAccessRoute: authCanAccessRoute,
 
-    isCashierSession: (): boolean => {
-      return !!cashierApi.auth.getSession();
-    },
+    isCashierSession: authIsCashierSession,
   },
 };

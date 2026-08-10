@@ -490,7 +490,7 @@ const SettingsPage = () => {
           </div>
 
           <Tabs defaultValue="business" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+            <TabsList className={`grid w-full ${canManageStaff ? 'grid-cols-4' : 'grid-cols-3'}`}>
               <TabsTrigger value="business">Business & Receipt</TabsTrigger>
               <TabsTrigger value="tax">Tax & Payment</TabsTrigger>
               {canManageStaff && <TabsTrigger value="staff">Staff & Servers</TabsTrigger>}
