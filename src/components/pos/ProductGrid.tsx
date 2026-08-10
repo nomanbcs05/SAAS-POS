@@ -746,6 +746,57 @@ const ProductGrid = () => {
 
   const handleUpdateProductImage = useCallback(async (productId: string, imageUrl: string) => {
     try {
+      // 1. Virtual GenX restaurant category cards (e.g. virtual-genx-card-tandoor_bread, karahi, chinese, etc.)
+      if (productId.startsWith('virtual-genx-card-')) {
+        const genxId = productId.replace('virtual-genx-card-', '');
+        const catObj = RESTR_CATEGORIES.find(c => c.id === genxId);
+        if (catObj) {
+          localStorage.setItem('pos_category_image_' + catObj.key, imageUrl);
+          localStorage.setItem('pos_category_image_' + catObj.id, imageUrl);
+        } else {
+          localStorage.setItem('pos_category_image_' + genxId, imageUrl);
+        }
+        setLocalUpdateTrigger(prev => prev + 1);
+        toast.success("Category card image updated!");
+        return;
+      }
+
+      // 2. Specific virtual menu category cards
+      if (productId.startsWith('virtual-')) {
+        let keyToSave = '';
+        if (productId === 'virtual-pizza-menu') keyToSave = 'pos_category_image_pizza';
+        else if (productId === 'virtual-roll-menu') keyToSave = 'pos_category_image_roll';
+        else if (productId === 'virtual-broast-menu') keyToSave = 'pos_category_image_broast';
+        else if (productId === 'virtual-arabic-broast') keyToSave = 'pos_category_image_arabic_broast';
+        else if (productId === 'virtual-burger-menu') keyToSave = 'pos_category_image_burger';
+        else if (productId === 'virtual-barbq-menu') keyToSave = 'pos_category_image_barbq';
+        else if (productId === 'virtual-sauce-topping-menu') keyToSave = 'pos_category_image_sauce';
+        else if (productId === 'virtual-deals-menu') keyToSave = 'pos_category_image_deals';
+        else if (productId === 'virtual-fries-menu') keyToSave = 'pos_category_image_fries';
+        else if (productId === 'virtual-beverages-menu') keyToSave = 'pos_category_image_beverages';
+        else if (productId === 'virtual-alacart-menu') keyToSave = 'pos_category_image_alacart';
+        else if (productId.startsWith('virtual-indus-card-')) {
+          const indusId = productId.replace('virtual-indus-card-', '');
+          keyToSave = 'pos_category_image_' + indusId;
+        } else if (productId.startsWith('virtual-khan-card-')) {
+          const khanId = productId.replace('virtual-khan-card-', '');
+          keyToSave = 'pos_category_image_' + khanId;
+        } else if (productId.startsWith('virtual-freshbasket-card-')) {
+          const fbId = productId.replace('virtual-freshbasket-card-', '');
+          keyToSave = 'pos_category_image_' + fbId;
+        } else {
+          keyToSave = 'pos_category_image_' + productId.replace(/[^a-zA-Z0-9_]/g, '_');
+        }
+
+        if (keyToSave) {
+          localStorage.setItem(keyToSave, imageUrl);
+          setLocalUpdateTrigger(prev => prev + 1);
+          toast.success("Category card image updated!");
+        }
+        return;
+      }
+
+      // 3. Fresh basket items
       if (productId.startsWith('freshbasket-item-')) {
         const prefix = 'freshbasket-item-';
         const withoutPrefix = productId.substring(prefix.length);
@@ -773,13 +824,17 @@ const ProductGrid = () => {
               items[idx].image = imageUrl;
               localStorage.setItem(matchedCat.key, JSON.stringify(items));
               setLocalUpdateTrigger(prev => prev + 1);
+              toast.success("Item image updated!");
             }
           }
         }
-      } else {
-        await api.products.update(productId, { image: imageUrl });
-        queryClient.invalidateQueries({ queryKey: ['products'] });
+        return;
       }
+
+      // 4. Regular DB products
+      await api.products.update(productId, { image: imageUrl });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success("Product image updated!");
     } catch (error: any) {
       console.error("Failed to update product image:", error);
       toast.error(error.message || "Failed to update product image");
@@ -1179,7 +1234,7 @@ const ProductCard = ({ product, onAdd, onUpdateImage }: ProductCardProps) => {
   const isVirtualSimpleBroast = (product as any).id === 'virtual-broast-menu';
   const isLoadedFries = (product as any).name?.toLowerCase?.().includes('loaded fries');
   const isVirtualDeals = (product as any).id === 'virtual-deals-menu';
-  const forceShowImage = isVirtualSauce || isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isVirtualKhan || isLoadedFries || isVirtualDeals;
+  const forceShowImage = isVirtualSauce || isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isVirtualKhan || isLoadedFries || isVirtualDeals || (product as any).isVirtual || (currentSrc && (currentSrc.startsWith('http') || currentSrc.startsWith('/') || currentSrc.startsWith('data:')));
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [currentSrc, setCurrentSrc] = useState<string | undefined>((product.image as any) || (isLoadedFries ? '/LoadedFries.png' : undefined));
@@ -1187,7 +1242,6 @@ const ProductCard = ({ product, onAdd, onUpdateImage }: ProductCardProps) => {
   const fallbacks: string[] = (product as any).imageFallbacks || (isLoadedFries ? ['/LoadedFries.jpg', '/loadedfries.png', '/loadedfries.jpg'] : []);
   const imageHeightClass = forceShowImage ? "h-24 md:h-28" : "h-14";
   const [uploading, setUploading] = useState(false);
-  const isIndividualProduct = !product.isVirtual || (product as any).modalType === 'simple';
 
   useEffect(() => {
     setCurrentSrc(product.image);
@@ -1244,7 +1298,7 @@ const ProductCard = ({ product, onAdd, onUpdateImage }: ProductCardProps) => {
         <div className="absolute inset-0 bg-gradient-to-br from-blue-400/0 to-indigo-500/0 group-hover:from-blue-400/5 group-hover:to-indigo-500/10 transition-all duration-300" />
 
         {product.image && (!isNoImageCategory || forceShowImage) ? (
-          currentSrc && (currentSrc.startsWith('http') || currentSrc.startsWith('/')) ? (
+          currentSrc && (currentSrc.startsWith('http') || currentSrc.startsWith('/') || currentSrc.startsWith('data:')) ? (
             <>
               {!imageLoaded && !imageError && (
                 <div className="absolute inset-0 animate-pulse bg-slate-200/60 flex items-center justify-center">
@@ -1268,7 +1322,7 @@ const ProductCard = ({ product, onAdd, onUpdateImage }: ProductCardProps) => {
                   }}
                   className={cn(
                     "h-full w-full transition-all duration-500",
-                    (isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isVirtualDeals) ? "object-cover" : "object-contain p-1",
+                    (isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isVirtualDeals || (product as any).isVirtual) ? "object-cover" : "object-contain p-1",
                     imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95"
                   )}
                 />
@@ -1285,22 +1339,23 @@ const ProductCard = ({ product, onAdd, onUpdateImage }: ProductCardProps) => {
           </span>
         )}
 
-        {/* Upload button */}
-        {isIndividualProduct && (
-          <div
-            className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-20"
-            onClick={(e) => e.stopPropagation()}
+        {/* Upload Image Button on EVERY card */}
+        <div
+          className="absolute top-1.5 right-1.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity z-20"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <label 
+            className="flex items-center justify-center h-7 w-7 rounded-full bg-white/95 border border-slate-300 hover:bg-blue-50 hover:border-blue-500 shadow-md cursor-pointer transition-all active:scale-95 text-slate-700 hover:text-blue-600"
+            title="Upload Card Image"
           >
-            <label className="flex items-center justify-center h-6 w-6 rounded-full bg-white/90 border border-slate-200 hover:bg-blue-50 hover:border-blue-300 shadow cursor-pointer transition-all active:scale-95">
-              {uploading ? (
-                <Loader2 className="h-3 w-3 text-blue-500 animate-spin" />
-              ) : (
-                <ImagePlus className="h-3 w-3 text-slate-500 hover:text-blue-500" />
-              )}
-              <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
-            </label>
-          </div>
-        )}
+            {uploading ? (
+              <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" />
+            ) : (
+              <ImagePlus className="h-3.5 w-3.5 text-slate-600 hover:text-blue-600" />
+            )}
+            <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+          </label>
+        </div>
 
         {/* Low / Out of stock badge */}
         {isOutOfStock && (
