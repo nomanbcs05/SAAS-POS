@@ -1234,14 +1234,15 @@ const ProductCard = ({ product, onAdd, onUpdateImage }: ProductCardProps) => {
   const isVirtualSimpleBroast = (product as any).id === 'virtual-broast-menu';
   const isLoadedFries = (product as any).name?.toLowerCase?.().includes('loaded fries');
   const isVirtualDeals = (product as any).id === 'virtual-deals-menu';
-  const forceShowImage = isVirtualSauce || isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isVirtualKhan || isLoadedFries || isVirtualDeals || (product as any).isVirtual || (currentSrc && (currentSrc.startsWith('http') || currentSrc.startsWith('/') || currentSrc.startsWith('data:')));
+  // Declare all state BEFORE using state variables in derived values
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [currentSrc, setCurrentSrc] = useState<string | undefined>((product.image as any) || (isLoadedFries ? '/LoadedFries.png' : undefined));
   const [fallbackIndex, setFallbackIndex] = useState(0);
-  const fallbacks: string[] = (product as any).imageFallbacks || (isLoadedFries ? ['/LoadedFries.jpg', '/loadedfries.png', '/loadedfries.jpg'] : []);
-  const imageHeightClass = forceShowImage ? "h-24 md:h-28" : "h-14";
   const [uploading, setUploading] = useState(false);
+  const fallbacks: string[] = (product as any).imageFallbacks || (isLoadedFries ? ['/LoadedFries.jpg', '/loadedfries.png', '/loadedfries.jpg'] : []);
+  const forceShowImage = isVirtualSauce || isVirtualBarbq || isVirtualBurger || isVirtualPizza || isVirtualRoll || isVirtualSimpleBroast || isVirtualIndus || isVirtualKhan || isLoadedFries || isVirtualDeals || (product as any).isVirtual || (currentSrc && (currentSrc.startsWith('http') || currentSrc.startsWith('/') || currentSrc.startsWith('data:')));
+  const imageHeightClass = forceShowImage ? "h-24 md:h-28" : "h-14";
 
   useEffect(() => {
     setCurrentSrc(product.image);
