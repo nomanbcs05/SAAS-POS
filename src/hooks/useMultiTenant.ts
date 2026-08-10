@@ -95,10 +95,12 @@ export const useMultiTenant = () => {
     };
   }, []);
 
+  const userId = session?.user?.id || null;
+
   const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ['profile', session?.user?.id, isCashierLogin],
+    queryKey: ['profile', userId, isCashierLogin],
     queryFn: async () => {
-      if (!session?.user?.id) return null;
+      if (!userId) return null;
 
       if (isCashierLogin) {
         const cp = cashierApi.auth.getProfile();
@@ -124,7 +126,7 @@ export const useMultiTenant = () => {
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', session.user.id)
+          .eq('id', userId)
           .single();
 
         if (error) throw error;
@@ -143,7 +145,7 @@ export const useMultiTenant = () => {
         return null;
       }
     },
-    enabled: !!session?.user?.id,
+    enabled: !!userId,
     retry: (failureCount, error) => {
       if (isAbortError(error)) return false;
       return failureCount < 3;
@@ -151,9 +153,9 @@ export const useMultiTenant = () => {
   });
 
   const { data: ownedTenants, isLoading: ownedTenantsLoading } = useQuery({
-    queryKey: ['owned-tenants', session?.user?.id, isCashierLogin],
+    queryKey: ['owned-tenants', userId, isCashierLogin],
     queryFn: async () => {
-      if (!session?.user?.id) return [];
+      if (!userId) return [];
 
       if (isCashierLogin) {
         const cp = cashierApi.auth.getProfile();
@@ -173,7 +175,7 @@ export const useMultiTenant = () => {
       const { data, error } = await supabase
         .from('tenants')
         .select('*')
-        .eq('owner_id', session.user.id);
+        .eq('owner_id', userId);
 
       if (error) {
         if (isAbortError(error)) {
@@ -185,7 +187,7 @@ export const useMultiTenant = () => {
       }
       return data as Tenant[];
     },
-    enabled: !!session?.user?.id,
+    enabled: !!userId,
     retry: (failureCount, error) => {
       if (isAbortError(error)) return false;
       return failureCount < 3;
@@ -220,14 +222,14 @@ export const useMultiTenant = () => {
         if (ownedTenants && ownedTenants.length > 0) {
           const firstTenant = ownedTenants[0];
 
-          if (session?.user?.id && !profile?.tenant_id) {
+          if (userId && !profile?.tenant_id) {
             console.log('Repairing profile link to tenant:', firstTenant.id);
             const { error: updateError } = await supabase
               .from('profiles')
               .update({ tenant_id: firstTenant.id })
-              .eq('id', session.user.id);
+              .eq('id', userId);
 
-          if (!updateError) {
+            if (!updateError) {
               toast.success(`Restored settings for ${firstTenant.restaurant_name}`);
               window.location.reload();
             }
@@ -250,7 +252,7 @@ export const useMultiTenant = () => {
         throw err;
       }
     },
-    enabled: !!session?.user?.id && (!profileLoading || !!profile),
+    enabled: !!userId && (!profileLoading || !!profile),
     retry: (failureCount, error) => {
       if (isAbortError(error)) return false;
       return failureCount < 3;
