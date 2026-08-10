@@ -168,7 +168,7 @@ const OngoingOrdersPage = () => {
     mutationFn: async ({ orderId, paymentMethod }: { orderId: string; paymentMethod: string }) => {
       return api.orders.updateStatus(orderId, 'completed');
     },
-    onSuccess: (updatedOrder) => {
+    onSuccess: async (updatedOrder) => {
       queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
 
@@ -212,11 +212,22 @@ const OngoingOrdersPage = () => {
           serverName: (order as any).server_name,
           tableId: (order as any).restaurant_tables?.table_number
         };
+
+        // Auto-clear table if it's a dine-in order
+        if (order.order_type === 'dine_in' && order.table_id) {
+          try {
+            await api.tables.updateStatus(order.table_id, 'available');
+            queryClient.invalidateQueries({ queryKey: ['tables'] });
+          } catch (err) {
+            console.warn('Failed to auto-clear table after pay:', err);
+          }
+        }
+
         setBillOrder(billData);
-        // Print Bill after a short delay to allow state update
+        // Print Bill immediately (fastest)
         setTimeout(() => {
           handlePrintBill();
-        }, 500);
+        }, 50);
       }
     },
     onError: (error: any) => {
@@ -242,21 +253,7 @@ const OngoingOrdersPage = () => {
     contentRef: billRef,
     documentTitle: `Bill-${billOrder?.orderNumber || Date.now()}`,
     onAfterPrint: async () => {
-      toast.success('Bill printed successfully');
-
-      // If we have a bill order and it has an ID, update its status to completed
-      if (billOrder?.id) {
-        try {
-          await api.orders.updateStatus(billOrder.id, 'completed');
-          queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
-          queryClient.invalidateQueries({ queryKey: ['products'] });
-          toast.success('Order marked as completed');
-        } catch (error) {
-          console.error('Failed to update order status after printing:', error);
-          toast.error('Failed to mark order as completed');
-        }
-      }
-
+      toast.success('Bill printed!', { duration: 1500 });
       setBillOrder(null);
     },
   });

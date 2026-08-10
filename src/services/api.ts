@@ -91,7 +91,7 @@ export interface DailyRegister {
 
 // In-memory cache for daily order count to speed up receipt generation
 let cachedDailyCount: { count: number; timestamp: number; registerId?: string } | null = null;
-const COUNT_CACHE_TTL = 30000; // 30 seconds cache for daily count
+const COUNT_CACHE_TTL = 120000; // 2 minutes cache for daily count (speeds up KOT/Complete)
 
 // Helper to refresh and cache products locally
 const recacheProducts = async () => {
@@ -1078,7 +1078,7 @@ export const api = {
         try {
           const result = await Promise.race([
             fetchPromise,
-            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 800))
           ]);
 
           if (result && !result.error && (result.count || 0) > 0) return result.count || 0;
@@ -1091,13 +1091,18 @@ export const api = {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
 
+      // Use in-memory cache if fresh
+      if (cachedDailyCount && (Date.now() - cachedDailyCount.timestamp < COUNT_CACHE_TTL)) {
+        return cachedDailyCount.count;
+      }
+
       try {
         const { count, error } = await Promise.race([
           supabase
             .from('orders')
             .select('*', { count: 'exact', head: true })
             .gte('created_at', startOfDay.toISOString()),
-          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 800))
         ]);
 
         if (error) {
@@ -1105,6 +1110,8 @@ export const api = {
           return offline.getDailyCounter();
         }
 
+        // Cache the result
+        cachedDailyCount = { count: count || 0, timestamp: Date.now() };
         return count || 0;
       } catch (err) {
         console.warn('Timeout fetching fallback daily count');

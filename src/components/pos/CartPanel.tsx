@@ -143,12 +143,10 @@ const CartPanel = () => {
       return api.orders.create(orderData.order, orderData.items);
     },
     onSuccess: (newOrder: any) => {
-      toast.dismiss(); // Dismiss any loading toast
+      toast.dismiss();
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
 
-      // If it was an update, newOrder might just be 'true' or the updated order
-      // We need to handle both cases for setLastOrder
       if (editingOrderId) {
         setLastOrder((prev: any) => ({ 
           ...prev, 
@@ -163,11 +161,18 @@ const CartPanel = () => {
         }));
       }
 
-      // Small delay to allow state to update, then print directly (Silent)
+      // Auto-clear table for complete sale (dine-in)
+      if (orderType === 'dine_in' && tableId) {
+        api.tables.updateStatus(tableId, 'available').then(() => {
+          queryClient.invalidateQueries({ queryKey: ['tables'] });
+        }).catch(err => console.warn('Failed to clear table on complete:', err));
+      }
+
+      // Print immediately
       setTimeout(() => {
         handlePrint();
-        toast.success(editingOrderId ? `Order updated!` : `Order completed!`);
-      }, 100);
+        toast.success(editingOrderId ? 'Order updated!' : 'Order completed!');
+      }, 50);
     },
     onError: (error: any) => {
       toast.dismiss(); // Dismiss any loading toast
@@ -183,7 +188,7 @@ const CartPanel = () => {
     contentRef: receiptRef,
     documentTitle: `Receipt-${lastOrder?.orderNumber}`,
     onAfterPrint: async () => {
-      toast.success('Receipt printed successfully', { duration: 1000 });
+      toast.success('Receipt printed!', { duration: 1000 });
       
       // Auto-clear table if it's a dine-in order
       if (orderType === 'dine_in' && tableId) {
@@ -204,7 +209,7 @@ const CartPanel = () => {
     contentRef: kotRef,
     documentTitle: `KOT-${Date.now()}`,
     onAfterPrint: () => {
-      toast.success('KOT printed successfully', { duration: 1000 });
+      toast.success('KOT sent to kitchen!', { duration: 1000 });
       
       // Save printed quantities
       if (lastOrder?.id) {
@@ -392,10 +397,10 @@ const CartPanel = () => {
       setLastOrder(orderData);
 
       if (newKotItems.length > 0) {
-        // Print KOT directly (Silent)
+        // Print KOT immediately
         setTimeout(() => {
           handlePrintKOT();
-        }, 100);
+        }, 50);
       } else {
         toast.info('No new items to print on KOT', { duration: 1000 });
         clearCart();
@@ -489,15 +494,14 @@ const CartPanel = () => {
       price: item.product.price
     }));
 
-    const toastId = toast.loading('Preparing order data...');
+    const toastId = toast.loading('Processing...');
     const localOrder = await prepareOrderData();
     setLastOrder(localOrder);
     orderInsert.daily_id = (localOrder as any).daily_id ?? null;
 
-    toast.loading('Processing order...', { id: toastId });
     createOrderMutation.mutate({ order: orderInsert, items: orderItemsInsert }, {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['products'] }); // stock updated inside api.orders.create
+        queryClient.invalidateQueries({ queryKey: ['products'] });
       },
       onSettled: () => {
         toast.dismiss(toastId);
