@@ -440,7 +440,15 @@ export const cashierApi = {
         if (error && !isSchemaMissing(error)) throw error;
 
         if (!data) {
+          console.warn('[Cashier Login] DB returned no row. tenantId=', tenantId, 'name=', name, 'error=', error);
           if (isSchemaMissing(error || {})) return localLogin();
+          const local = getOfflineCashiers().find(
+            x => x.tenant_id === tenantId && x.name.toLowerCase() === name.toLowerCase()
+          );
+          if (local) {
+            console.warn('[Cashier Login] Falling back to offline cache (RLS may be blocking).');
+            return localLogin();
+          }
           throw new Error('Cashier account not found');
         }
 
