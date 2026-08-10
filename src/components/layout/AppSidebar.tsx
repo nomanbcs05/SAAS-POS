@@ -33,11 +33,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 import { isDesktop } from '@/lib/env';
 import { Globe, WifiOff } from 'lucide-react';
+import { cashierApi } from '@/services/cashierApi';
+
+interface AppSidebarProps {
+  isCollapsed: boolean;
+  onToggle: () => void;
+}
 
 const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, tenant, isAdmin } = useMultiTenant();
+  const { profile, tenant, isAdmin, isCashierLogin, canAccess } = useMultiTenant();
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBtn, setShowInstallBtn] = useState(false);
@@ -91,39 +97,47 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
 
     updateDisplayName();
     window.addEventListener('active-staff-name-changed', updateDisplayName);
-    
+
     const handleVisibilityChange = () => {
       setHideManagement(localStorage.getItem('pos_hide_management') === 'true');
     };
     window.addEventListener('pos-navigation-visibility-change', handleVisibilityChange);
 
+    const handlePermsChange = () => {
+      // force re-render by triggering a tiny state update
+      setHideManagement(localStorage.getItem('pos_hide_management') === 'true');
+    };
+    window.addEventListener('cashier-permissions-changed', handlePermsChange as any);
+
     return () => {
       window.removeEventListener('active-staff-name-changed', updateDisplayName);
       window.removeEventListener('pos-navigation-visibility-change', handleVisibilityChange);
+      window.removeEventListener('cashier-permissions-changed', handlePermsChange as any);
     };
   }, [profile]);
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutGrid },
-    { name: 'GenX', href: '/genx', icon: Zap },
-    { name: 'SaaS Admin', href: '/saas-admin', icon: ShieldCheck, superAdminOnly: true },
-    { name: 'Running Orders', href: '/ongoing-orders', icon: Clock },
-    { name: 'Orders', href: '/orders', icon: ClipboardList },
-    { name: 'Products', href: '/products', icon: Package, adminOnly: true, management: true },
-    { name: 'Customers', href: '/customers', icon: Users, adminOnly: true, management: true },
-    { name: 'Credit Ledger', href: '/credit', icon: Wallet, adminOnly: true, management: true },
-    { name: 'Staff Management', href: '/staff-management', icon: Users, adminOnly: true, management: true },
-    { name: 'Inventory', href: '/inventory', icon: Boxes, adminOnly: true, management: true },
-    { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true, management: true },
-    { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true, management: true },
+    { name: 'Dashboard', href: '/', icon: LayoutGrid, moduleKey: 'dashboard' },
+    { name: 'GenX', href: '/genx', icon: Zap, moduleKey: 'genx' },
+    { name: 'SaaS Admin', href: '/saas-admin', icon: ShieldCheck, superAdminOnly: true, moduleKey: null as any },
+    { name: 'Running Orders', href: '/ongoing-orders', icon: Clock, moduleKey: 'ongoing-orders' },
+    { name: 'Orders', href: '/orders', icon: ClipboardList, moduleKey: 'orders' },
+    { name: 'Completed Orders', href: '/completed-orders', icon: CheckCircle2, moduleKey: 'completed-orders' },
+    { name: 'Products', href: '/products', icon: Package, adminOnly: true, management: true, moduleKey: 'products' },
+    { name: 'Customers', href: '/customers', icon: Users, adminOnly: true, management: true, moduleKey: 'customers' },
+    { name: 'Credit Ledger', href: '/credit', icon: Wallet, adminOnly: true, management: true, moduleKey: 'credit' },
+    { name: 'Staff Management', href: '/staff-management', icon: Users, adminOnly: true, management: true, moduleKey: 'staff-management' },
+    { name: 'Inventory', href: '/inventory', icon: Boxes, adminOnly: true, management: true, moduleKey: 'inventory' },
+    { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true, management: true, moduleKey: 'reports' },
+    { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true, management: true, moduleKey: 'settings' },
   ].filter(item => {
-    // Hide certain sections for cashier role irrespective of admin status
-    if (profile?.role === 'cashier' && ['Reports', 'Settings', 'Credit Ledger', 'Staff Management'].includes(item.name)) {
+    if (isCashierLogin && item.moduleKey) {
+      return canAccess(item.moduleKey);
+    }
+    if (profile?.role === 'cashier' && !isCashierLogin && ['Reports', 'Settings', 'Credit Ledger', 'Staff Management'].includes(item.name)) {
       return false;
     }
-    // Super admin bypass
     if (item.superAdminOnly) return profile?.role === 'super-admin';
-    // Admin only items
     if (item.adminOnly) {
       if (!isAdmin) return false;
       if (hideManagement && item.management) return false;
@@ -140,9 +154,11 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
       localStorage.removeItem("pos_session_id");
       localStorage.removeItem("pos_offline_session");
       localStorage.removeItem("pos_offline_profile");
+      cashierApi.auth.clearSession();
       if (!isDesktop()) {
         await supabase.auth.signOut();
       }
+      queryClient.clear();
       toast.success("Logged out successfully");
       navigate("/auth");
     } catch (error) {
@@ -161,7 +177,6 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
         "bg-sidebar text-sidebar-foreground flex flex-col h-full transition-all duration-300 relative border-r border-sidebar-border",
         isCollapsed ? "w-[70px]" : "w-[200px]"
       )}>
-        {/* Toggle Button */}
         <button
           onClick={onToggle}
           className="absolute -right-3 top-20 bg-sidebar-primary text-sidebar-primary-foreground w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-sidebar-border z-50 hover:scale-110 transition-transform"
@@ -169,7 +184,6 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
           {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
         </button>
 
-        {/* Logo */}
         <div className={cn(
           "p-4 border-b border-sidebar-border overflow-hidden",
           isCollapsed ? "items-center" : ""
@@ -203,7 +217,6 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
           </div>
         )}
 
-        {/* Navigation */}
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
           {navigation.map((item, index) => {
             const isActive = location.pathname === item.href;
@@ -250,7 +263,6 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
                 >
                   <item.icon className="h-5 w-5 shrink-0" />
                   <span className="animate-in fade-in slide-in-from-left-2 duration-300">{item.name}</span>
-                  {/* Keyboard shortcut hints */}
                   {item.name === 'Dashboard' && (
                     <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-sidebar-border text-sidebar-foreground/50 animate-in fade-in zoom-in duration-300">
                       F1
@@ -264,7 +276,6 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
           })}
         </nav>
 
-        {/* User Section */}
         <div className="p-3 border-t border-sidebar-border">
           <div className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-xl bg-sidebar-accent/30 border border-sidebar-border/50 overflow-hidden min-w-max",
@@ -281,7 +292,7 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
                   {displayName || profile?.full_name || "User"}
                 </p>
                 <p className="text-[10px] font-black text-sidebar-foreground/40 uppercase tracking-widest mt-0.5">
-                  {profile?.role || "Staff"}
+                  {isCashierLogin ? 'Cashier' : (profile?.role || "Staff")}
                 </p>
               </div>
             )}
@@ -316,7 +327,6 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
             </button>
           )}
 
-          {/* Install App Button */}
           {showInstallBtn && (
             isCollapsed ? (
               <Tooltip>

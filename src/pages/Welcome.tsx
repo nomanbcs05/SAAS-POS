@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Shield, Users, LogIn, Globe, Plus, Check, X, Edit2, KeyRound } from "lucide-react";
+import { User, Shield, Users, LogIn, Globe, Plus, Check, X, Edit2, KeyRound, Crown, BadgeCheck, ChevronRight, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { isDesktop } from "@/lib/env";
 import * as offline from "@/services/offlineStore";
 import { staffManagementApi, Staff } from "@/services/staffManagementApi";
+import { cashierApi, CashierWithPermissions } from "@/services/cashierApi";
 
 type Role = "admin" | "cashier" | "cashier2";
 
@@ -20,6 +21,7 @@ const Welcome = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState('');
   const [staffCashiers, setStaffCashiers] = useState<Staff[]>([]);
+  const [secureCashiers, setSecureCashiers] = useState<CashierWithPermissions[]>([]);
 
   useEffect(() => {
     if (tenant?.id) {
@@ -27,7 +29,7 @@ const Welcome = () => {
       if (saved) {
         setCashierName(saved);
       } else {
-        setCashierName('Ali Hyder'); // Default
+        setCashierName('Ali Hyder');
       }
     }
 
@@ -41,19 +43,31 @@ const Welcome = () => {
       } catch (err) {
         console.warn('Could not load cashiers for Welcome page:', err);
       }
+
+      try {
+        const secured = await cashierApi.account.getAll(tenant?.id);
+        setSecureCashiers(secured.filter(c => c.is_active));
+      } catch (err) {
+        console.warn('Could not load secure cashiers:', err);
+      }
     };
     fetchCashiers();
   }, [tenant]);
 
   const handleRoleSelect = (role: Role, customStaffName?: string) => {
-    if (isEditing) return; // Don't navigate while editing
-    
+    if (isEditing) return;
+
     const selectedName = customStaffName || cashierName;
     if (role === 'cashier') {
       localStorage.setItem('active_staff_name', selectedName);
     }
-    
+
     navigate("/login", { state: { role } });
+  };
+
+  const handleSecureCashierLogin = (cashier: CashierWithPermissions) => {
+    localStorage.setItem('pending_cashier_id', cashier.id);
+    navigate("/login", { state: { role: 'cashier2', cashierName: cashier.name } });
   };
 
   const handleSaveName = (e: React.MouseEvent) => {
@@ -78,7 +92,6 @@ const Welcome = () => {
   };
 
   const handleWorkOffline = () => {
-    // Create a dummy session if none exists
     const dummySession = {
       user: {
         id: 'offline-user',
@@ -86,8 +99,7 @@ const Welcome = () => {
       },
       expires_at: 9999999999,
     };
-    
-    // Cache the dummy session and profile
+
     offline.cacheSession(dummySession);
     offline.cacheProfile({
       id: 'offline-user',
@@ -95,7 +107,7 @@ const Welcome = () => {
       role: 'cashier',
       tenant_id: tenant?.id || 'offline-tenant'
     });
-    
+
     toast.success("Starting in Offline Mode");
     navigate("/");
   };
@@ -129,68 +141,107 @@ const Welcome = () => {
       </motion.div>
 
       <div className="relative z-10 w-full max-w-5xl space-y-8 px-4">
-        {/* Top level Role Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Admin Card */}
-          <RoleCard
-            title="Administrator"
-            icon={Shield}
-            description="Manage your restaurant & staff"
-            onSelect={() => handleRoleSelect("admin")}
-          />
-
-          {/* Default Cashier / Quick Cashier Card */}
           <div className="relative group">
-            <RoleCard
-              title={cashierName}
-              icon={User}
-              description="Default Cashier Profile"
-              onSelect={() => handleRoleSelect("cashier", cashierName)}
-            />
-            
-            <div className="absolute top-4 right-4 z-20">
-              <AnimatePresence mode="wait">
-                {isEditing ? (
-                  <motion.div 
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className="flex items-center gap-1 bg-white rounded-lg shadow-xl border p-1"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Input 
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      placeholder="Name..."
-                      className="h-8 w-32 text-xs"
-                      autoFocus
-                      onKeyDown={(e) => e.key === 'Enter' && handleSaveName(e as any)}
-                    />
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={handleSaveName}>
-                      <Check className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" onClick={(e) => { e.stopPropagation(); setIsEditing(false); }}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </motion.div>
-                ) : (
-                  <Button 
-                    size="icon" 
-                    variant="secondary" 
-                    className="h-8 w-8 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                    onClick={startEditing}
-                    title="Change Cashier Name"
-                  >
-                    <Edit2 className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </AnimatePresence>
-            </div>
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="cursor-pointer relative overflow-hidden rounded-xl border-2 border-slate-200 bg-white transition-all duration-200 hover:border-primary/50 hover:shadow-md h-full w-full"
+              onClick={() => handleRoleSelect("admin")}
+            >
+              <div className="absolute top-3 right-3 z-20">
+                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-amber-700 bg-amber-100 px-2 py-1 rounded-full border border-amber-200">
+                  <Crown className="h-3 w-3" /> Admin Only
+                </span>
+              </div>
+              <div className="p-6 flex flex-col items-center text-center space-y-4">
+                <div className="p-4 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                  <Shield className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="font-black text-xl text-slate-900 font-heading uppercase tracking-tight">Administrator</h3>
+                  <p className="text-sm text-slate-500 mt-1 font-medium">Sign in with email / Google account</p>
+                  <div className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200">
+                    <Lock className="h-3 w-3" /> Full System Access
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          <div className="relative group">
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="cursor-pointer relative overflow-hidden rounded-xl border-2 border-slate-200 bg-white transition-all duration-200 hover:border-primary/50 hover:shadow-md h-full w-full"
+              onClick={() => navigate("/login", { state: { role: 'cashier2', cashierLoginMode: true } })}
+            >
+              <div className="absolute top-3 right-3 z-20">
+                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full border border-emerald-200">
+                  <BadgeCheck className="h-3 w-3" /> PIN Protected
+                </span>
+              </div>
+              <div className="p-6 flex flex-col items-center text-center space-y-4">
+                <div className="p-4 rounded-full bg-emerald-100 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <Users className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="font-black text-xl text-slate-900 font-heading uppercase tracking-tight">Cashier Login</h3>
+                  <p className="text-sm text-slate-500 mt-1 font-medium">Enter name + 4-digit PIN</p>
+                  <div className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200">
+                    <KeyRound className="h-3 w-3" /> Secure Permissions
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           </div>
         </div>
 
-        {/* Dynamic Cashier Profile Cards Section */}
-        {staffCashiers.length > 0 && (
+        {secureCashiers.length > 0 && (
+          <div className="space-y-4 pt-4 border-t border-white/20">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-white/90 text-center">
+              Quick Cashier Sign-in ({secureCashiers.length})
+            </h3>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {secureCashiers.map((cashier) => (
+                <motion.div
+                  key={cashier.id}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => handleSecureCashierLogin(cashier)}
+                  className="cursor-pointer bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-lg border border-white/40 hover:border-primary flex flex-col items-center text-center transition-all group relative overflow-hidden"
+                >
+                  <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-lg mb-2 group-hover:bg-primary group-hover:text-white transition-colors">
+                    {cashier.name.charAt(0).toUpperCase()}
+                  </div>
+
+                  <h4 className="font-extrabold text-sm text-slate-900 truncate w-full group-hover:text-primary">
+                    {cashier.name}
+                  </h4>
+
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mt-0.5">
+                    Cashier
+                  </span>
+
+                  <div className="mt-2 flex flex-wrap justify-center gap-1">
+                    {cashier.full_access ? (
+                      <div className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                        <Crown className="h-3 w-3" /> Full Access
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        <KeyRound className="h-3 w-3" /> Limited Access
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {staffCashiers.length > 0 && secureCashiers.length === 0 && (
           <div className="space-y-4 pt-4 border-t border-white/20">
             <h3 className="text-sm font-bold uppercase tracking-wider text-white/90 text-center">
               Cashier Profiles ({staffCashiers.length})
@@ -228,14 +279,76 @@ const Welcome = () => {
           </div>
         )}
 
+        <div className="relative group max-w-md mx-auto">
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="cursor-pointer relative overflow-hidden rounded-xl border-2 border-dashed border-white/40 bg-white/10 backdrop-blur transition-all duration-200 hover:border-white/60 hover:shadow-md w-full"
+            onClick={() => handleRoleSelect("cashier", cashierName)}
+          >
+            <div className="p-5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-full bg-white/90 text-slate-700 flex items-center justify-center font-black shrink-0 shadow-sm">
+                  <User className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Quick Workstation</p>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h4 className="font-black text-base text-white truncate">{cashierName}</h4>
+                    {isEditing ? null : (
+                      <button
+                        onClick={startEditing}
+                        className="text-white/60 hover:text-white opacity-80 hover:opacity-100 transition-opacity shrink-0"
+                        title="Change Cashier Name"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-white/70 shrink-0" />
+            </div>
+          </motion.div>
+
+          <AnimatePresence mode="wait">
+            {isEditing && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="mt-2 bg-white rounded-xl shadow-2xl border p-3"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Cashier Name..."
+                    className="h-9 text-sm"
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && handleSaveName(e as any)}
+                  />
+                  <Button size="sm" variant="default" className="h-9" onClick={handleSaveName}>
+                    <Check className="h-3.5 w-3.5 mr-1" /> Save
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-9 text-red-600" onClick={(e) => { e.stopPropagation(); setIsEditing(false); }}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         {isDesktop() && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex justify-center mt-8"
+            className="flex justify-center mt-4"
           >
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="bg-white/10 text-white border-white/20 hover:bg-white/20 rounded-full px-8 py-6 font-bold uppercase tracking-widest text-xs"
               onClick={handleWorkOffline}
             >
@@ -250,34 +363,6 @@ const Welcome = () => {
         © 2026 GENX CLOUD. All rights reserved.
       </div>
     </div>
-  );
-};
-
-interface RoleCardProps {
-  title: string;
-  icon: any;
-  description: string;
-  onSelect: () => void;
-}
-
-const RoleCard = ({ title, icon: Icon, description, onSelect }: RoleCardProps) => {
-  return (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      className="cursor-pointer relative overflow-hidden rounded-xl border-2 border-slate-200 bg-white transition-all duration-200 hover:border-primary/50 hover:shadow-md h-full w-full"
-      onClick={onSelect}
-    >
-      <div className="p-6 flex flex-col items-center text-center space-y-4">
-        <div className="p-4 rounded-full bg-slate-100 text-slate-600 group-hover:bg-primary group-hover:text-primary-foreground">
-          <Icon className="w-8 h-8" />
-        </div>
-        <div>
-          <h3 className="font-black text-xl text-slate-900 font-heading uppercase tracking-tight truncate max-w-[250px]">{title}</h3>
-          <p className="text-sm text-slate-500 mt-1 font-medium">{description}</p>
-        </div>
-      </div>
-    </motion.div>
   );
 };
 

@@ -1,4 +1,4 @@
-import { Store, Receipt, Users, CreditCard, Bell, Shield, Lock, Trash2, Edit, Image as ImageIcon, Upload, Plus, Loader2, Wallet } from 'lucide-react';
+import { Store, Receipt, Users, CreditCard, Bell, Shield, Lock, Trash2, Edit, Image as ImageIcon, Upload, Plus, Loader2, Wallet, Crown, BadgeCheck, KeyRound } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +19,7 @@ import { isDesktop } from '@/lib/env';
 import * as offline from '@/services/offlineStore';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import CashierManager from '@/components/settings/CashierManager';
 
 const SettingsPage = () => {
   const { profile, tenant, isAdmin } = useMultiTenant();
@@ -1011,14 +1012,19 @@ const SettingsPage = () => {
             </TabsContent>
 
             <TabsContent value="security">
+              <div className="space-y-6">
+                <CashierManager tenant={tenant as any} />
+
+                <Separator />
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Lock className="h-5 w-5" />
-                    Security Settings
+                    Admin Security Settings
                   </CardTitle>
                   <CardDescription>
-                    Keep your account secure by changing your password regularly
+                    Keep your Admin account secure. Cashier PINs are managed in the Cashier Accounts section above.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1166,6 +1172,7 @@ const SettingsPage = () => {
                   </div>
                 </CardContent>
               </Card>
+              </div>
             </TabsContent>
           </Tabs>
         </div>

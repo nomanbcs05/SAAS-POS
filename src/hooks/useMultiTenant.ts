@@ -4,9 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import * as offline from '@/services/offlineStore';
 import { isDesktop } from '@/lib/env';
+import { cashierApi, ModuleKey } from '@/services/cashierApi';
 
 const isAbortError = (error: any) => {
-  return error?.name === 'AbortError' || 
+  return error?.name === 'AbortError' ||
          error?.message?.includes('signal is aborted') ||
          error?.message?.includes('AbortError');
 };
@@ -17,6 +18,7 @@ export interface Profile {
   role: 'admin' | 'cashier' | 'super-admin';
   email?: string;
   tenant_id?: string | null;
+  isCashierAccount?: boolean;
 }
 
 export interface Tenant {
@@ -36,9 +38,20 @@ export interface Tenant {
 export const useMultiTenant = () => {
   const [session, setSession] = useState<any>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [cashierPermissions, setCashierPermissions] = useState<Record<ModuleKey, boolean> | null>(null);
+  const [isCashierLogin, setIsCashierLogin] = useState(false);
 
   useEffect(() => {
-    // Immediate bypass for desktop app
+    const cashierSession = cashierApi.auth.getSession();
+    if (cashierSession) {
+      console.log('[useMultiTenant] Using cashier session');
+      setSession(cashierSession);
+      setIsCashierLogin(true);
+      setCashierPermissions(cashierApi.auth.getPermissions());
+      setSessionLoading(false);
+      return;
+    }
+
     if (isDesktop()) {
       const cached = offline.getCachedSession();
       if (cached) {
@@ -54,7 +67,6 @@ export const useMultiTenant = () => {
         offline.cacheSession(session);
         setSession(session);
       } else if (!offline.isOnline()) {
-        // Offline fallback: use cached session
         const cached = offline.getCachedSession();
         if (cached) {
           console.warn('[Offline] Using cached session');
@@ -72,15 +84,38 @@ export const useMultiTenant = () => {
       setSessionLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    const handleCashierPermissionsChange = (e: any) => {
+      setCashierPermissions(e.detail?.permissions || null);
+    };
+    window.addEventListener('cashier-permissions-changed', handleCashierPermissionsChange as any);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('cashier-permissions-changed', handleCashierPermissionsChange as any);
+    };
   }, []);
 
   const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ['profile', session?.user?.id],
+    queryKey: ['profile', session?.user?.id, isCashierLogin],
     queryFn: async () => {
       if (!session?.user?.id) return null;
-      
-      // Force offline for desktop
+
+      if (isCashierLogin) {
+        const cp = cashierApi.auth.getProfile();
+        const perm = cashierApi.auth.getPermissions();
+        if (perm) setCashierPermissions(perm);
+        if (cp) {
+          return {
+            id: cp.id,
+            full_name: cp.name,
+            role: 'cashier' as const,
+            tenant_id: cp.tenant_id,
+            isCashierAccount: true,
+          } as Profile;
+        }
+        return null;
+      }
+
       if (isDesktop()) {
         return offline.getCachedProfile() as Profile | null;
       }
@@ -116,16 +151,25 @@ export const useMultiTenant = () => {
   });
 
   const { data: ownedTenants, isLoading: ownedTenantsLoading } = useQuery({
-    queryKey: ['owned-tenants', session?.user?.id],
+    queryKey: ['owned-tenants', session?.user?.id, isCashierLogin],
     queryFn: async () => {
       if (!session?.user?.id) return [];
-      
-      // Force offline for desktop
+
+      if (isCashierLogin) {
+        const cp = cashierApi.auth.getProfile();
+        const cached = offline.getCachedTenant();
+        if (cp?.tenant_id && cached && (cached as any).id === cp.tenant_id) {
+          return [cached as Tenant];
+        }
+        if (cached) return [cached as Tenant];
+        return [];
+      }
+
       if (isDesktop()) {
         const cached = offline.getCachedTenant();
         return cached ? [cached as Tenant] : [];
       }
-      
+
       const { data, error } = await supabase
         .from('tenants')
         .select('*')
@@ -149,15 +193,17 @@ export const useMultiTenant = () => {
   });
 
   const { data: tenant, isLoading: tenantLoading } = useQuery({
-    queryKey: ['tenant', profile?.tenant_id, ownedTenants],
+    queryKey: ['tenant', profile?.tenant_id, ownedTenants, isCashierLogin],
     queryFn: async () => {
-      // Force offline for desktop
+      if (isCashierLogin) {
+        return offline.getCachedTenant() as Tenant | null;
+      }
+
       if (isDesktop()) {
         return offline.getCachedTenant() as Tenant | null;
       }
 
       try {
-        // Priority 1: Use the tenant linked in the profile
         if (profile?.tenant_id) {
           const { data, error } = await supabase
             .from('tenants')
@@ -171,24 +217,22 @@ export const useMultiTenant = () => {
           }
         }
 
-        // Priority 2: Use the first owned tenant if profile link is missing
         if (ownedTenants && ownedTenants.length > 0) {
           const firstTenant = ownedTenants[0];
-          
-          // Repair: Update profile to link to this tenant automatically
+
           if (session?.user?.id && !profile?.tenant_id) {
             console.log('Repairing profile link to tenant:', firstTenant.id);
             const { error: updateError } = await supabase
               .from('profiles')
               .update({ tenant_id: firstTenant.id })
               .eq('id', session.user.id);
-            
+
           if (!updateError) {
               toast.success(`Restored settings for ${firstTenant.restaurant_name}`);
-              window.location.reload(); 
+              window.location.reload();
             }
           }
-          
+
           offline.cacheTenant(firstTenant);
           return firstTenant as Tenant;
         }
@@ -213,27 +257,28 @@ export const useMultiTenant = () => {
     },
   });
 
-  // Default fallback for single-tenant mode or when tenant data is loading
   const defaultTenant = null;
-
   const currentTenant = tenant || (ownedTenants && ownedTenants.length > 0 ? ownedTenants[0] : null);
 
   const getCashierName = () => {
+    if (isCashierLogin) {
+      return profile?.full_name || 'Cashier';
+    }
     if (!currentTenant?.id) return 'Cashier';
-    
-    // Priority 1: Tenant's default cashier name (from settings)
     if (currentTenant.default_cashier_name) {
       return currentTenant.default_cashier_name;
     }
-    
-    // Priority 2: Session-specific cashier name
     const saved = localStorage.getItem(`cashier_name_${currentTenant.id}`);
     if (saved) return saved;
-    
     const active = localStorage.getItem('active_staff_name');
     if (active) return active;
-    
     return profile?.full_name || 'Cashier';
+  };
+
+  const canAccess = (moduleKey: ModuleKey | string): boolean => {
+    if (!isCashierLogin) return true;
+    if (!cashierPermissions) return false;
+    return cashierPermissions[moduleKey as ModuleKey] === true;
   };
 
   return {
@@ -244,5 +289,8 @@ export const useMultiTenant = () => {
     ownedTenants: ownedTenants || [],
     isLoading: sessionLoading || profileLoading || tenantLoading || ownedTenantsLoading,
     isAdmin: profile?.role === 'admin' || profile?.role === 'super-admin',
+    isCashierLogin,
+    cashierPermissions,
+    canAccess,
   };
 };
