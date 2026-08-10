@@ -104,8 +104,6 @@ export const useMultiTenant = () => {
 
       if (isCashierLogin) {
         const cp = cashierApi.auth.getProfile();
-        const perm = cashierApi.auth.getPermissions();
-        if (perm) setCashierPermissions(perm);
         if (cp) {
           return {
             id: cp.id,
@@ -279,8 +277,9 @@ export const useMultiTenant = () => {
 
   const canAccess = (moduleKey: ModuleKey | string): boolean => {
     if (!isCashierLogin) return true;
-    if (!cashierPermissions) return false;
-    return cashierPermissions[moduleKey as ModuleKey] === true;
+    const perms = cashierPermissions || cashierApi.auth.getPermissions();
+    if (!perms) return false;
+    return perms[moduleKey as ModuleKey] === true;
   };
 
   return {
