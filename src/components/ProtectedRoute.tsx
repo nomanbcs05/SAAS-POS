@@ -33,13 +33,13 @@ const ProtectedRoute = ({
     if (superAdminOnly) {
       return <Navigate to="/" replace />;
     }
-    if (adminOnly) {
-      return <Navigate to="/" replace />;
-    }
     const mod = ALL_MODULES.find(
       m => m.route === location.pathname || (location.pathname !== '/' && location.pathname.startsWith(m.route + '/'))
     );
     if (mod && !canAccess(mod.key)) {
+      return <Navigate to="/" replace />;
+    }
+    if (adminOnly && !mod) {
       return <Navigate to="/" replace />;
     }
     if (!tenant) {

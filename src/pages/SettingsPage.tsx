@@ -22,7 +22,9 @@ import { cn } from '@/lib/utils';
 import CashierManager from '@/components/settings/CashierManager';
 
 const SettingsPage = () => {
-  const { profile, tenant, isAdmin } = useMultiTenant();
+  const { profile, tenant, isAdmin, isCashierLogin, canAccess } = useMultiTenant();
+  const canManageStaff = isAdmin || (isCashierLogin && canAccess('staff-management'));
+  const canManageSecurity = isAdmin || (isCashierLogin && canAccess('settings'));
   const queryClient = useQueryClient();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -141,7 +143,7 @@ const SettingsPage = () => {
   const { data: staffMembers = [], isLoading: isLoadingStaff } = useQuery({
     queryKey: ['staff', tenant?.id],
     queryFn: () => api.profiles.getByTenant(tenant!.id),
-    enabled: !!tenant?.id && isAdmin,
+    enabled: !!tenant?.id && canManageStaff,
   });
 
   const changePasswordMutation = useMutation({
@@ -488,10 +490,10 @@ const SettingsPage = () => {
           </div>
 
           <Tabs defaultValue="business" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
               <TabsTrigger value="business">Business & Receipt</TabsTrigger>
               <TabsTrigger value="tax">Tax & Payment</TabsTrigger>
-              <TabsTrigger value="staff">Staff & Servers</TabsTrigger>
+              {canManageStaff && <TabsTrigger value="staff">Staff & Servers</TabsTrigger>}
               <TabsTrigger value="security">Security</TabsTrigger>
             </TabsList>
 
@@ -789,7 +791,7 @@ const SettingsPage = () => {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="font-bold text-slate-900 uppercase tracking-wider text-xs">Staff Accounts</h3>
-                      {isAdmin && (
+                      {canManageStaff && (
                         <Button size="sm" variant="outline" onClick={() => setIsAddingStaff(!isAddingStaff)}>
                           {isAddingStaff ? 'Cancel' : 'Add New Staff'}
                         </Button>
@@ -797,7 +799,7 @@ const SettingsPage = () => {
                     </div>
                   </div>
 
-                  {isAddingStaff && isAdmin && (
+                  {isAddingStaff && canManageStaff && (
                     <div className="mb-8 p-6 border-2 border-primary/20 rounded-2xl bg-primary/5 space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
                       <h3 className="font-bold text-lg">Create New Staff Account</h3>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -849,9 +851,9 @@ const SettingsPage = () => {
                         <div className="flex items-center justify-center p-8">
                           <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         </div>
-                      ) : !isAdmin ? (
+                      ) : !canManageStaff ? (
                         <div className="text-sm text-muted-foreground p-4 bg-slate-50 rounded-xl border border-dashed">
-                          Contact Administrator to manage permanent staff accounts.
+                          You do not have permission to manage staff accounts.
                         </div>
                       ) : staffMembers.length === 0 ? (
                         <div className="text-center p-8 border-2 border-dashed rounded-2xl text-slate-400 font-medium">
@@ -876,7 +878,7 @@ const SettingsPage = () => {
                               )}>
                                 {staff.role}
                               </Badge>
-                              {isAdmin && staff.id !== profile?.id && (
+                              {canManageStaff && staff.id !== profile?.id && (
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
@@ -1013,165 +1015,143 @@ const SettingsPage = () => {
 
             <TabsContent value="security">
               <div className="space-y-6">
-                <CashierManager tenant={tenant as any} />
+                {canManageSecurity ? (
+                  <CashierManager tenant={tenant as any} />
+                ) : (
+                  <Card>
+                    <CardContent className="p-6 text-sm text-muted-foreground">
+                      You do not have permission to manage Cashier Accounts & Permissions.
+                    </CardContent>
+                  </Card>
+                )}
 
-                <Separator />
+                {isAdmin && (
+                  <>
+                    <Separator />
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Lock className="h-5 w-5" />
-                    Admin Security Settings
-                  </CardTitle>
-                  <CardDescription>
-                    Keep your Admin account secure. Cashier PINs are managed in the Cashier Accounts section above.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="newPassword">New Password</Label>
-                    <Input 
-                      id="newPassword" 
-                      type="password" 
-                      placeholder="Min. 6 characters" 
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <Input 
-                      id="confirmPassword" 
-                      type="password" 
-                      placeholder="Repeat new password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                    />
-                  </div>
-                  <div className="pt-4">
-                    <Button 
-                      onClick={handleChangePassword}
-                      disabled={changePasswordMutation.isPending || !newPassword || !confirmPassword}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      {changePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
-                    </Button>
-                  </div>
-
-                  <Separator className="my-6" />
-
-                  <div className="space-y-4 pt-4">
-                    <div className="flex items-center gap-2">
-                      <Lock className="h-5 w-5 text-primary" />
-                      <div>
-                        <h3 className="text-lg font-bold">POS Lock Screen Password</h3>
-                        <p className="text-sm text-muted-foreground">Set a password to quickly lock the POS terminal</p>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2 max-w-sm">
-                      <Label htmlFor="lockPassword">Lock Password (PIN)</Label>
-                      <div className="flex gap-2">
-                        <Input 
-                          id="lockPassword" 
-                          type="password" 
-                          placeholder="Enter lock PIN/Password" 
-                          value={lockPassword}
-                          onChange={(e) => setLockPassword(e.target.value)}
-                        />
-                        <Button onClick={handleSaveLockPassword}>Save PIN</Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator className="my-6" />
-
-                  <div className="space-y-4 pt-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-5 w-5 text-blue-600" />
-                        <div>
-                          <h3 className="text-lg font-bold">Enable Customer Credit / Udhaar System</h3>
-                          <p className="text-sm text-muted-foreground">Allows placing orders on Credit, reverting credit orders, and keeping credit revenue separate from total revenue.</p>
-                        </div>
-                      </div>
-                      <Switch 
-                        checked={creditsEnabled} 
-                        onCheckedChange={handleToggleCreditsEnabled}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Credit Orders Conversion Dialog */}
-                  <Dialog open={showCreditDialog} onOpenChange={setShowCreditDialog}>
-                    <DialogContent className="sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-xl">
-                          <Wallet className="h-5 w-5 text-blue-600" />
-                          Add Orders to Credit
-                        </DialogTitle>
-                        <DialogDescription>
-                          Enter the number of recent completed orders you want to mark as Credit / Udhaar. These orders will be excluded from Total Revenue until paid.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Lock className="h-5 w-5" />
+                          Admin Account Password
+                        </CardTitle>
+                        <CardDescription>
+                          Change the password for the currently signed-in Admin account.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
                         <div className="space-y-2">
-                          <Label htmlFor="creditOrdersCount" className="font-bold">Number of Recent Orders</Label>
+                          <Label htmlFor="newPassword">New Password</Label>
                           <Input
-                            id="creditOrdersCount"
-                            type="number"
-                            min="1"
-                            placeholder="e.g. 5"
-                            value={creditOrdersCount}
-                            onChange={(e) => setCreditOrdersCount(e.target.value)}
-                            className="text-lg font-bold"
-                            autoFocus
+                            id="newPassword"
+                            type="password"
+                            placeholder="Min. 6 characters"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
                           />
-                          <p className="text-xs text-muted-foreground">The most recent completed orders will be converted to Credit.</p>
                         </div>
-                      </div>
-                      <DialogFooter className="gap-2 sm:gap-0">
-                        <Button
-                          variant="outline"
-                          onClick={() => setShowCreditDialog(false)}
-                          disabled={isConvertingCredits}
-                        >
-                          Skip
-                        </Button>
-                        <Button
-                          onClick={handleConvertOrdersToCredit}
-                          disabled={isConvertingCredits || !creditOrdersCount}
-                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
-                        >
-                          {isConvertingCredits ? (
-                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Converting...</>
-                          ) : (
-                            `Convert to Credit`
-                          )}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Separator className="my-6" />
-
-                  <div className="space-y-4 pt-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-5 w-5 text-amber-500" />
-                        <div>
-                          <h3 className="text-lg font-bold">Safe Mode (Hide Management)</h3>
-                          <p className="text-sm text-muted-foreground">Immediately hide Products, Reports, and Settings from the sidebar. Re-appears on next login.</p>
+                        <div className="space-y-2">
+                          <Label htmlFor="confirmPassword">Confirm Password</Label>
+                          <Input
+                            id="confirmPassword"
+                            type="password"
+                            placeholder="Repeat new password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                          />
                         </div>
-                      </div>
-                      <Switch 
-                        checked={hideManagement} 
-                        onCheckedChange={handleToggleHideManagement}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                        <div className="pt-4">
+                          <Button
+                            onClick={handleChangePassword}
+                            disabled={changePasswordMutation.isPending || !newPassword || !confirmPassword}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            {changePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+
+                {canManageSecurity && (
+                  <>
+                    <Separator />
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Lock className="h-5 w-5" />
+                          Terminal Security
+                        </CardTitle>
+                        <CardDescription>
+                          Lock-screen PIN, credit system, and safe-mode for this POS terminal.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-4 pt-4">
+                          <div className="flex items-center gap-2">
+                            <Lock className="h-5 w-5 text-primary" />
+                            <div>
+                              <h3 className="text-lg font-bold">POS Lock Screen Password</h3>
+                              <p className="text-sm text-muted-foreground">Set a password to quickly lock the POS terminal</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 max-w-sm">
+                            <Label htmlFor="lockPassword">Lock Password (PIN)</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                id="lockPassword"
+                                type="password"
+                                placeholder="Enter lock PIN/Password"
+                                value={lockPassword}
+                                onChange={(e) => setLockPassword(e.target.value)}
+                              />
+                              <Button onClick={handleSaveLockPassword}>Save PIN</Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <Separator className="my-6" />
+
+                        <div className="space-y-4 pt-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <CreditCard className="h-5 w-5 text-blue-600" />
+                              <div>
+                                <h3 className="text-lg font-bold">Enable Customer Credit / Udhaar System</h3>
+                                <p className="text-sm text-muted-foreground">Allows placing orders on Credit, reverting credit orders, and keeping credit revenue separate from total revenue.</p>
+                              </div>
+                            </div>
+                            <Switch
+                              checked={creditsEnabled}
+                              onCheckedChange={handleToggleCreditsEnabled}
+                            />
+                          </div>
+                        </div>
+
+                        <Separator className="my-6" />
+
+                        <div className="space-y-4 pt-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Shield className="h-5 w-5 text-amber-500" />
+                              <div>
+                                <h3 className="text-lg font-bold">Safe Mode (Hide Management)</h3>
+                                <p className="text-sm text-muted-foreground">Immediately hide Products, Reports, and Settings from the sidebar. Re-appears on next login.</p>
+                              </div>
+                            </div>
+                            <Switch
+                              checked={hideManagement}
+                              onCheckedChange={handleToggleHideManagement}
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
               </div>
             </TabsContent>
           </Tabs>

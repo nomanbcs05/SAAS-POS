@@ -131,13 +131,17 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
     { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true, management: true, moduleKey: 'reports' },
     { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true, management: true, moduleKey: 'settings' },
   ].filter(item => {
-    if (isCashierLogin && item.moduleKey) {
+    if (item.superAdminOnly) return profile?.role === 'super-admin';
+
+    if (isCashierLogin) {
+      if (!item.moduleKey) return false;
       return canAccess(item.moduleKey);
     }
-    if (profile?.role === 'cashier' && !isCashierLogin && ['Reports', 'Settings', 'Credit Ledger', 'Staff Management'].includes(item.name)) {
+
+    if (profile?.role === 'cashier' && ['Reports', 'Settings', 'Credit Ledger', 'Staff Management'].includes(item.name)) {
       return false;
     }
-    if (item.superAdminOnly) return profile?.role === 'super-admin';
+
     if (item.adminOnly) {
       if (!isAdmin) return false;
       if (hideManagement && item.management) return false;
