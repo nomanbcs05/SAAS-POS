@@ -123,6 +123,18 @@ export default function InventoryPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
 
+    // Listen for automatic POS inventory deductions
+    useEffect(() => {
+        const handleInventoryChange = () => {
+            queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
+            queryClient.invalidateQueries({ queryKey: ['inventory-adjustments'] });
+            queryClient.invalidateQueries({ queryKey: ['inventory-recipes'] });
+            queryClient.invalidateQueries({ queryKey: ['all-pos-products'] });
+        };
+        window.addEventListener('inventory_changed', handleInventoryChange);
+        return () => window.removeEventListener('inventory_changed', handleInventoryChange);
+    }, [queryClient]);
+
     // ---------------------------------------------------------------------------
     // Database check query
     // ---------------------------------------------------------------------------

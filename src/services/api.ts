@@ -537,18 +537,30 @@ export const api = {
       }
     },
     delete: async (id: string) => {
-      if (isDesktop() || !offline.isOnline()) {
-        const products = await offline.getCachedProducts();
-        const filtered = products.filter((p: any) => p.id !== id);
-        await offline.cacheProducts(filtered);
-        return;
-      }
+      // 1. Remove from local offline cache
+      const products = await offline.getCachedProducts();
+      const filtered = (products || []).filter((p: any) => p.id !== id);
+      await offline.cacheProducts(filtered);
 
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
+      const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      
+      if (!isDesktop() && offline.isOnline() && isValidUUID) {
+        try {
+          // Clean up foreign key references in order_items and recipe_items before deleting
+          await supabase.from('inventory_recipes' as any).delete().eq('product_id', id).catch(() => {});
+          await supabase.from('order_items').update({ product_id: null }).eq('product_id', id).catch(() => {});
+          
+          const { error } = await supabase
+            .from('products')
+            .delete()
+            .eq('id', id);
+          if (error) {
+            console.warn('[Products] DB delete error, product removed locally:', error.message);
+          }
+        } catch (err) {
+          console.warn('[Products] DB delete failed:', err);
+        }
+      }
       await recacheProducts();
     },
     uploadImage: async (file: File) => {
@@ -1898,7 +1910,7 @@ export const api = {
           try {
             const { data: orderItems } = await supabase
               .from('order_items')
-              .select('product_id, quantity')
+              .select('product_id, product_name, quantity')
               .eq('order_id', id);
 
             if (orderItems && orderItems.length > 0) {

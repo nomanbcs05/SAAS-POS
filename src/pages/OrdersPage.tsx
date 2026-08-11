@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, isToday, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
-import { Search, Filter, Eye, Printer, RotateCcw, Calendar as CalendarIcon, Loader2, Trash2, UtensilsCrossed, MoreVertical } from 'lucide-react';
+import { Search, Filter, Eye, Printer, RotateCcw, Calendar as CalendarIcon, Loader2, Trash2, UtensilsCrossed, MoreVertical, Clock } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { useReactToPrint } from 'react-to-print';
 import DailySummary from '@/components/pos/DailySummary';
 import ProductSalesSummary from '@/components/pos/ProductSalesSummary';
+import ActiveShiftsModal from '@/components/pos/ActiveShiftsModal';
 import Receipt from '@/components/pos/Receipt';
 import KOT from '@/components/pos/KOT';
 import Bill from '@/components/pos/Bill';
@@ -107,6 +108,7 @@ const OrdersPage = () => {
   const [showProductSummaryModal, setShowProductSummaryModal] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [productOrdersWithItems, setProductOrdersWithItems] = useState<any[]>([]);
+  const [isActiveShiftsOpen, setIsActiveShiftsOpen] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const productSummaryRef = useRef<HTMLDivElement>(null);
 
@@ -548,6 +550,14 @@ const OrdersPage = () => {
               <p className="text-muted-foreground">View and manage order history</p>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="default"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                onClick={() => setIsActiveShiftsOpen(true)}
+              >
+                <Clock className="h-4 w-4 mr-2" />
+                Active Shift
+              </Button>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -817,6 +827,17 @@ const OrdersPage = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Active Shifts Modal */}
+        <ActiveShiftsModal
+          open={isActiveShiftsOpen}
+          onOpenChange={setIsActiveShiftsOpen}
+          orders={orders}
+          onShiftClosed={() => {
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['active-shifts'] });
+          }}
+        />
       </div>
     </MainLayout>
   );

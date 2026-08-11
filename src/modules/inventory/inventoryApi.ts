@@ -292,6 +292,9 @@ const itemsAdjustStockLocal = (adjustment: Omit<InventoryAdjustment, 'id' | 'cre
 const itemsAdjustStock = async (adjustment: Omit<InventoryAdjustment, 'id' | 'created_at'>): Promise<InventoryAdjustment> => {
     const qtyChange = Number(adjustment.quantity);
     const item = await itemsUpdateStockQuantity(adjustment.item_id, qtyChange);
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('inventory_changed'));
+    }
 
     if (useLocal('inventory_adjustments')) return itemsAdjustStockLocal(adjustment, item);
     try {

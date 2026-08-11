@@ -202,6 +202,7 @@ const ProductGrid = () => {
     const isIndus = tenant?.restaurant_name?.toLowerCase().includes('indus');
     const isKhanshinwari = tenant?.restaurant_name?.toLowerCase().includes('khanshinwari') || tenant?.restaurant_name?.toLowerCase().includes('khan shinwari');
     const isFreshBasket = tenant?.restaurant_name?.toLowerCase().includes('fresh basket');
+    const isSmbutt = tenant?.restaurant_name?.toLowerCase().includes('smbutt') || tenant?.restaurant_name?.toLowerCase().includes('sm butt');
     
     if (isFreshBasket) {
       products = products.filter(p => {
@@ -212,6 +213,8 @@ const ProductGrid = () => {
     }
     
     const isCardVisible = (id: string) => {
+      // Hide ALL virtual menu cards for Smbutt Karahi — only plain products are shown
+      if (isSmbutt) return false;
       // Specifically hide these for Cafe Indus, Khanshinwari & Fresh Basket
       if ((isIndus || isKhanshinwari) && ['pizza', 'burger', 'alacart', 'sauce', 'roll', 'broast'].includes(id)) {
         return false;
@@ -453,7 +456,7 @@ const ProductGrid = () => {
      }
 
      // Special logic for Cafe Indus Categories:
-     if (isIndus) {
+      if (isIndus && !isSmbutt) {
        const indusCategories = [
          { name: 'RICE', id: 'indus_rice', key: 'pos_menu_indus_rice' },
          { name: 'CHICKEN (Karahi)', id: 'indus_chicken_karahi', key: 'pos_menu_indus_chicken_karahi' },
@@ -523,7 +526,7 @@ const ProductGrid = () => {
       }
 
       // Special logic for Khanshinwari Categories:
-      if (isKhanshinwari) {
+       if (isKhanshinwari && !isSmbutt) {
         const khanCategories = [
           { name: 'CHICKEN KARHAI', id: 'khan_chicken_karahi' },
           { name: 'BBQ PLATTERS', id: 'khan_bbq_platters' },
@@ -608,7 +611,7 @@ const ProductGrid = () => {
       }
 
       // GenX Restaurant Categories (9 menu categories):
-      RESTR_CATEGORIES.forEach(cat => {
+      if (!isSmbutt) RESTR_CATEGORIES.forEach(cat => {
         const isCatSelected = selectedCategory === cat.name;
         const isAllSelected = selectedCategory === 'all';
 
@@ -629,6 +632,7 @@ const ProductGrid = () => {
           }
         }
       });
+      if (!isSmbutt) {} // close isSmbutt guard
 
       // Special logic for Fresh Basket Categories:
       if (isFreshBasket) {
