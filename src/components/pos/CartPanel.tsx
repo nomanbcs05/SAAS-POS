@@ -636,10 +636,10 @@ const CartPanel = () => {
   return (
     <div className="flex flex-col h-full bg-card border-l font-sans pb-4">
       {/* Header */}
-      <div className="p-3 border-b flex justify-between items-center">
+      <div className="px-3 py-2 border-b flex justify-between items-center bg-muted/20">
         <div>
-          <h2 className="text-base font-black font-heading tracking-tight uppercase">Current Order</h2>
-          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+          <h2 className="text-xs font-black font-heading tracking-wider uppercase text-slate-800">Current Order</h2>
+          <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-widest">
             {items.length} {items.length === 1 ? 'item' : 'items'}
           </p>
         </div>
@@ -648,49 +648,24 @@ const CartPanel = () => {
             variant="ghost"
             size="sm"
             onClick={handleClearCart}
-            className="h-8 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 text-[10px] font-bold uppercase tracking-wider"
+            className="h-6 px-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 text-[9px] font-bold uppercase tracking-wider"
           >
-            <Trash2 className="h-3.5 w-3.5 mr-1" />
+            <Trash2 className="h-3 w-3 mr-1" />
             Clear
           </Button>
         )}
       </div>
 
-      {/* Customer Selection */}
-      <div className="p-3 border-b space-y-3">
-        <CustomerSelector
-          selectedCustomer={customer}
-          onSelect={setCustomer}
-          customers={customers}
-        />
-
-        {orderType === 'dine_in' && (
-          <div className="flex flex-col gap-2">
-            {selectedTable && (
-              <div className="flex items-center gap-2 p-2 bg-emerald-50 rounded-lg border border-emerald-100 text-emerald-700">
-                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-full">
-                  Table: {selectedTable.table_number}
-                </span>
-                <span className="text-[10px] font-medium">
-                  {selectedTable.section} • {selectedTable.capacity} Seats
-                </span>
-              </div>
-            )}
-            <Button
-              variant="default"
-              disabled={items.length === 0}
-              onClick={() => {
-                if (items.length === 0) { toast.error('Cart is empty'); return; }
-                setShowSettlementModal(true);
-              }}
-              className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-wider rounded-lg shadow-md shadow-emerald-500/20"
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Settle Bill
-            </Button>
-          </div>
-        )}
-      </div>
+      {orderType === 'dine_in' && selectedTable && (
+        <div className="px-3 py-1.5 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between text-emerald-700">
+          <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-full">
+            Table: {selectedTable.table_number}
+          </span>
+          <span className="text-[10px] font-medium">
+            {selectedTable.section} • {selectedTable.capacity} Seats
+          </span>
+        </div>
+      )}
 
       {/* Cart Items */}
       <ScrollArea className="flex-1 p-3">
@@ -1022,22 +997,28 @@ const CartPanel = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex gap-1.5">
-            <Button variant="outline" className="flex-1 font-bold font-heading uppercase tracking-wider text-xs h-10 border-2 border-emerald-500/20 hover:bg-emerald-50 hover:text-emerald-600 transition-all" onClick={handleDone} disabled={items.length === 0}>
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Done
-            </Button>
-            {orderType !== 'dine_in' && (
-              <Button variant="outline" className="flex-1 font-bold font-heading uppercase tracking-wider text-xs h-10 border-2 border-emerald-500/20 hover:bg-emerald-50 hover:text-emerald-600 transition-all" onClick={() => {
-                if (items.length === 0) { toast.error('Cart is empty'); return; }
-                setShowSettlementModal(true);
-              }} disabled={items.length === 0}>
-                <FileText className="h-4 w-4 mr-2" />
-                Settle Bill
-              </Button>
-            )}
-          </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="flex-1 h-8 text-[11px] font-extrabold font-heading uppercase tracking-wider border-2 border-emerald-500/30 hover:bg-emerald-50 hover:text-emerald-600 transition-all"
+            onClick={handleDone}
+            disabled={items.length === 0}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+            Done
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1 h-8 text-[11px] font-extrabold font-heading uppercase tracking-wider border-2 border-emerald-500/30 hover:bg-emerald-50 hover:text-emerald-600 transition-all"
+            onClick={() => {
+              if (items.length === 0) { toast.error('Cart is empty'); return; }
+              setShowSettlementModal(true);
+            }}
+            disabled={items.length === 0}
+          >
+            <FileText className="h-3.5 w-3.5 mr-1" />
+            Settle
+          </Button>
         </div>
       </div>
 
