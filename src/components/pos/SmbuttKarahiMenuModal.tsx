@@ -4,15 +4,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useCartStore } from '@/stores/cartStore';
-import { Edit2, Plus, Trash2, Save, X, Search } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Edit2, Plus, Trash2, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 // ─── Full SM Butt Karahi Menu Data ────────────────────────────────────────────
@@ -146,9 +143,16 @@ export const SMBUTT_MENU_DATA = {
 
 type MenuCategory = keyof typeof SMBUTT_MENU_DATA;
 
-interface SizeOption {
-  label: string;
-  price: number;
+// Per-category custom labels stored in localStorage
+const LABEL_STORAGE_KEY = 'pos_smbutt_category_labels';
+
+function getSavedLabels(): Record<string, string> {
+  try {
+    const saved = localStorage.getItem(LABEL_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch {
+    return {};
+  }
 }
 
 interface SmbuttKarahiMenuModalProps {
@@ -165,29 +169,31 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
   const [activeCategory, setActiveCategory] = useState<MenuCategory>(
     defaultCategory || 'KARAHI'
   );
-  const [searchQuery, setSearchQuery] = useState('');
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [categoryItems, setCategoryItems] = useState<any[]>([]);
+
+  // Editable heading
+  const [categoryLabels, setCategoryLabels] = useState<Record<string, string>>(getSavedLabels);
+  const [editingHeading, setEditingHeading] = useState(false);
+  const [headingDraft, setHeadingDraft] = useState('');
+
   const { addItem } = useCartStore();
 
+  const getLabel = (key: string) => categoryLabels[key] || SMBUTT_MENU_DATA[key as MenuCategory]?.label || key;
+
+  // Sync defaultCategory when opening with a specific category card
   useEffect(() => {
-    if (defaultCategory) {
-      setActiveCategory(defaultCategory);
-    }
+    if (defaultCategory) setActiveCategory(defaultCategory);
   }, [defaultCategory, open]);
 
-  // Load items from localStorage for current category
+  // Load items from localStorage for the active category
   useEffect(() => {
     if (!open) return;
     const key = `pos_menu_smbutt_${activeCategory.toLowerCase()}`;
     const saved = localStorage.getItem(key);
-    if (saved) {
-      try {
-        setCategoryItems(JSON.parse(saved));
-      } catch {
-        setCategoryItems(SMBUTT_MENU_DATA[activeCategory]?.items || []);
-      }
-    } else {
+    try {
+      setCategoryItems(saved ? JSON.parse(saved) : SMBUTT_MENU_DATA[activeCategory]?.items || []);
+    } catch {
       setCategoryItems(SMBUTT_MENU_DATA[activeCategory]?.items || []);
     }
   }, [activeCategory, open]);
@@ -211,34 +217,62 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
   };
 
   const handleAddItem = () => {
-    const newItem = { name: 'New Menu Item', price: 500 };
-    saveCategoryItems([...categoryItems, newItem]);
+    saveCategoryItems([...categoryItems, { name: 'New Item', price: 0 }]);
     toast.success('New item added');
   };
 
   const handleRemoveItem = (index: number) => {
-    const updated = categoryItems.filter((_, i) => i !== index);
-    saveCategoryItems(updated);
-    toast.success('Item deleted');
+    saveCategoryItems(categoryItems.filter((_, i) => i !== index));
+    toast.success('Item removed');
+  };
+
+  // Heading edit handlers
+  const startHeadingEdit = () => {
+    setHeadingDraft(getLabel(activeCategory));
+    setEditingHeading(true);
+  };
+
+  const saveHeading = () => {
+    const draft = headingDraft.trim();
+    if (!draft) { setEditingHeading(false); return; }
+    const updated = { ...categoryLabels, [activeCategory]: draft };
+    setCategoryLabels(updated);
+    localStorage.setItem(LABEL_STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new Event('smbutt-menu-updated'));
+    setEditingHeading(false);
+    toast.success('Category heading updated');
   };
 
   const categoryKeys = Object.keys(SMBUTT_MENU_DATA) as MenuCategory[];
 
-  const filteredItems = categoryItems.filter(item =>
-    item.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleItemClick = (item: any) => {
-    const hasQtr = item.qtr != null;
-    const hasHalf = item.half != null;
-
-    if (!hasQtr && !hasHalf) {
+  const handleAddToCart = (item: any, size: 'qtr' | 'half' | 'single') => {
+    const catLabel = getLabel(activeCategory);
+    const catIcon = SMBUTT_MENU_DATA[activeCategory].icon;
+    if (size === 'qtr') {
+      addItem({
+        id: `smbutt-${activeCategory}-${item.name}-qtr`.replace(/\s+/g, '-').toLowerCase(),
+        name: `${item.name} (Qtr)`,
+        price: item.qtr,
+        category: catLabel,
+        image: catIcon,
+      });
+      toast.success(`${item.name} (Qtr) added`);
+    } else if (size === 'half') {
+      addItem({
+        id: `smbutt-${activeCategory}-${item.name}-half`.replace(/\s+/g, '-').toLowerCase(),
+        name: `${item.name} (Half)`,
+        price: item.half,
+        category: catLabel,
+        image: catIcon,
+      });
+      toast.success(`${item.name} (Half) added`);
+    } else {
       addItem({
         id: `smbutt-${activeCategory}-${item.name}`.replace(/\s+/g, '-').toLowerCase(),
         name: item.name,
         price: item.price || 0,
-        category: SMBUTT_MENU_DATA[activeCategory].label,
-        image: SMBUTT_MENU_DATA[activeCategory].icon,
+        category: catLabel,
+        image: catIcon,
       });
       toast.success(`${item.name} added to cart`);
     }
@@ -246,132 +280,152 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={(val) => {
-      if (!val) setIsEditingMode(false);
+      if (!val) { setIsEditingMode(false); setEditingHeading(false); }
       onOpenChange(val);
     }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white rounded-3xl border-none shadow-2xl">
-        <DialogHeader className="px-6 py-4 bg-emerald-700 text-white flex-shrink-0 flex flex-row items-center justify-between">
-          <DialogTitle className="text-xl font-extrabold flex items-center gap-2">
-            <span className="text-2xl">{SMBUTT_MENU_DATA[activeCategory]?.icon || '🍲'}</span> 
-            {SMBUTT_MENU_DATA[activeCategory]?.label || 'Karahi'} Menu
-          </DialogTitle>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "h-8 px-3 rounded-full text-xs font-bold transition-all",
-                isEditingMode ? "bg-white text-emerald-800 hover:bg-white/90" : "bg-emerald-600 text-white hover:bg-emerald-500"
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+
+        {/* ── Original-style header ─────────────────────────────────────── */}
+        <DialogHeader className="px-6 pt-5 pb-0 flex-shrink-0">
+          <div className="flex items-center justify-between mb-1">
+            {/* Editable heading */}
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{SMBUTT_MENU_DATA[activeCategory]?.icon || '🍲'}</span>
+              {editingHeading ? (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    autoFocus
+                    value={headingDraft}
+                    onChange={(e) => setHeadingDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveHeading(); if (e.key === 'Escape') setEditingHeading(false); }}
+                    className="h-8 text-base font-bold border-emerald-400 w-48"
+                  />
+                  <button onClick={saveHeading} className="p-1 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-700">
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => setEditingHeading(false)} className="p-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <DialogTitle
+                  className="text-xl font-bold flex items-center gap-1.5 cursor-pointer group"
+                  onClick={isEditingMode ? startHeadingEdit : undefined}
+                  title={isEditingMode ? "Click to rename category heading" : undefined}
+                >
+                  {getLabel(activeCategory)} Menu
+                  {isEditingMode && (
+                    <Edit2 className="h-3.5 w-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  )}
+                </DialogTitle>
               )}
-              onClick={() => setIsEditingMode(!isEditingMode)}
+            </div>
+
+            {/* Edit toggle button */}
+            <button
+              onClick={() => { setIsEditingMode(!isEditingMode); setEditingHeading(false); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                isEditingMode
+                  ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:text-emerald-600'
+              }`}
             >
-              <Edit2 className="h-3.5 w-3.5 mr-1" />
-              {isEditingMode ? 'Done Editing' : 'Edit Products'}
-            </Button>
+              <Edit2 className="h-3.5 w-3.5" />
+              {isEditingMode ? 'Done' : 'Edit'}
+            </button>
           </div>
         </DialogHeader>
 
-        {/* Category tabs */}
-        <div className="flex-shrink-0 border-b bg-slate-50 overflow-x-auto">
-          <div className="flex gap-1 px-4 py-2 min-w-max">
+        {/* ── Category tabs (original style: underline tabs) ─────────────── */}
+        <div className="flex-shrink-0 border-b overflow-x-auto">
+          <div className="flex gap-1 px-4 pb-0 pt-3 min-w-max">
             {categoryKeys.map(key => (
               <button
                 key={key}
-                onClick={() => setActiveCategory(key)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${
+                onClick={() => { setActiveCategory(key); setEditingHeading(false); }}
+                className={`px-3 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
                   activeCategory === key
-                    ? 'bg-emerald-700 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-200/60'
+                    ? 'border-emerald-600 text-emerald-700 bg-emerald-50'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 <span>{SMBUTT_MENU_DATA[key].icon}</span>
-                {SMBUTT_MENU_DATA[key].label}
+                {getLabel(key)}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Search bar & Add button */}
-        <div className="px-6 py-3 border-b flex items-center gap-3 bg-white">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Search items in this category..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-xs rounded-xl border-slate-200"
-            />
-          </div>
-          {isEditingMode && (
+        {/* ── Add Product button (only in edit mode) ─────────────────────── */}
+        {isEditingMode && (
+          <div className="px-6 py-2 border-b bg-emerald-50/60 flex items-center justify-between gap-3">
+            <span className="text-xs text-emerald-700 font-semibold">
+              ✎ Edit Mode — Click headings to rename. Edit names, rates, or delete rows.
+            </span>
             <Button
               size="sm"
               onClick={handleAddItem}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl h-9 gap-1"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-8 gap-1 shrink-0"
             >
-              <Plus className="h-4 w-4" /> Add Product
+              <Plus className="h-3.5 w-3.5" /> Add Product
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Items list */}
+        {/* ── Items list (original table style) ─────────────────────────── */}
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-4 space-y-2">
             {/* Table header */}
-            <div className="grid grid-cols-12 text-[10px] font-black uppercase text-slate-400 px-3 py-1 tracking-wider">
-              <div className="col-span-5">Item Name</div>
-              <div className="col-span-3 text-center">Qtr / Single Rate (Rs)</div>
-              <div className="col-span-2 text-center">Half Rate (Rs)</div>
-              <div className="col-span-2 text-right">Actions</div>
+            <div className="grid grid-cols-12 text-xs font-bold uppercase text-slate-400 px-3 py-1">
+              <div className="col-span-6">Item</div>
+              <div className="col-span-2 text-center">Qtr / Price</div>
+              <div className="col-span-2 text-center">Half</div>
+              <div className="col-span-2 text-right">{isEditingMode ? 'Delete' : ''}</div>
             </div>
 
-            {filteredItems.map((item: any, idx: number) => {
+            {categoryItems.map((item: any, idx: number) => {
               const hasQtr = item.qtr != null;
               const hasHalf = item.half != null;
-              const hasSingle = item.price != null;
+              const hasSingle = !hasQtr && item.price != null;
 
               return (
                 <div
                   key={idx}
-                  className="grid grid-cols-12 items-center gap-2 bg-white border border-slate-100 rounded-2xl px-3 py-2.5 hover:bg-emerald-50/30 transition-all group"
+                  className="grid grid-cols-12 items-center gap-2 bg-white border border-slate-100 rounded-xl px-3 py-3 hover:bg-emerald-50/40 hover:border-emerald-200 transition-all group"
                 >
-                  <div className="col-span-5">
+                  {/* Item name */}
+                  <div className="col-span-6">
                     {isEditingMode ? (
                       <Input
                         value={item.name || ''}
                         onChange={(e) => handleUpdateItem(idx, 'name', e.target.value)}
-                        className="h-8 text-xs font-bold border-slate-200"
+                        className="h-8 text-xs font-semibold border-slate-200"
+                        placeholder="Item name"
                       />
                     ) : (
-                      <span className="font-bold text-slate-800 text-xs">
-                        {item.name}
-                      </span>
+                      <span className="font-semibold text-slate-800 text-sm">{item.name}</span>
                     )}
                   </div>
 
-                  <div className="col-span-3 text-center">
+                  {/* Qtr / Price */}
+                  <div className="col-span-2 text-center">
                     {isEditingMode ? (
                       <Input
                         type="number"
-                        placeholder="Qtr/Price"
-                        value={item.qtr ?? item.price ?? ''}
-                        onChange={(e) => {
-                          if (hasQtr || (!hasSingle && !hasHalf)) {
-                            handleUpdateItem(idx, 'qtr', e.target.value);
-                          } else {
-                            handleUpdateItem(idx, 'price', e.target.value);
-                          }
-                        }}
+                        placeholder={hasQtr ? 'Qtr' : 'Price'}
+                        value={hasQtr ? (item.qtr ?? '') : (item.price ?? '')}
+                        onChange={(e) => handleUpdateItem(idx, hasQtr ? 'qtr' : 'price', e.target.value)}
                         className="h-8 text-xs text-center border-slate-200"
                       />
                     ) : (
                       <>
                         {hasQtr && (
-                          <span className="text-emerald-700 font-extrabold text-xs">
-                            Rs. {item.qtr.toLocaleString()} (Qtr)
+                          <span className="text-emerald-700 font-bold text-sm">
+                            Rs. {item.qtr.toLocaleString()}
                           </span>
                         )}
-                        {hasSingle && !hasQtr && (
-                          <span className="text-emerald-700 font-extrabold text-xs">
+                        {hasSingle && (
+                          <span className="text-emerald-700 font-bold text-sm">
                             Rs. {item.price.toLocaleString()}
                           </span>
                         )}
@@ -379,19 +433,20 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
                     )}
                   </div>
 
+                  {/* Half */}
                   <div className="col-span-2 text-center">
                     {isEditingMode ? (
                       <Input
                         type="number"
-                        placeholder="Half Rate"
+                        placeholder="Half"
                         value={item.half ?? ''}
                         onChange={(e) => handleUpdateItem(idx, 'half', e.target.value)}
                         className="h-8 text-xs text-center border-slate-200"
                       />
                     ) : (
                       hasHalf ? (
-                        <span className="text-blue-600 font-extrabold text-xs">
-                          Rs. {item.half.toLocaleString()} (Half)
+                        <span className="text-blue-600 font-bold text-sm">
+                          Rs. {item.half.toLocaleString()}
                         </span>
                       ) : (
                         <span className="text-slate-300 text-xs">—</span>
@@ -399,56 +454,37 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
                     )}
                   </div>
 
-                  <div className="col-span-2 flex justify-end gap-1 items-center">
+                  {/* Action buttons */}
+                  <div className="col-span-2 flex justify-end gap-1">
                     {isEditingMode ? (
-                      <Button
-                        variant="ghost"
-                        size="icon"
+                      <button
                         onClick={() => handleRemoveItem(idx)}
-                        className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                        className="h-8 w-8 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                       >
                         <Trash2 className="h-4 w-4" />
-                      </Button>
+                      </button>
                     ) : (
                       <>
                         {hasQtr && (
                           <button
-                            onClick={() => {
-                              addItem({
-                                id: `smbutt-${activeCategory}-${item.name}-qtr`.replace(/\s+/g, '-').toLowerCase(),
-                                name: `${item.name} (Qtr)`,
-                                price: item.qtr,
-                                category: SMBUTT_MENU_DATA[activeCategory].label,
-                                image: SMBUTT_MENU_DATA[activeCategory].icon,
-                              });
-                              toast.success(`${item.name} (Qtr) added`);
-                            }}
-                            className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-2 py-1 font-bold transition-colors"
+                            onClick={() => handleAddToCart(item, 'qtr')}
+                            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-2 py-1.5 font-bold transition-colors"
                           >
                             Qtr
                           </button>
                         )}
                         {hasHalf && (
                           <button
-                            onClick={() => {
-                              addItem({
-                                id: `smbutt-${activeCategory}-${item.name}-half`.replace(/\s+/g, '-').toLowerCase(),
-                                name: `${item.name} (Half)`,
-                                price: item.half,
-                                category: SMBUTT_MENU_DATA[activeCategory].label,
-                                image: SMBUTT_MENU_DATA[activeCategory].icon,
-                              });
-                              toast.success(`${item.name} (Half) added`);
-                            }}
-                            className="text-[10px] bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-2 py-1 font-bold transition-colors"
+                            onClick={() => handleAddToCart(item, 'half')}
+                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-2 py-1.5 font-bold transition-colors"
                           >
                             Half
                           </button>
                         )}
-                        {hasSingle && !hasQtr && (
+                        {hasSingle && (
                           <button
-                            onClick={() => handleItemClick(item)}
-                            className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-2.5 py-1 font-bold transition-colors"
+                            onClick={() => handleAddToCart(item, 'single')}
+                            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-2 py-1.5 font-bold transition-colors"
                           >
                             + Add
                           </button>
@@ -460,16 +496,17 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
               );
             })}
 
-            {filteredItems.length === 0 && (
-              <div className="text-center py-8 text-slate-400 text-xs">
-                No items in this category. Click <strong>Edit Products</strong> to add new items.
+            {categoryItems.length === 0 && (
+              <div className="text-center py-10 text-slate-400 text-sm">
+                No items. Click <strong>Edit</strong> then <strong>+ Add Product</strong> to get started.
               </div>
             )}
           </div>
         </ScrollArea>
 
+        {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div className="flex-shrink-0 px-6 py-3 border-t bg-slate-50 flex justify-end">
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="rounded-xl font-bold">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
         </div>
@@ -479,4 +516,3 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
 };
 
 export default SmbuttKarahiMenuModal;
-
