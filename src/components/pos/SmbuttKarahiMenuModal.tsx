@@ -414,10 +414,9 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
           </div>
         </div>
 
-        {/* ── Category Cards Grid (Matching screenshot layout) ─────────────── */}
-        <ScrollArea className="flex-1 min-h-0 bg-slate-50/70">
-          <div className="p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {/* ── Category Cards Grid (Matching screenshot layout with scrollbar) ── */}
+        <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/70 p-6 custom-scrollbar max-h-[60vh] sm:max-h-[68vh]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-4">
               {filteredItems.map((item: any, idx: number) => {
                 const hasFull = item.full != null;
                 const hasHalf = item.half != null;
@@ -603,7 +602,7 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* ── Footer ───────────────────────────────────────────────────────── */}
         <div className="flex-shrink-0 px-6 py-3 border-t border-slate-200 bg-white flex items-center justify-between">
