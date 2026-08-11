@@ -389,23 +389,32 @@ const CartPanel = () => {
       let revCount = Number(localStorage.getItem(`kot_revision_${targetId}`) || 1);
       
       const hasPrintedBefore = Object.keys(printedMap).length > 0;
-      if (editingOrderId || hasPrintedBefore) {
+      const isRevision = !!(editingOrderId || hasPrintedBefore);
+      if (isRevision) {
         revCount += 1;
         localStorage.setItem(`kot_revision_${targetId}`, String(revCount));
       }
       
+      // Build the newly-added items (qty delta since last print)
       const newKotItems = orderData.items.map(item => {
         const previouslyPrinted = printedMap[item.product.id] || 0;
         const qtyToPrint = item.quantity - previouslyPrinted;
-        return { 
-          ...item, 
-          quantity: qtyToPrint,
-          isNew: editingOrderId ? true : false,
-          isNewlyAdded: editingOrderId ? true : false
-        };
+        return { ...item, quantity: qtyToPrint };
       }).filter(item => item.quantity > 0);
 
+      // Build the already-printed items (show above the divider line on revised KOTs)
+      const previousPrintedItems = isRevision
+        ? orderData.items
+            .map(item => {
+              const previouslyPrinted = printedMap[item.product.id] || 0;
+              return previouslyPrinted > 0 ? { ...item, quantity: previouslyPrinted } : null;
+            })
+            .filter(Boolean)
+        : [];
+
       orderData.revisionNumber = revCount;
+      orderData.previousItems = previousPrintedItems;
+      orderData.newlyAddedItems = newKotItems;
       setKotItemsToPrint(newKotItems);
       setLastOrder(orderData);
 
@@ -1037,7 +1046,7 @@ const CartPanel = () => {
         {lastOrder && (
           <>
             <Receipt ref={receiptRef} order={lastOrder} />
-            <KOT ref={kotRef} order={{ ...lastOrder, items: kotItemsToPrint.length > 0 ? kotItemsToPrint : lastOrder.items }} />
+            <KOT ref={kotRef} order={{ ...lastOrder, items: kotItemsToPrint.length > 0 ? kotItemsToPrint : lastOrder.items, previousItems: lastOrder.previousItems, newlyAddedItems: lastOrder.newlyAddedItems }} />
           </>
         )}
         {/* Bill ref always targets either billPreviewOrder or lastOrder – never both */}

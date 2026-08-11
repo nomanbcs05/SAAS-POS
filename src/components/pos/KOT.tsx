@@ -1,7 +1,6 @@
 import { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { CartItem, Customer } from '@/stores/cartStore';
-import { cn } from '@/lib/utils';
 
 interface Order {
   orderNumber: string;
@@ -23,13 +22,42 @@ interface KOTProps {
   isDuplicate?: boolean;
 }
 
+const ItemRow = ({ item, index }: { item: any; index: number }) => {
+  const qty: number = item?.quantity ?? 1;
+  const name: string =
+    item?.product?.name ??
+    item?.product_name ??
+    item?.name ??
+    'Item';
+  return (
+    <tr key={item?.product?.id ?? `${index}-${name}`}>
+      <td className="py-2 pr-3 align-top w-12 text-xl font-black">
+        {qty % 1 === 0 ? qty : qty.toFixed(2)}
+      </td>
+      <td className="py-2 align-top text-xl font-black">
+        {name}
+        {item?.qtyMeasureLabel && (
+          <div className="text-xs font-bold italic">({item.qtyMeasureLabel})</div>
+        )}
+      </td>
+    </tr>
+  );
+};
+
 const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }, ref) => {
-  const hasRevisions = (order.previousItems && order.previousItems.length > 0) || (order.revisionNumber && order.revisionNumber > 1);
-  const displayNewItems = order.newlyAddedItems && order.newlyAddedItems.length > 0 ? order.newlyAddedItems : order.items;
+  const isRevision = (order.revisionNumber ?? 1) > 1 ||
+    (order.previousItems && order.previousItems.length > 0) ||
+    (order.newlyAddedItems && order.newlyAddedItems.length > 0);
+
+  // Decide what to show above and below the separator
+  const prevItems: any[] = order.previousItems ?? [];
+  const newItems: any[] = order.newlyAddedItems && order.newlyAddedItems.length > 0
+    ? order.newlyAddedItems
+    : order.items;
 
   return (
-    <div 
-      ref={ref} 
+    <div
+      ref={ref}
       className="receipt-print bg-white text-black p-4 font-mono text-xs mx-auto"
       style={{ width: '80mm' }}
     >
@@ -45,7 +73,7 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
       {/* Header */}
       <div className="text-center mb-4">
         <h1 className="text-xl font-bold border-2 border-black p-1 inline-block">
-          {hasRevisions ? `KOT REVISION #${order.revisionNumber || 2}` : 'KITCHEN TICKET'}
+          {isRevision ? `KOT REVISION #${order.revisionNumber ?? 2}` : 'KITCHEN TICKET'}
         </h1>
       </div>
 
@@ -55,7 +83,9 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
         <p>Type: {order.orderType?.replace('_', ' ').toUpperCase() || 'DINE IN'}</p>
         <p>Date: {format(order.createdAt, 'yyyy-MM-dd HH:mm')}</p>
         {order.tableId != null && order.tableId !== '' && (
-          <p>Table: {order.tableId.toString().startsWith('T') || order.tableId.toString().startsWith('O') || order.tableId.toString().startsWith('V') ? order.tableId : `Table ${order.tableId}`}</p>
+          <p>Table: {String(order.tableId).startsWith('T') || String(order.tableId).startsWith('O') || String(order.tableId).startsWith('V')
+            ? order.tableId
+            : `Table ${order.tableId}`}</p>
         )}
         {order.orderType === 'delivery' && order.rider && (
           <p>Rider: {order.rider.name}</p>
@@ -71,92 +101,78 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
       {/* Divider */}
       <div className="border-t-2 border-black my-3" />
 
-      {/* Previous Order Items (If Edit) */}
-      {order.previousItems && order.previousItems.length > 0 && (
-        <div className="mb-4 opacity-75">
-          <div className="text-center text-[10px] font-black uppercase bg-gray-200 py-0.5 mb-2">
-            --- PREVIOUS ORDER ITEMS ---
+      {/* ── REVISION LAYOUT: prev items → separator line → new items ── */}
+      {isRevision ? (
+        <>
+          {/* Previously ordered items (greyed, reference only) */}
+          {prevItems.length > 0 && (
+            <table className="w-full text-sm opacity-60 mb-1">
+              <tbody>
+                {prevItems.map((item: any, idx: number) => {
+                  const qty: number = item?.quantity ?? 1;
+                  const name: string =
+                    item?.product?.name ?? item?.product_name ?? item?.name ?? 'Item';
+                  return (
+                    <tr key={`prev-${idx}`}>
+                      <td className="py-1 pr-3 align-top w-12 font-semibold">{qty % 1 === 0 ? qty : qty.toFixed(2)}</td>
+                      <td className="py-1 align-top font-semibold">{name}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          {/* ─── THE SEPARATOR LINE ─────────────────────────────────── */}
+          <div className="my-3 text-center">
+            <div className="border-t-2 border-dashed border-black" />
+            <div className="font-black text-xs tracking-widest mt-1 mb-1 uppercase">
+              ── ADD ITEMS BELOW ──
+            </div>
+            <div className="border-t-2 border-dashed border-black" />
           </div>
-          <table className="w-full text-xs font-semibold">
+
+          {/* Newly added items */}
+          <table className="w-full text-sm font-bold">
+            <thead>
+              <tr className="border-b border-black">
+                <th className="text-left py-1 w-12">Qty</th>
+                <th className="text-left py-1">Item</th>
+              </tr>
+            </thead>
             <tbody>
-              {order.previousItems.map((rawItem, idx) => {
-                const item: any = rawItem;
-                const qty: number = item?.quantity ?? 1;
-                const name: string = item?.product?.name ?? item?.product_name ?? item?.name ?? 'Item';
-                return (
-                  <tr key={`prev-${idx}`}>
-                    <td className="py-1 pr-2 align-top w-10 text-sm line-through opacity-70">
-                      {qty % 1 === 0 ? qty : qty.toFixed(2)}
-                    </td>
-                    <td className="py-1 align-top line-through opacity-70">
-                      <div>{name}</div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {newItems.map((item: any, idx: number) => (
+                <ItemRow key={idx} item={item} index={idx} />
+              ))}
             </tbody>
           </table>
-          <div className="border-t-2 border-dashed border-black my-3" />
-        </div>
+        </>
+      ) : (
+        /* ── FIRST KOT: show all items normally ── */
+        <table className="w-full text-sm font-bold">
+          <thead>
+            <tr className="border-b border-black">
+              <th className="text-left py-1 w-12">Qty</th>
+              <th className="text-left py-1">Item</th>
+            </tr>
+          </thead>
+          <tbody>
+            {order.items.map((item: any, idx: number) => (
+              <ItemRow key={idx} item={item} index={idx} />
+            ))}
+          </tbody>
+        </table>
       )}
 
-      {/* Newly Added Items Section Header */}
-      {hasRevisions && (
-        <div className="text-center text-xs font-black uppercase bg-black text-white py-1 mb-2">
-          *** NEWLY ADDED ITEMS (KOT EDIT #{order.revisionNumber || 2}) ***
-        </div>
-      )}
-
-      {/* Items */}
-      <table className="w-full text-sm font-bold">
-        <thead>
-          <tr className="border-b border-black">
-            <th className="text-left py-1">Qty</th>
-            <th className="text-left py-1">Item</th>
-          </tr>
-        </thead>
-        <tbody>
-          {displayNewItems.map((rawItem, idx) => {
-            const item: any = rawItem as any;
-            const qty: number = item?.quantity ?? 1;
-            const name: string =
-              item?.product?.name ??
-              item?.product_name ??
-              item?.name ??
-              'Item';
-            const isNewItem = item?.isNew || item?.isNewlyAdded || hasRevisions || (order.revisionNumber && order.revisionNumber > 1);
-            const key = item?.product?.id ?? `${idx}-${name}`;
-            return (
-              <tr key={key} className={cn(isNewItem && "bg-gray-100/80")}>
-                <td className="py-2 pr-2 align-top w-12 text-xl font-black">
-                  {qty % 1 === 0 ? qty : qty.toFixed(2)}
-                </td>
-                <td className="py-2 align-top">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xl font-black">{name}</span>
-                    {isNewItem && (
-                      <span className="inline-block bg-black text-white px-2 py-0.5 rounded text-[11px] font-black tracking-wider uppercase">
-                        [NEW ITEM]
-                      </span>
-                    )}
-                  </div>
-                  {item?.qtyMeasureLabel && (
-                    <div className="text-xs font-bold italic">({item.qtyMeasureLabel})</div>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-
-      {/* Divider */}
+      {/* Bottom divider */}
       <div className="border-t-4 border-black my-3" />
 
       {/* Footer */}
       <div className="text-center mt-4">
         <p className="font-black text-sm">
-          {hasRevisions ? `*** KOT EDIT #${order.revisionNumber || 2} COPY ***` : '*** KITCHEN COPY ***'}
+          {isRevision
+            ? `*** KOT EDIT #${order.revisionNumber ?? 2} COPY ***`
+            : '*** KITCHEN COPY ***'}
         </p>
       </div>
     </div>
