@@ -34,6 +34,7 @@ import GenXRestaurantMenuModal from './GenXRestaurantMenuModal';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 import ProductAmountCalculatorModal from './ProductAmountCalculatorModal';
 import { RESTR_CATEGORIES, initializeRestaurantMenuDefaults } from '@/data/restaurantMenuData';
+import SmbuttKarahiMenuModal, { SMBUTT_MENU_DATA } from './SmbuttKarahiMenuModal';
 
 const ProductGrid = () => {
   const navigate = useNavigate();
@@ -58,6 +59,8 @@ const ProductGrid = () => {
   const [showKhanshinwariModal, setShowKhanshinwariModal] = useState(false);
   const [showFreshBasketModal, setShowFreshBasketModal] = useState(false);
   const [showGenxRestaurantModal, setShowGenxRestaurantModal] = useState(false);
+  const [showSmbuttModal, setShowSmbuttModal] = useState(false);
+  const [selectedSmbuttCategory, setSelectedSmbuttCategory] = useState<string | undefined>(undefined);
   const [selectedIndusCategory, setSelectedIndusCategory] = useState<string | undefined>(undefined);
   const [selectedKhanshinwariCategory, setSelectedKhanshinwariCategory] = useState<string | undefined>(undefined);
   const [selectedFreshBasketCategory, setSelectedFreshBasketCategory] = useState<string | undefined>(undefined);
@@ -213,8 +216,12 @@ const ProductGrid = () => {
     }
     
     const isCardVisible = (id: string) => {
-      // Hide ALL virtual menu cards for Smbutt Karahi — only plain products are shown
-      if (isSmbutt) return false;
+      // For Smbutt Karahi — hide generic fast-food virtual cards, show only smbutt cards
+      if (isSmbutt && ['pizza', 'burger', 'alacart', 'sauce', 'roll', 'broast', 'barbq', 'deals', 'fries', 'beverages'].includes(id)) {
+        return false;
+      }
+      // Hide smbutt cards for non-smbutt tenants
+      if (!isSmbutt && id.startsWith('smbutt_')) return false;
       // Specifically hide these for Cafe Indus, Khanshinwari & Fresh Basket
       if ((isIndus || isKhanshinwari) && ['pizza', 'burger', 'alacart', 'sauce', 'roll', 'broast'].includes(id)) {
         return false;
@@ -632,7 +639,37 @@ const ProductGrid = () => {
           }
         }
       });
-      if (!isSmbutt) {} // close isSmbutt guard
+
+      // SM Butt Karahi virtual menu cards (only for smbutt tenant):
+      if (isSmbutt) {
+        const smbuttCategories = Object.entries(SMBUTT_MENU_DATA).map(([key, val]) => ({
+          id: `smbutt_${key.toLowerCase()}`,
+          name: val.label,
+          categoryKey: key,
+          icon: val.icon,
+        }));
+
+        smbuttCategories.forEach(cat => {
+          const isCatSelected = selectedCategory === cat.name;
+          const isAllSelected = selectedCategory === 'all';
+
+          if (isAllSelected || isCatSelected) {
+            const virtualCard = {
+              id: `virtual-smbutt-card-${cat.categoryKey}`,
+              name: `${cat.name} Menu`,
+              price: 0,
+              category: cat.name,
+              image: cat.icon,
+              isVirtual: true,
+              modalType: 'smbutt',
+              smbuttCategory: cat.categoryKey,
+            };
+            if (!searchQuery.trim() || virtualCard.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+              products = [virtualCard as any, ...products];
+            }
+          }
+        });
+      }
 
       // Special logic for Fresh Basket Categories:
       if (isFreshBasket) {
@@ -895,6 +932,9 @@ const ProductGrid = () => {
       } else if ((product as any).modalType === 'genx_restaurant') {
         setSelectedGenxCategory((product as any).genxCategory);
         setShowGenxRestaurantModal(true);
+      } else if ((product as any).modalType === 'smbutt') {
+        setSelectedSmbuttCategory((product as any).smbuttCategory);
+        setShowSmbuttModal(true);
       } else if ((product as any).modalType === 'simple') {
         // Direct add for simple virtual items
         addItem(product, quantity || 1);
@@ -1205,6 +1245,15 @@ const ProductGrid = () => {
             categoryName={selectedGenxCategory?.name}
             menuKey={selectedGenxCategory?.key}
             iconName={selectedGenxCategory?.iconName}
+          />
+
+          <SmbuttKarahiMenuModal
+            open={showSmbuttModal}
+            onOpenChange={(open) => {
+              setShowSmbuttModal(open);
+              if (!open) setSelectedSmbuttCategory(undefined);
+            }}
+            defaultCategory={selectedSmbuttCategory as any}
           />
 
           <ProductAmountCalculatorModal

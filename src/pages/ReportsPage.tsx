@@ -806,7 +806,7 @@ const ReportsPage = () => {
       <ActiveShiftsModal
         open={isActiveShiftsOpen}
         onOpenChange={setIsActiveShiftsOpen}
-        orders={orders}
+        orders={[]}
         onShiftClosed={() => {
           queryClient.invalidateQueries({ queryKey: ['active-shifts'] });
           queryClient.invalidateQueries({ queryKey: ['orders'] });
