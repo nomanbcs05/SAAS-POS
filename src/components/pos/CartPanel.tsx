@@ -386,13 +386,26 @@ const CartPanel = () => {
 
       const targetId = orderData.id;
       const printedMap = JSON.parse(localStorage.getItem(`kot_printed_${targetId}`) || '{}');
+      let revCount = Number(localStorage.getItem(`kot_revision_${targetId}`) || 1);
+      
+      const hasPrintedBefore = Object.keys(printedMap).length > 0;
+      if (editingOrderId || hasPrintedBefore) {
+        revCount += 1;
+        localStorage.setItem(`kot_revision_${targetId}`, String(revCount));
+      }
       
       const newKotItems = orderData.items.map(item => {
         const previouslyPrinted = printedMap[item.product.id] || 0;
         const qtyToPrint = item.quantity - previouslyPrinted;
-        return { ...item, quantity: qtyToPrint };
+        return { 
+          ...item, 
+          quantity: qtyToPrint,
+          isNew: editingOrderId ? true : false,
+          isNewlyAdded: editingOrderId ? true : false
+        };
       }).filter(item => item.quantity > 0);
 
+      orderData.revisionNumber = revCount;
       setKotItemsToPrint(newKotItems);
       setLastOrder(orderData);
 

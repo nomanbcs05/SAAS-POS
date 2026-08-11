@@ -1,6 +1,7 @@
 import { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { CartItem, Customer } from '@/stores/cartStore';
+import { cn } from '@/lib/utils';
 
 interface Order {
   orderNumber: string;
@@ -123,14 +124,22 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
               item?.product_name ??
               item?.name ??
               'Item';
+            const isNewItem = item?.isNew || item?.isNewlyAdded || hasRevisions || (order.revisionNumber && order.revisionNumber > 1);
             const key = item?.product?.id ?? `${idx}-${name}`;
             return (
-              <tr key={key}>
+              <tr key={key} className={cn(isNewItem && "bg-gray-100/80")}>
                 <td className="py-2 pr-2 align-top w-12 text-xl font-black">
                   {qty % 1 === 0 ? qty : qty.toFixed(2)}
                 </td>
                 <td className="py-2 align-top">
-                  <div className="text-xl font-black">{name}</div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xl font-black">{name}</span>
+                    {isNewItem && (
+                      <span className="inline-block bg-black text-white px-2 py-0.5 rounded text-[11px] font-black tracking-wider uppercase">
+                        [NEW ITEM]
+                      </span>
+                    )}
+                  </div>
                   {item?.qtyMeasureLabel && (
                     <div className="text-xs font-bold italic">({item.qtyMeasureLabel})</div>
                   )}
