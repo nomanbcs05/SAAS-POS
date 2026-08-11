@@ -97,6 +97,15 @@ export default function GenXRestaurantMenuModal({
       } catch {
         setMenuItems([]);
       }
+    } else {
+      const defaultItems = [
+        { name: "French Fries", price: 500 },
+        { name: "Dhaka Chicken", price: 1200 },
+        { name: "Asterd Chicken (8 pcs)", price: 900 },
+        { name: "Drumsticks (6 pcs)", price: 1100 },
+      ];
+      setMenuItems(defaultItems);
+      localStorage.setItem(menuKey, JSON.stringify(defaultItems));
     }
     const savedImg = localStorage.getItem('pos_category_image_' + menuKey);
     if (savedImg) setCategoryImage(savedImg);

@@ -73,11 +73,15 @@ const ProductGrid = () => {
     initializeRestaurantMenuDefaults();
   }, []);
 
-  // Re-render product grid whenever Fresh Basket modal saves prices to localStorage
+  // Re-render product grid whenever Fresh Basket or custom cards update
   useEffect(() => {
-    const handleFreshBasketUpdate = () => setLocalUpdateTrigger(prev => prev + 1);
-    window.addEventListener('freshbasket-menu-updated', handleFreshBasketUpdate);
-    return () => window.removeEventListener('freshbasket-menu-updated', handleFreshBasketUpdate);
+    const handleUpdate = () => setLocalUpdateTrigger(prev => prev + 1);
+    window.addEventListener('freshbasket-menu-updated', handleUpdate);
+    window.addEventListener('pos-custom-cards-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('freshbasket-menu-updated', handleUpdate);
+      window.removeEventListener('pos-custom-cards-updated', handleUpdate);
+    };
   }, []);
   const [selectedCalculatorProduct, setSelectedCalculatorProduct] = useState<Product | null>(null);
   
@@ -639,6 +643,35 @@ const ProductGrid = () => {
           }
         }
       });
+
+      // Custom Virtual Categories created via Manage Cards:
+      const savedCustomCats = localStorage.getItem('custom_virtual_categories');
+      if (savedCustomCats) {
+        try {
+          const customCats: any[] = JSON.parse(savedCustomCats);
+          customCats.forEach(cat => {
+            const isCatSelected = selectedCategory === cat.name;
+            const isAllSelected = selectedCategory === 'all';
+
+            if ((isAllSelected || isCatSelected) && isCardVisible(cat.id)) {
+              const virtualCard = {
+                id: `virtual-genx-card-${cat.id}`,
+                name: cat.name,
+                price: 0,
+                category: cat.name,
+                image: localStorage.getItem('pos_category_image_' + cat.key) || localStorage.getItem('pos_category_image_' + cat.id) || '🍽️',
+                isVirtual: true,
+                modalType: 'genx_restaurant',
+                genxCategory: cat,
+              };
+
+              if (!searchQuery.trim() || virtualCard.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+                products = [virtualCard as any, ...products];
+              }
+            }
+          });
+        } catch (_) {}
+      }
 
       // SM Butt Karahi virtual menu cards (only for smbutt tenant):
       if (isSmbutt) {

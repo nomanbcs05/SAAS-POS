@@ -55,6 +55,9 @@ export const RESTR_MENU_ITEMS: Record<string, MenuItemData[]> = {
   ],
   pos_menu_side_items: [
     { name: "French Fries", price: 500, image: "" },
+    { name: "Dhaka Chicken", price: 1200, image: "" },
+    { name: "Asterd Chicken (8 pcs)", price: 900, image: "" },
+    { name: "Drumsticks (6 pcs)", price: 1100, image: "" },
   ],
   pos_menu_salad_raita: [
     { name: "Fresh Green Salad", price: 250, image: "" },

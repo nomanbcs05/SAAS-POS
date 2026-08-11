@@ -179,14 +179,34 @@ const ProductsPage = () => {
 
   const handleAddCard = (name: string, iconName: string = 'Package') => {
     const id = name.toLowerCase().replace(/\s+/g, '_') + '_' + Date.now();
+    const key = `pos_menu_custom_${id}`;
     const IconComponent = (LucideIcons as any)[iconName] || Package;
-    const newCat = { id, name, key: `pos_menu_custom_${id}`, iconName, icon: IconComponent };
+    const newCat = { id, name, key, iconName, icon: IconComponent };
+
+    // Initialize default items for newly created custom card
+    const defaultItems = [
+      { name: "French Fries", price: 500 },
+      { name: "Dhaka Chicken", price: 1200 },
+      { name: "Asterd Chicken (8 pcs)", price: 900 },
+      { name: "Drumsticks (6 pcs)", price: 1100 },
+    ];
+    localStorage.setItem(key, JSON.stringify(defaultItems));
+
+    // Ensure newly created card visibility is set to true
+    const currentVisRaw = localStorage.getItem('pos_card_visibility');
+    const currentVis = currentVisRaw ? JSON.parse(currentVisRaw) : {};
+    currentVis[id] = true;
+    localStorage.setItem('pos_card_visibility', JSON.stringify(currentVis));
+    setCardVisibility(currentVis);
+
     setVirtualCategories((prev: any[]) => {
       const updated = [...prev, newCat];
       persistCustomCategories(updated);
       return updated;
     });
-    uiToast({ title: "Success", description: `${name} card added` });
+
+    window.dispatchEvent(new Event('pos-custom-cards-updated'));
+    uiToast({ title: "Success", description: `${name} card added & visible on dashboard` });
   };
 
   const handleCreateCardSubmit = (e?: React.FormEvent) => {
