@@ -601,7 +601,6 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
                 No items found in this category. Click <strong>Edit Products</strong> to add new items.
               </div>
             )}
-          </div>
         </div>
 
         {/* ── Footer ───────────────────────────────────────────────────────── */}
