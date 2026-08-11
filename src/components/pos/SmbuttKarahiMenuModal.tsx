@@ -2,148 +2,143 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useCartStore } from '@/stores/cartStore';
-import { Edit2, Plus, Trash2, Check, X } from 'lucide-react';
+import { Edit2, Plus, Trash2, Check, X, Search, UtensilsCrossed, ChefHat, Minus } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
-// ─── Full SM Butt Karahi Menu Data ────────────────────────────────────────────
+// ─── SM Butt Karahi Full Updated Menu Data ─────────────────────────────────────
 export const SMBUTT_MENU_DATA = {
-  KARAHI: {
-    label: 'Karahi',
-    icon: '🍲',
-    items: [
-      { name: 'Mutton Karahi (Raan)',               qtr: 5000, half: 2600 },
-      { name: 'Mutton Achari Karahi (Raan)',         qtr: 5600, half: 2900 },
-      { name: 'Mutton Karahi White (Raan)',          qtr: 5200, half: 2700 },
-      { name: 'Mutton Karahi Special White (Raan)',  qtr: 5800, half: 3000 },
-      { name: 'Chicken Karahi',                      qtr: 2400, half: 1300 },
-      { name: 'Chicken Achari Karahi',               qtr: 3000, half: 1600 },
-      { name: 'Chicken Karahi White',                qtr: 2600, half: 1400 },
-      { name: 'Chicken Karahi Special White',        qtr: 3200, half: 1700 },
-      { name: 'Desi Chicken Karahi',                 qtr: 4400, half: 2300 },
-      { name: 'Desi Chicken Achari Karahi',          qtr: 5000, half: 2600 },
-    ]
-  },
-  BARBECUE: {
-    label: 'Barbecue',
-    icon: '🔥',
-    items: [
-      { name: 'Chicken Tikka Leg',             price: 600 },
-      { name: 'Chicken Tikka Chest',           price: 650 },
-      { name: 'Chicken Malai Boti (8 pcs)',    price: 1200 },
-      { name: 'Chicken Bihari Boti (8 pcs)',   price: 1000 },
-      { name: 'Chicken Achari Boti (8 pcs)',   price: 1250 },
-      { name: 'Chicken Reshmi Kebab (4 pcs)',  qtr: 1500, half: 800 },
-      { name: 'Chicken Tikka Kebab (4 pcs)',   qtr: 1600, half: 850 },
-      { name: 'Chicken Reshmi Kebab Alt (4 pcs)', qtr: 1400, half: 750 },
-      { name: 'Fish Tikka (4 pcs)',            qtr: 1600, half: 850 },
-      { name: 'Barbecue Special Fish',         price: 2200 },
-      { name: 'Tali Fish (6 pcs)',             price: 1400 },
-      { name: 'Barbecue Doodhi Kebab',         price: 2500 },
-      { name: 'Barbecue Family Kebab',         price: 5000 },
-    ]
-  },
   HANDI: {
     label: 'Handi',
     icon: '🫕',
     items: [
-      { name: 'Chicken Handi',        price: 2200 },
-      { name: 'Chicken Achari Handi', price: 3000 },
-      { name: 'Chicken Green Handi',  price: 2400 },
-      { name: 'Kadhai & Veg',         price: 900  },
-      { name: 'Daal Shahi',           price: 900  },
+      { name: 'CHICKEN HANDI', price: 2200 },
+      { name: 'CHICKEN GHUTTI HANDI', price: 3000 },
+      { name: 'CHICKEN GREEN HANDI', price: 2400 },
+      { name: 'K&S VEGETABLE', price: 900 },
+      { name: 'SHAHI DAAL GHUTTI', price: 900 },
     ]
   },
-  SALAD_RAITA: {
-    label: 'Salad & Raita',
-    icon: '🥗',
+  SOUPS: {
+    label: 'Soups',
+    icon: '🥣',
     items: [
-      { name: 'Fresh Green Salad', price: 250 },
-      { name: 'Cucumber Salad',    price: 300 },
-      { name: 'Russian Salad',     price: 700 },
-      { name: 'Green Raita',       price: 250 },
+      { name: 'HOT & SOUR SOUP', family: 1500, single: 500 },
+      { name: 'CHICKEN CORN SOUP', family: 1200, single: 500 },
+      { name: 'BUTT SPECIAL SOUP', family: 1600, single: 600 },
+      { name: 'CHICKEN THAI SOUP', family: 1500, single: 500 },
     ]
   },
-  SIDE_ITEMS: {
-    label: 'Side Items',
-    icon: '🍟',
+  KARAHI: {
+    label: 'Karahi Specials',
+    icon: '🍲',
     items: [
-      { name: 'French Fries', price: 500 },
+      { name: 'Butt Mutton Karahi Makhni (Raan)', full: 5600, half: 2900 },
+      { name: 'Butt Mutton Karahi White (Raan)', full: 5200, half: 2700 },
+      { name: 'Butt Mutton Karahi White Makhni', full: 5800, half: 3000 },
+      { name: 'Butt Mutton Karahi (Raan)', full: 4800, half: 2500 },
+      { name: 'Butt Chicken Karahi', full: 2400, half: 1300 },
+      { name: 'Butt Chicken Karahi Makhni', full: 3000, half: 1600 },
+      { name: 'Butt Chicken Karahi White', full: 2600, half: 1400 },
+      { name: 'Butt Chicken Karahi White Makhni', full: 3200, half: 1700 },
+      { name: 'Butt Desi Murgha Karahi', full: 4000, half: 2200 },
+      { name: 'Butt Desi Murgha Karahi Makhni', full: 4700, half: 2500 },
+    ]
+  },
+  BARBECUE: {
+    label: 'BBQ Classics',
+    icon: '🔥',
+    items: [
+      { name: 'CHICKEN LEG TIKKA', price: 600 },
+      { name: 'CHICKEN CHEST TIKKA', price: 650 },
+      { name: 'CHICKEN MALAI BOTI (8PCS)', price: 1200 },
+      { name: 'CHICKEN TIKKA BOTI (8PCS)', price: 1000 },
+      { name: 'CHICKEN ISTANBUL BOTI (8PCS)', price: 1250 },
+      { name: 'KAMLI TIKKA (6PCS)', price: 1400 },
+      { name: 'FISH TIKKA (4PCS)', price: 1600 },
+      { name: 'BBQ GRILLED FISH', price: 2200 },
+      { name: 'BUTT SPECIAL CHICKEN PIZZA KABAB', full: 1500, half: 800 },
+      { name: 'CHICKEN TURKISH KABAB', full: 1600, half: 850 },
+      { name: 'CHICKEN RESHMI KABAB', full: 1400, half: 750 },
+    ]
+  },
+  PLATTERS: {
+    label: 'Platter Special',
+    icon: '🍱',
+    items: [
+      { name: 'BBQ DOSTI PLATTER', price: 2500, details: 'Kalmi Tikka 2, Fish Tikka 2, Turkish Kabab 1, Pizza Kabab 1, Istanbul Boti 2, Egg Rice, BBQ Sauce' },
+      { name: 'BBQ FAMILY PLATTER', price: 5000, details: 'Kalmi Tikka 4, Fish Tikka 4, Turkish Kabab 2, Pizza Kabab 2, Istanbul Boti 4, Egg Rice, BBQ Sauce' },
     ]
   },
   CHINESE: {
     label: 'Chinese',
     icon: '🍜',
     items: [
-      { name: 'Hot & Sour Soup',                  qtr: 1500, half: 500 },
-      { name: 'Chicken Corn Soup',                qtr: 1200, half: 500 },
-      { name: 'Vegetable Soup',                   qtr: 1600, half: 600 },
-      { name: 'Chicken Thai Soup',                qtr: 1500, half: 500 },
-      { name: 'Egg Fried Rice',                   price: 900  },
-      { name: 'Chicken Fried Rice',               price: 1050 },
-      { name: 'Vegetable Rice',                   price: 900  },
-      { name: 'Chicken Chow Mein Rice',           price: 1100 },
-      { name: 'Chicken Manchurian + Rice',        price: 1250 },
-      { name: 'Chicken Shashlik + Rice',          price: 1200 },
-      { name: 'Kung Pao + Rice',                  price: 1200 },
-      { name: 'Chicken Chilli Dry + Rice',        price: 1300 },
-      { name: 'Chicken Manchurian',               price: 1500 },
-      { name: 'Vegetable Manchurian',             price: 1400 },
-      { name: 'Chicken Shashlik Manchurian',      price: 1600 },
-      { name: 'Dragon Chicken',                   price: 1200 },
-      { name: '8 pcs Chicken Wings',              price: 900  },
-      { name: '6 pcs Drumstick',                  price: 1100 },
-      { name: 'Chow Mein',                        price: 900  },
-    ]
-  },
-  MILKSHAKES: {
-    label: 'Milkshakes & Drinks',
-    icon: '🥛',
-    items: [
-      { name: 'Mazola Dahi (Large)',   price: 160 },
-      { name: 'Mazola Dahi (Small)',   price: 110 },
-      { name: 'Cold Coffee (Thick)',   price: 140 },
-      { name: 'Doodh Patti Chai',      price: 200 },
-      { name: 'Green Tea',             price: 150 },
-    ]
-  },
-  BEVERAGES: {
-    label: 'Beverages',
-    icon: '🍹',
-    items: [
-      { name: 'Mint Margarita',       price: 600 },
-      { name: 'Lemon Soda',           price: 400 },
-      { name: 'Blueberry Margarita',  price: 500 },
-      { name: 'Peach Margarita',      price: 550 },
-      { name: 'Oreo Shake',           price: 700 },
-      { name: 'Chocolate Shake',      price: 700 },
-      { name: 'Chikoo Shake',         price: 500 },
-      { name: 'Lassi Sweet',          price: 400 },
-      { name: 'Lassi Salty',          price: 400 },
+      { name: 'EGG FRIED RICE', price: 900 },
+      { name: 'CHICKEN FRIED RICE', price: 1050 },
+      { name: 'VEGETABLES FRIED RICE', price: 900 },
+      { name: 'CHICKEN MASALA RICE', price: 1100 },
+      { name: 'CHICKEN MANCHURIAN WITH RICE', price: 1250 },
+      { name: 'CHICKEN SHASHLIK WITH RICE', price: 1200 },
+      { name: 'KONG PAUO WITH RICE', price: 1200 },
+      { name: 'CHICKEN CHILI DRY WITH RICE', price: 1300 },
+      { name: 'CHICKEN CHOWMEIN', price: 1500 },
+      { name: 'VEGETABLES CHOWMEIN', price: 1400 },
+      { name: 'CHICKEN SHEZWAN CHOWMEIN', price: 1600 },
+      { name: 'ALFREDO PASTA', price: 900 },
     ]
   },
   TANDOOR: {
-    label: 'Tandoor',
+    label: 'Naan',
     icon: '🫓',
     items: [
-      { name: 'Chapati',      price: 50  },
-      { name: 'Plain Naan',   price: 70  },
-      { name: 'Garlic Naan',  price: 150 },
-      { name: 'Roghni Naan',  price: 150 },
-      { name: 'Kulcha Naan',  price: 160 },
+      { name: 'Chapati', price: 50 },
+      { name: 'Plain naan', price: 70 },
+      { name: 'Garlic naan', price: 150 },
+      { name: 'Roghni naan', price: 150 },
+      { name: 'Kalonji naan', price: 160 },
+    ]
+  },
+  SALAD_RAITA: {
+    label: 'Salads & Sides',
+    icon: '🥗',
+    items: [
+      { name: 'Raita', price: 200 },
+      { name: 'Fresh green salad', price: 250 },
+      { name: 'Kachomar salad', price: 300 },
+      { name: 'Russian salad', price: 700 },
+      { name: 'Green salad', price: 250 },
+    ]
+  },
+  BEVERAGES: {
+    label: 'Beverages & Shakes',
+    icon: '🍹',
+    items: [
+      { name: 'Mineral Water (L)', price: 160 },
+      { name: 'Mineral Water (S)', price: 110 },
+      { name: 'Softdrink can', price: 140 },
+      { name: 'Milk Tea', price: 200 },
+      { name: 'Green Tea', price: 150 },
+      { name: 'Mint margarita', price: 600 },
+      { name: 'Blueberry margarita', price: 500 },
+      { name: 'Peach margarita', price: 550 },
+      { name: 'Fresh lime', price: 400 },
+      { name: 'Oreo shake', price: 700 },
+      { name: 'Chocolate shake', price: 650 },
+      { name: 'Pina colada', price: 500 },
+      { name: 'Saltish Lassi', price: 400 },
+      { name: 'Sweet lassi', price: 450 },
     ]
   },
 };
 
 type MenuCategory = keyof typeof SMBUTT_MENU_DATA;
 
-// Per-category custom labels stored in localStorage
 const LABEL_STORAGE_KEY = 'pos_smbutt_category_labels';
 
 function getSavedLabels(): Record<string, string> {
@@ -158,7 +153,7 @@ function getSavedLabels(): Record<string, string> {
 interface SmbuttKarahiMenuModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  defaultCategory?: MenuCategory;
+  defaultCategory?: MenuCategory | string;
 }
 
 const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
@@ -166,27 +161,33 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
   onOpenChange,
   defaultCategory,
 }) => {
-  const [activeCategory, setActiveCategory] = useState<MenuCategory>(
-    defaultCategory || 'KARAHI'
-  );
+  const [activeCategory, setActiveCategory] = useState<MenuCategory>('HANDI');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [multiplier, setMultiplier] = useState(1);
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [categoryItems, setCategoryItems] = useState<any[]>([]);
 
-  // Editable heading
+  // Category labels (editing header)
   const [categoryLabels, setCategoryLabels] = useState<Record<string, string>>(getSavedLabels);
   const [editingHeading, setEditingHeading] = useState(false);
   const [headingDraft, setHeadingDraft] = useState('');
 
   const { addItem } = useCartStore();
 
-  const getLabel = (key: string) => categoryLabels[key] || SMBUTT_MENU_DATA[key as MenuCategory]?.label || key;
+  const getLabel = (key: string) =>
+    categoryLabels[key] || SMBUTT_MENU_DATA[key as MenuCategory]?.label || key;
 
-  // Sync defaultCategory when opening with a specific category card
   useEffect(() => {
-    if (defaultCategory) setActiveCategory(defaultCategory);
+    if (defaultCategory) {
+      const matchKey = (Object.keys(SMBUTT_MENU_DATA) as MenuCategory[]).find(
+        k => k.toLowerCase() === defaultCategory.toLowerCase() ||
+             SMBUTT_MENU_DATA[k].label.toLowerCase() === defaultCategory.toLowerCase()
+      );
+      if (matchKey) setActiveCategory(matchKey);
+    }
   }, [defaultCategory, open]);
 
-  // Load items from localStorage for the active category
+  // Load items from localStorage
   useEffect(() => {
     if (!open) return;
     const key = `pos_menu_smbutt_${activeCategory.toLowerCase()}`;
@@ -207,7 +208,7 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
 
   const handleUpdateItem = (index: number, field: string, value: any) => {
     const updated = [...categoryItems];
-    if (field === 'qtr' || field === 'half' || field === 'price') {
+    if (field === 'price' || field === 'full' || field === 'half' || field === 'family' || field === 'single' || field === 'qtr') {
       const numVal = Number(value);
       updated[index] = { ...updated[index], [field]: isNaN(numVal) ? undefined : numVal };
     } else {
@@ -217,19 +218,13 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
   };
 
   const handleAddItem = () => {
-    saveCategoryItems([...categoryItems, { name: 'New Item', price: 0 }]);
-    toast.success('New item added');
+    saveCategoryItems([...categoryItems, { name: 'NEW MENU ITEM', price: 1000 }]);
+    toast.success('New product added to category');
   };
 
   const handleRemoveItem = (index: number) => {
     saveCategoryItems(categoryItems.filter((_, i) => i !== index));
-    toast.success('Item removed');
-  };
-
-  // Heading edit handlers
-  const startHeadingEdit = () => {
-    setHeadingDraft(getLabel(activeCategory));
-    setEditingHeading(true);
+    toast.success('Product deleted');
   };
 
   const saveHeading = () => {
@@ -243,111 +238,174 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
     toast.success('Category heading updated');
   };
 
-  const categoryKeys = Object.keys(SMBUTT_MENU_DATA) as MenuCategory[];
-
-  const handleAddToCart = (item: any, size: 'qtr' | 'half' | 'single') => {
+  const handleAddToCart = (item: any, optionName?: string, priceVal?: number) => {
+    const finalPrice = priceVal ?? item.price ?? 0;
     const catLabel = getLabel(activeCategory);
-    const catIcon = SMBUTT_MENU_DATA[activeCategory].icon;
-    if (size === 'qtr') {
+    const catIcon = SMBUTT_MENU_DATA[activeCategory]?.icon || '🍲';
+    const itemName = optionName ? `${item.name} (${optionName})` : item.name;
+
+    for (let i = 0; i < multiplier; i++) {
       addItem({
-        id: `smbutt-${activeCategory}-${item.name}-qtr`.replace(/\s+/g, '-').toLowerCase(),
-        name: `${item.name} (Qtr)`,
-        price: item.qtr,
+        id: `smbutt-${activeCategory}-${item.name}-${optionName || 'std'}`.replace(/\s+/g, '-').toLowerCase(),
+        name: itemName,
+        price: finalPrice,
         category: catLabel,
         image: catIcon,
       });
-      toast.success(`${item.name} (Qtr) added`);
-    } else if (size === 'half') {
-      addItem({
-        id: `smbutt-${activeCategory}-${item.name}-half`.replace(/\s+/g, '-').toLowerCase(),
-        name: `${item.name} (Half)`,
-        price: item.half,
-        category: catLabel,
-        image: catIcon,
-      });
-      toast.success(`${item.name} (Half) added`);
-    } else {
-      addItem({
-        id: `smbutt-${activeCategory}-${item.name}`.replace(/\s+/g, '-').toLowerCase(),
-        name: item.name,
-        price: item.price || 0,
-        category: catLabel,
-        image: catIcon,
-      });
-      toast.success(`${item.name} added to cart`);
     }
+    toast.success(`${multiplier > 1 ? `${multiplier}x ` : ''}${itemName} added to cart`);
   };
+
+  const categoryKeys = Object.keys(SMBUTT_MENU_DATA) as MenuCategory[];
+  const filteredItems = categoryItems.filter(item =>
+    item.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <Dialog open={open} onOpenChange={(val) => {
-      if (!val) { setIsEditingMode(false); setEditingHeading(false); }
+      if (!val) { setIsEditingMode(false); setEditingHeading(false); setSearchQuery(''); setMultiplier(1); }
       onOpenChange(val);
     }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="max-w-5xl max-h-[92vh] flex flex-col p-0 overflow-hidden bg-slate-50 border-none rounded-3xl shadow-2xl">
+        
+        {/* ── Top Chocolate Bar Header (matching screenshot) ────────────────── */}
+        <div className="bg-[#78350f] text-white p-5 flex-shrink-0 flex flex-col gap-4 shadow-md">
+          {/* Header Top Row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-[#582509] p-3 rounded-2xl flex items-center justify-center text-amber-300 shadow-inner">
+                <ChefHat className="h-7 w-7" />
+              </div>
 
-        {/* ── Original-style header ─────────────────────────────────────── */}
-        <DialogHeader className="px-6 pt-5 pb-0 flex-shrink-0">
-          <div className="flex items-center justify-between mb-1">
-            {/* Editable heading */}
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{SMBUTT_MENU_DATA[activeCategory]?.icon || '🍲'}</span>
-              {editingHeading ? (
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    autoFocus
-                    value={headingDraft}
-                    onChange={(e) => setHeadingDraft(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') saveHeading(); if (e.key === 'Escape') setEditingHeading(false); }}
-                    className="h-8 text-base font-bold border-emerald-400 w-48"
-                  />
-                  <button onClick={saveHeading} className="p-1 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-700">
-                    <Check className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => setEditingHeading(false)} className="p-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : (
-                <DialogTitle
-                  className="text-xl font-bold flex items-center gap-1.5 cursor-pointer group"
-                  onClick={isEditingMode ? startHeadingEdit : undefined}
-                  title={isEditingMode ? "Click to rename category heading" : undefined}
-                >
-                  {getLabel(activeCategory)} Menu
-                  {isEditingMode && (
-                    <Edit2 className="h-3.5 w-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div>
+                <div className="flex items-center gap-2">
+                  {editingHeading ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        autoFocus
+                        value={headingDraft}
+                        onChange={(e) => setHeadingDraft(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') saveHeading(); if (e.key === 'Escape') setEditingHeading(false); }}
+                        className="h-9 text-lg font-black bg-[#582509] text-white border-amber-500/60 rounded-xl uppercase"
+                      />
+                      <button onClick={saveHeading} className="p-1.5 rounded-xl bg-amber-500 text-black hover:bg-amber-400">
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => setEditingHeading(false)} className="p-1.5 rounded-xl bg-[#582509] text-white/70 hover:text-white">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <h2
+                      onClick={() => {
+                        setHeadingDraft(getLabel(activeCategory));
+                        setEditingHeading(true);
+                      }}
+                      className="text-2xl font-black uppercase tracking-wider text-white flex items-center gap-2 cursor-pointer group"
+                      title="Click pencil to rename category heading"
+                    >
+                      {getLabel(activeCategory)}
+                      <button className="opacity-70 group-hover:opacity-100 hover:scale-110 transition-all p-1 bg-[#582509] rounded-lg text-amber-300">
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                    </h2>
                   )}
-                </DialogTitle>
+                </div>
+                <p className="text-xs font-semibold text-amber-200/80 tracking-wide uppercase mt-0.5">
+                  TAP AN ITEM TO ADD TO CART
+                </p>
+              </div>
+            </div>
+
+            {/* Top Right Controls */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsEditingMode(!isEditingMode)}
+                className={cn(
+                  "px-4 py-2 rounded-2xl text-xs font-black transition-all border flex items-center gap-1.5",
+                  isEditingMode
+                    ? "bg-amber-400 text-slate-950 border-amber-400 shadow-md"
+                    : "bg-[#582509] text-amber-200 border-amber-800/60 hover:bg-[#451c06] hover:text-white"
+                )}
+              >
+                <Edit2 className="h-3.5 w-3.5" />
+                {isEditingMode ? 'DONE EDITING' : 'EDIT PRODUCTS'}
+              </button>
+
+              <button
+                onClick={() => onOpenChange(false)}
+                className="bg-[#582509]/80 hover:bg-[#582509] text-white/90 hover:text-white rounded-full p-2.5 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Search bar & Step count row (matching screenshot) */}
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-amber-200/60" />
+              <Input
+                placeholder="Search items..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-10 bg-[#582509]/90 border-none text-white placeholder:text-amber-200/50 rounded-2xl text-xs font-medium focus-visible:ring-1 focus-visible:ring-amber-400"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-200/60 hover:text-white"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               )}
             </div>
 
-            {/* Edit toggle button */}
-            <button
-              onClick={() => { setIsEditingMode(!isEditingMode); setEditingHeading(false); }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                isEditingMode
-                  ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:text-emerald-600'
-              }`}
-            >
-              <Edit2 className="h-3.5 w-3.5" />
-              {isEditingMode ? 'Done' : 'Edit'}
-            </button>
-          </div>
-        </DialogHeader>
+            {/* Counter pill (- 1 +) */}
+            <div className="bg-[#582509] text-white h-10 px-3 rounded-2xl flex items-center gap-3 border border-amber-900/40 shadow-inner">
+              <button
+                onClick={() => setMultiplier(Math.max(1, multiplier - 1))}
+                className="hover:text-amber-300 font-bold p-1 transition-colors"
+              >
+                <Minus className="h-3.5 w-3.5" />
+              </button>
+              <span className="font-extrabold text-sm w-4 text-center text-amber-200">{multiplier}</span>
+              <button
+                onClick={() => setMultiplier(multiplier + 1)}
+                className="hover:text-amber-300 font-bold p-1 transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
 
-        {/* ── Category tabs (original style: underline tabs) ─────────────── */}
-        <div className="flex-shrink-0 border-b overflow-x-auto">
-          <div className="flex gap-1 px-4 pb-0 pt-3 min-w-max">
-            {categoryKeys.map(key => (
+            {/* Add Product Button (in edit mode) */}
+            {isEditingMode && (
+              <Button
+                onClick={handleAddItem}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black h-10 rounded-2xl gap-1.5 px-4 shadow-md"
+              >
+                <Plus className="h-4 w-4" /> ADD ITEM
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* ── Category Switcher Tabs ───────────────────────────────────────── */}
+        <div className="flex-shrink-0 border-b border-slate-200/80 bg-white overflow-x-auto px-4 py-2">
+          <div className="flex gap-1.5 min-w-max">
+            {categoryKeys.map((key) => (
               <button
                 key={key}
-                onClick={() => { setActiveCategory(key); setEditingHeading(false); }}
-                className={`px-3 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                onClick={() => {
+                  setActiveCategory(key);
+                  setEditingHeading(false);
+                }}
+                className={cn(
+                  "px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition-all flex items-center gap-1.5 uppercase",
                   activeCategory === key
-                    ? 'border-emerald-600 text-emerald-700 bg-emerald-50'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                }`}
+                    ? "bg-[#78350f] text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                )}
               >
                 <span>{SMBUTT_MENU_DATA[key].icon}</span>
                 {getLabel(key)}
@@ -356,157 +414,208 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
           </div>
         </div>
 
-        {/* ── Add Product button (only in edit mode) ─────────────────────── */}
-        {isEditingMode && (
-          <div className="px-6 py-2 border-b bg-emerald-50/60 flex items-center justify-between gap-3">
-            <span className="text-xs text-emerald-700 font-semibold">
-              ✎ Edit Mode — Click headings to rename. Edit names, rates, or delete rows.
-            </span>
-            <Button
-              size="sm"
-              onClick={handleAddItem}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-8 gap-1 shrink-0"
-            >
-              <Plus className="h-3.5 w-3.5" /> Add Product
-            </Button>
-          </div>
-        )}
+        {/* ── Category Cards Grid (Matching screenshot layout) ─────────────── */}
+        <ScrollArea className="flex-1 min-h-0 bg-slate-50/70">
+          <div className="p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filteredItems.map((item: any, idx: number) => {
+                const hasFull = item.full != null;
+                const hasHalf = item.half != null;
+                const hasFamily = item.family != null;
+                const hasSingle = item.single != null;
+                const hasQtr = item.qtr != null;
+                const hasPrice = item.price != null;
 
-        {/* ── Items list (original table style) ─────────────────────────── */}
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="p-4 space-y-2">
-            {/* Table header */}
-            <div className="grid grid-cols-12 text-xs font-bold uppercase text-slate-400 px-3 py-1">
-              <div className="col-span-6">Item</div>
-              <div className="col-span-2 text-center">Qtr / Price</div>
-              <div className="col-span-2 text-center">Half</div>
-              <div className="col-span-2 text-right">{isEditingMode ? 'Delete' : ''}</div>
+                return (
+                  <div
+                    key={idx}
+                    className={cn(
+                      "bg-white rounded-[2rem] p-4 shadow-xs border border-slate-100 flex flex-col justify-between hover:shadow-md hover:border-amber-300/60 transition-all group relative",
+                      isEditingMode && "border-amber-300 bg-amber-50/20"
+                    )}
+                  >
+                    {/* Trash / Delete button in Edit Mode */}
+                    {isEditingMode && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveItem(idx);
+                        }}
+                        className="absolute top-3 right-3 z-10 p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all shadow-xs"
+                        title="Delete Product"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+
+                    {/* Top Placeholder Container (Soft purple icon as shown in screenshot) */}
+                    <div className="bg-slate-50/90 rounded-2xl h-28 flex flex-col items-center justify-center mb-3 relative overflow-hidden group-hover:bg-amber-50/50 transition-colors border border-slate-100/60">
+                      <UtensilsCrossed className="h-9 w-9 text-indigo-300 group-hover:scale-110 transition-transform duration-300" />
+                    </div>
+
+                    {/* Item Title */}
+                    <div className="mb-3 text-center">
+                      {isEditingMode ? (
+                        <Input
+                          value={item.name || ''}
+                          onChange={(e) => handleUpdateItem(idx, 'name', e.target.value)}
+                          className="h-8 text-xs font-black text-center border-amber-300 uppercase bg-white"
+                          placeholder="ITEM NAME"
+                        />
+                      ) : (
+                        <h3 className="font-black text-slate-800 text-xs tracking-wider uppercase min-h-[2.2rem] flex items-center justify-center line-clamp-2 px-1">
+                          {item.name}
+                        </h3>
+                      )}
+                      {item.details && !isEditingMode && (
+                        <p className="text-[10px] text-slate-400 font-medium line-clamp-2 mt-1 px-1">
+                          {item.details}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Rates & Add Buttons */}
+                    <div className="mt-auto space-y-1.5">
+                      {isEditingMode ? (
+                        <div className="space-y-1">
+                          {hasPrice && (
+                            <div className="flex items-center gap-1 text-[10px]">
+                              <span className="font-bold text-slate-400 w-10">Price:</span>
+                              <Input
+                                type="number"
+                                value={item.price ?? ''}
+                                onChange={(e) => handleUpdateItem(idx, 'price', e.target.value)}
+                                className="h-7 text-xs border-amber-300"
+                              />
+                            </div>
+                          )}
+                          {(hasFull || hasHalf) && (
+                            <div className="grid grid-cols-2 gap-1 text-[10px]">
+                              <div>
+                                <span className="font-bold text-slate-400">Full:</span>
+                                <Input
+                                  type="number"
+                                  value={item.full ?? ''}
+                                  onChange={(e) => handleUpdateItem(idx, 'full', e.target.value)}
+                                  className="h-7 text-xs border-amber-300"
+                                />
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-400">Half:</span>
+                                <Input
+                                  type="number"
+                                  value={item.half ?? ''}
+                                  onChange={(e) => handleUpdateItem(idx, 'half', e.target.value)}
+                                  className="h-7 text-xs border-amber-300"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {(hasFamily || hasSingle) && (
+                            <div className="grid grid-cols-2 gap-1 text-[10px]">
+                              <div>
+                                <span className="font-bold text-slate-400">Family:</span>
+                                <Input
+                                  type="number"
+                                  value={item.family ?? ''}
+                                  onChange={(e) => handleUpdateItem(idx, 'family', e.target.value)}
+                                  className="h-7 text-xs border-amber-300"
+                                />
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-400">Single:</span>
+                                <Input
+                                  type="number"
+                                  value={item.single ?? ''}
+                                  onChange={(e) => handleUpdateItem(idx, 'single', e.target.value)}
+                                  className="h-7 text-xs border-amber-300"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          {/* Single Price Card */}
+                          {hasPrice && !hasFull && !hasFamily && !hasQtr && (
+                            <button
+                              onClick={() => handleAddToCart(item)}
+                              className="w-full py-2 px-3 rounded-2xl border border-amber-200/90 bg-white group-hover:bg-amber-50 text-center font-extrabold text-xs text-amber-900 shadow-2xs transition-all active:scale-95"
+                            >
+                              Rs. {Number(item.price).toLocaleString()}
+                            </button>
+                          )}
+
+                          {/* Full / Half Variant Options */}
+                          {(hasFull || hasHalf) && (
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {hasFull && (
+                                <button
+                                  onClick={() => handleAddToCart(item, 'Full', item.full)}
+                                  className="py-1.5 px-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200/80 text-amber-900 text-center font-extrabold text-[11px] transition-all active:scale-95"
+                                >
+                                  Full: Rs. {Number(item.full).toLocaleString()}
+                                </button>
+                              )}
+                              {hasHalf && (
+                                <button
+                                  onClick={() => handleAddToCart(item, 'Half', item.half)}
+                                  className="py-1.5 px-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-center font-extrabold text-[11px] transition-all active:scale-95"
+                                >
+                                  Half: Rs. {Number(item.half).toLocaleString()}
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Family / Single Variant Options */}
+                          {(hasFamily || hasSingle) && (
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {hasFamily && (
+                                <button
+                                  onClick={() => handleAddToCart(item, 'Family', item.family)}
+                                  className="py-1.5 px-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200/80 text-amber-900 text-center font-extrabold text-[11px] transition-all active:scale-95"
+                                >
+                                  Family: Rs. {Number(item.family).toLocaleString()}
+                                </button>
+                              )}
+                              {hasSingle && (
+                                <button
+                                  onClick={() => handleAddToCart(item, 'Single', item.single)}
+                                  className="py-1.5 px-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-center font-extrabold text-[11px] transition-all active:scale-95"
+                                >
+                                  Single: Rs. {Number(item.single).toLocaleString()}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            {categoryItems.map((item: any, idx: number) => {
-              const hasQtr = item.qtr != null;
-              const hasHalf = item.half != null;
-              const hasSingle = !hasQtr && item.price != null;
-
-              return (
-                <div
-                  key={idx}
-                  className="grid grid-cols-12 items-center gap-2 bg-white border border-slate-100 rounded-xl px-3 py-3 hover:bg-emerald-50/40 hover:border-emerald-200 transition-all group"
-                >
-                  {/* Item name */}
-                  <div className="col-span-6">
-                    {isEditingMode ? (
-                      <Input
-                        value={item.name || ''}
-                        onChange={(e) => handleUpdateItem(idx, 'name', e.target.value)}
-                        className="h-8 text-xs font-semibold border-slate-200"
-                        placeholder="Item name"
-                      />
-                    ) : (
-                      <span className="font-semibold text-slate-800 text-sm">{item.name}</span>
-                    )}
-                  </div>
-
-                  {/* Qtr / Price */}
-                  <div className="col-span-2 text-center">
-                    {isEditingMode ? (
-                      <Input
-                        type="number"
-                        placeholder={hasQtr ? 'Qtr' : 'Price'}
-                        value={hasQtr ? (item.qtr ?? '') : (item.price ?? '')}
-                        onChange={(e) => handleUpdateItem(idx, hasQtr ? 'qtr' : 'price', e.target.value)}
-                        className="h-8 text-xs text-center border-slate-200"
-                      />
-                    ) : (
-                      <>
-                        {hasQtr && (
-                          <span className="text-emerald-700 font-bold text-sm">
-                            Rs. {item.qtr.toLocaleString()}
-                          </span>
-                        )}
-                        {hasSingle && (
-                          <span className="text-emerald-700 font-bold text-sm">
-                            Rs. {item.price.toLocaleString()}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Half */}
-                  <div className="col-span-2 text-center">
-                    {isEditingMode ? (
-                      <Input
-                        type="number"
-                        placeholder="Half"
-                        value={item.half ?? ''}
-                        onChange={(e) => handleUpdateItem(idx, 'half', e.target.value)}
-                        className="h-8 text-xs text-center border-slate-200"
-                      />
-                    ) : (
-                      hasHalf ? (
-                        <span className="text-blue-600 font-bold text-sm">
-                          Rs. {item.half.toLocaleString()}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300 text-xs">—</span>
-                      )
-                    )}
-                  </div>
-
-                  {/* Action buttons */}
-                  <div className="col-span-2 flex justify-end gap-1">
-                    {isEditingMode ? (
-                      <button
-                        onClick={() => handleRemoveItem(idx)}
-                        className="h-8 w-8 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    ) : (
-                      <>
-                        {hasQtr && (
-                          <button
-                            onClick={() => handleAddToCart(item, 'qtr')}
-                            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-2 py-1.5 font-bold transition-colors"
-                          >
-                            Qtr
-                          </button>
-                        )}
-                        {hasHalf && (
-                          <button
-                            onClick={() => handleAddToCart(item, 'half')}
-                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-2 py-1.5 font-bold transition-colors"
-                          >
-                            Half
-                          </button>
-                        )}
-                        {hasSingle && (
-                          <button
-                            onClick={() => handleAddToCart(item, 'single')}
-                            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-2 py-1.5 font-bold transition-colors"
-                          >
-                            + Add
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-            {categoryItems.length === 0 && (
-              <div className="text-center py-10 text-slate-400 text-sm">
-                No items. Click <strong>Edit</strong> then <strong>+ Add Product</strong> to get started.
+            {filteredItems.length === 0 && (
+              <div className="text-center py-16 text-slate-400 font-medium text-sm">
+                No items found in this category. Click <strong>Edit Products</strong> to add new items.
               </div>
             )}
           </div>
         </ScrollArea>
 
-        {/* ── Footer ─────────────────────────────────────────────────────── */}
-        <div className="flex-shrink-0 px-6 py-3 border-t bg-slate-50 flex justify-end">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        {/* ── Footer ───────────────────────────────────────────────────────── */}
+        <div className="flex-shrink-0 px-6 py-3 border-t border-slate-200 bg-white flex items-center justify-between">
+          <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
+            {filteredItems.length} {filteredItems.length === 1 ? 'ITEM' : 'ITEMS'}
+          </span>
+
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-6 py-2"
+          >
             Close
           </Button>
         </div>
