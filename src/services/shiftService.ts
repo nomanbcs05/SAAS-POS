@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { isOnline } from './offlineStore';
+import { resetDailyCounter, isOnline } from './offlineStore';
 
 export interface ShiftSession {
   id: string;
@@ -100,6 +100,8 @@ export const shiftService = {
     shifts.push(newShift);
     saveShifts(shifts);
     localStorage.setItem('pos_current_shift_id', newShift.id);
+    // Reset order counter so new shift starts with order #1
+    resetDailyCounter();
 
     if (isOnline()) {
       try {

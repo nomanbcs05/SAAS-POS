@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { api } from '@/services/api';
 import { useCartStore } from '@/stores/cartStore';
 import { toast } from 'sonner';
-import { Users, X, UserCircle2, TreePine, Home, Plus, Trash2 } from 'lucide-react';
+import { Users, X, UserCircle2, TreePine, Home, Plus, Trash2, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 
@@ -27,10 +27,10 @@ const SECTION_CONFIG: Record<TableSection, { count: number; capacity: number; la
 };
 
 const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
-  const { tenant } = useMultiTenant();
+  const { tenant, isAdmin } = useMultiTenant();
   const [step, setStep] = useState<'server' | 'table'>('server');
   const [activeFilter, setActiveFilter] = useState<TableSection | 'all'>('all');
-  const [serverList, setServerList] = useState<string[]>(['Babar', 'Touheed', 'Nasrullah']);
+  const [serverList, setServerList] = useState<string[]>([]);
   const { setTableId, setOrderType, serverName, setServerName } = useCartStore();
   const queryClient = useQueryClient();
 
@@ -38,6 +38,8 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
   const [newTableSection, setNewTableSection] = useState<TableSection>('indoor');
   const [newTableNumber, setNewTableNumber] = useState('');
   const [newTableCapacity, setNewTableCapacity] = useState('6');
+  const [newServerName, setNewServerName] = useState('');
+  const [isAddingServer, setIsAddingServer] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -47,8 +49,32 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     const savedServers = localStorage.getItem('pos_server_names');
     if (savedServers) {
       try { setServerList(JSON.parse(savedServers)); } catch { /* ignore */ }
+    } else {
+      setServerList([]);
     }
   }, [isOpen]);
+
+  const handleAddServer = () => {
+    const trimmed = newServerName.trim();
+    if (!trimmed) return;
+    if (serverList.includes(trimmed)) {
+      toast.error('Server already exists');
+      return;
+    }
+    const updated = [...serverList, trimmed];
+    setServerList(updated);
+    localStorage.setItem('pos_server_names', JSON.stringify(updated));
+    setNewServerName('');
+    setIsAddingServer(false);
+    toast.success(`${trimmed} added as server`);
+  };
+
+  const handleRemoveServer = (name: string) => {
+    const updated = serverList.filter(s => s !== name);
+    setServerList(updated);
+    localStorage.setItem('pos_server_names', JSON.stringify(updated));
+    toast.success(`${name} removed`);
+  };
 
   const { data: dbTables = [], isLoading } = useQuery({
     queryKey: ['tables'],
@@ -56,17 +82,8 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     enabled: isOpen,
   });
 
-  const { data: staffMembers = [] } = useQuery({
-    queryKey: ['staff-db'],
-    queryFn: () => api.staff.getAll(),
-    enabled: isOpen,
-  });
-
-  const displayServers = useMemo(() => {
-    const dbNames = staffMembers.map((s: any) => s.name);
-    if (dbNames.length > 0) return dbNames;
-    return serverList;
-  }, [staffMembers, serverList]);
+  // Servers are managed purely via localStorage, separate from DB staff/cashiers
+  const displayServers = serverList;
 
   const { data: ongoingOrders = [] } = useQuery({
     queryKey: ['ongoing-orders'],
@@ -358,27 +375,80 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
             <div className="px-6 pb-6 pt-4 overflow-y-auto flex-1">
               {step === 'server' && (
                 <div className="space-y-5 py-2">
-                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-widest">
-                    Select a server to continue
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {displayServers.map((name) => (
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-widest">
+                      Select a server to continue
+                    </p>
+                    {isAdmin && (
                       <Button
-                        key={name}
-                        variant={serverName === name ? 'default' : 'outline'}
-                        onClick={() => handleServerSelect(name)}
-                        className={cn(
-                          'rounded-3xl text-sm font-black font-heading uppercase tracking-wider transition-all h-28 border-2 flex flex-col gap-3 shadow-sm',
-                          serverName === name
-                            ? 'bg-slate-900 border-slate-900 text-white shadow-xl scale-[1.04] z-10'
-                            : 'border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:shadow-md hover:scale-[1.02]'
-                        )}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsAddingServer(v => !v)}
+                        className="h-8 px-3 text-[10px] font-black uppercase tracking-wider rounded-xl border-dashed border-slate-300 text-slate-500 hover:text-slate-900 hover:border-slate-400 gap-1.5"
                       >
-                        <UserCircle2 className={cn('w-7 h-7', serverName === name ? 'text-blue-400' : 'text-slate-300')} />
-                        {name}
+                        <UserPlus className="w-3.5 h-3.5" />
+                        Manage Servers
                       </Button>
-                    ))}
+                    )}
                   </div>
+
+                  {/* Add server inline form */}
+                  {isAddingServer && isAdmin && (
+                    <div className="flex gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                      <Input
+                        value={newServerName}
+                        onChange={e => setNewServerName(e.target.value)}
+                        placeholder="Server name (e.g. Ahmed)"
+                        className="flex-1 h-10 text-sm font-semibold rounded-xl border-slate-200"
+                        onKeyDown={e => e.key === 'Enter' && handleAddServer()}
+                        autoFocus
+                      />
+                      <Button
+                        onClick={handleAddServer}
+                        className="h-10 px-4 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase rounded-xl"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {displayServers.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-3">
+                      <UserCircle2 className="w-12 h-12 text-slate-200" />
+                      <p className="text-xs font-black uppercase tracking-widest">No servers added yet</p>
+                      {isAdmin && (
+                        <p className="text-[11px] text-slate-400">Click "Manage Servers" above to add servers</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {displayServers.map((name) => (
+                        <div key={name} className="relative group">
+                          <Button
+                            variant={serverName === name ? 'default' : 'outline'}
+                            onClick={() => handleServerSelect(name)}
+                            className={cn(
+                              'w-full rounded-3xl text-sm font-black font-heading uppercase tracking-wider transition-all h-28 border-2 flex flex-col gap-3 shadow-sm',
+                              serverName === name
+                                ? 'bg-slate-900 border-slate-900 text-white shadow-xl scale-[1.04] z-10'
+                                : 'border-slate-100 bg-white text-slate-600 hover:border-slate-300 hover:shadow-md hover:scale-[1.02]'
+                            )}
+                          >
+                            <UserCircle2 className={cn('w-7 h-7', serverName === name ? 'text-blue-400' : 'text-slate-300')} />
+                            {name}
+                          </Button>
+                          {isAdmin && isAddingServer && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleRemoveServer(name); }}
+                              className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg z-20 transition-all"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

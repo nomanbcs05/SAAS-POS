@@ -484,9 +484,11 @@ const GenXPage: React.FC = () => {
 
       let savedOrder: any;
       let revCount = 1;
+      const existingOrder = ongoingOrders.find((o: any) => o.id === activeOrderId);
+
       if (activeOrderId) {
         await api.orders.updateItems(activeOrderId, orderItemsInsert);
-        savedOrder = { id: activeOrderId, daily_id: orderDailyId };
+        savedOrder = { id: activeOrderId, daily_id: existingOrder?.daily_id || orderDailyId };
         revCount = Number(localStorage.getItem(`kot_revision_${activeOrderId}`) || 1) + 1;
         localStorage.setItem(`kot_revision_${activeOrderId}`, String(revCount));
       } else {
@@ -496,9 +498,13 @@ const GenXPage: React.FC = () => {
 
       queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['daily-order-count'] });
+
+      const finalDailyId = savedOrder?.daily_id || existingOrder?.daily_id || orderDailyId;
 
       const kotObj = {
-        orderNumber: String(savedOrder?.daily_id || orderDailyId).padStart(2, '0'),
+        orderNumber: String(finalDailyId).padStart(2, '0'),
+
         revisionNumber: activeOrderId ? revCount : undefined,
         items: billItems.map((item) => ({
           product: item.product,

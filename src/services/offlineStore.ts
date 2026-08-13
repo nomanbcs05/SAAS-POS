@@ -387,6 +387,11 @@ export const getDailyCounter = () => {
   return 0;
 };
 
+export const resetDailyCounter = () => {
+  localStorage.setItem(CACHE_KEYS.DAILY_COUNTER, '0');
+  return 0;
+};
+
 export const incrementDailyCounter = () => {
   const current = getDailyCounter();
   const next = current + 1;
@@ -394,3 +399,4 @@ export const incrementDailyCounter = () => {
   localStorage.setItem(CACHE_KEYS.DAILY_COUNTER, next.toString());
   return next;
 };
+

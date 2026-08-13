@@ -30,14 +30,14 @@ const ItemRow = ({ item, index }: { item: any; index: number }) => {
     item?.name ??
     'Item';
   return (
-    <tr key={item?.product?.id ?? `${index}-${name}`}>
-      <td className="py-2 pr-3 align-top w-12 text-xl font-black">
+    <tr key={item?.product?.id ?? `${index}-${name}`} className="border-b border-black/20">
+      <td className="py-2.5 pr-3 align-top w-14 text-2xl font-black leading-tight">
         {qty % 1 === 0 ? qty : qty.toFixed(2)}
       </td>
-      <td className="py-2 align-top text-xl font-black">
+      <td className="py-2.5 align-top text-2xl font-black leading-tight">
         {name}
         {item?.qtyMeasureLabel && (
-          <div className="text-xs font-bold italic">({item.qtyMeasureLabel})</div>
+          <div className="text-sm font-bold italic">({item.qtyMeasureLabel})</div>
         )}
       </td>
     </tr>
@@ -55,58 +55,74 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
     ? order.newlyAddedItems
     : order.items;
 
+  // Format Table Display
+  const formatTable = (tableId: string | number) => {
+    const str = String(tableId);
+    if (str.toUpperCase().startsWith('T') || str.toUpperCase().startsWith('O') || str.toUpperCase().startsWith('V')) {
+      return str.toUpperCase();
+    }
+    return `TABLE ${str}`;
+  };
+
   return (
     <div
       ref={ref}
-      className="receipt-print bg-white text-black p-4 font-mono text-xs mx-auto"
+      className="receipt-print bg-white text-black p-4 font-mono text-sm mx-auto"
       style={{ width: '80mm' }}
     >
       {/* Duplicate Badge */}
       {isDuplicate && (
         <div className="text-center mb-2">
-          <div className="border-2 border-black font-black text-lg py-1 px-4 inline-block transform -rotate-2">
+          <div className="border-4 border-black font-black text-xl py-1 px-4 inline-block transform -rotate-2">
             *** DUPLICATE ***
           </div>
         </div>
       )}
 
-      {/* Header */}
-      <div className="text-center mb-4">
-        <h1 className="text-xl font-bold border-2 border-black p-1 inline-block">
+      {/* Main Header */}
+      <div className="text-center mb-3">
+        <h1 className="text-2xl font-black border-4 border-black p-2 inline-block uppercase tracking-wider">
           {isRevision ? `KOT REVISION #${order.revisionNumber ?? 2}` : 'KITCHEN TICKET'}
         </h1>
       </div>
 
-      {/* Order Info */}
-      <div className="mb-3 font-bold text-sm">
-        <p>Order #: {order.orderNumber}</p>
-        <p>Type: {order.orderType?.replace('_', ' ').toUpperCase() || 'DINE IN'}</p>
-        <p>Date: {format(order.createdAt, 'yyyy-MM-dd HH:mm')}</p>
-        {order.tableId != null && order.tableId !== '' && (
-          <p>Table: {String(order.tableId).startsWith('T') || String(order.tableId).startsWith('O') || String(order.tableId).startsWith('V')
-            ? order.tableId
-            : `Table ${order.tableId}`}</p>
-        )}
-        {order.orderType === 'delivery' && order.rider && (
-          <p>Rider: {order.rider.name}</p>
-        )}
-        {order.customer && (
-          <p>Customer: {order.customer.name}</p>
-        )}
-        {order.serverName && (
-          <p>Server: {order.serverName.replace(/^\[.*?\]\s*/, '')}</p>
-        )}
-      </div>
+      {/* Prominent Order # Banner */}
+      <div className="mb-3 border-b-4 border-black pb-3">
+        <div className="flex justify-between items-baseline mb-2">
+          <span className="text-3xl font-black tracking-tight">ORDER #{order.orderNumber}</span>
+          <span className="text-xs font-black uppercase px-2 py-1 border-2 border-black">
+            {order.orderType?.replace('_', ' ').toUpperCase() || 'DINE IN'}
+          </span>
+        </div>
 
-      {/* Divider */}
-      <div className="border-t-2 border-black my-3" />
+        {/* Prominent Table # Box */}
+        {order.tableId != null && order.tableId !== '' && (
+          <div className="mt-2 bg-black text-white text-center py-2 px-3 rounded font-black text-3xl uppercase tracking-wider shadow-sm">
+            {formatTable(order.tableId)}
+          </div>
+        )}
+
+        {/* Order Details */}
+        <div className="mt-3 text-base font-extrabold space-y-1">
+          <p>Time: {format(order.createdAt, 'yyyy-MM-dd HH:mm')}</p>
+          {order.serverName && (
+            <p>Server: {order.serverName.replace(/^\[.*?\]\s*/, '')}</p>
+          )}
+          {order.customer && (
+            <p>Customer: {order.customer.name}</p>
+          )}
+          {order.orderType === 'delivery' && order.rider && (
+            <p>Rider: {order.rider.name}</p>
+          )}
+        </div>
+      </div>
 
       {/* ── REVISION LAYOUT: prev items → separator line → new items ── */}
       {isRevision ? (
         <>
           {/* Previously ordered items (greyed, reference only) */}
           {prevItems.length > 0 && (
-            <table className="w-full text-sm opacity-60 mb-1">
+            <table className="w-full text-base opacity-60 mb-2">
               <tbody>
                 {prevItems.map((item: any, idx: number) => {
                   const qty: number = item?.quantity ?? 1;
@@ -114,8 +130,8 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
                     item?.product?.name ?? item?.product_name ?? item?.name ?? 'Item';
                   return (
                     <tr key={`prev-${idx}`}>
-                      <td className="py-1 pr-3 align-top w-12 font-semibold">{qty % 1 === 0 ? qty : qty.toFixed(2)}</td>
-                      <td className="py-1 align-top font-semibold">{name}</td>
+                      <td className="py-1 pr-3 align-top w-14 font-bold">{qty % 1 === 0 ? qty : qty.toFixed(2)}</td>
+                      <td className="py-1 align-top font-bold">{name}</td>
                     </tr>
                   );
                 })}
@@ -125,18 +141,18 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
 
           {/* ─── THE SEPARATOR LINE ─────────────────────────────────── */}
           <div className="my-3 text-center">
-            <div className="border-t-2 border-dashed border-black" />
-            <div className="font-black text-xs tracking-widest mt-1 mb-1 uppercase">
+            <div className="border-t-4 border-dashed border-black" />
+            <div className="font-black text-sm tracking-widest my-1 uppercase">
               ── ADD ITEMS BELOW ──
             </div>
-            <div className="border-t-2 border-dashed border-black" />
+            <div className="border-t-4 border-dashed border-black" />
           </div>
 
           {/* Newly added items */}
-          <table className="w-full text-sm font-bold">
+          <table className="w-full font-bold">
             <thead>
-              <tr className="border-b border-black">
-                <th className="text-left py-1 w-12">Qty</th>
+              <tr className="border-b-2 border-black text-lg font-black">
+                <th className="text-left py-1 w-14">Qty</th>
                 <th className="text-left py-1">Item</th>
               </tr>
             </thead>
@@ -149,10 +165,10 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
         </>
       ) : (
         /* ── FIRST KOT: show all items normally ── */
-        <table className="w-full text-sm font-bold">
+        <table className="w-full font-bold">
           <thead>
-            <tr className="border-b border-black">
-              <th className="text-left py-1 w-12">Qty</th>
+            <tr className="border-b-2 border-black text-lg font-black">
+              <th className="text-left py-1 w-14">Qty</th>
               <th className="text-left py-1">Item</th>
             </tr>
           </thead>
@@ -165,11 +181,11 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
       )}
 
       {/* Bottom divider */}
-      <div className="border-t-4 border-black my-3" />
+      <div className="border-t-4 border-black my-4" />
 
       {/* Footer */}
-      <div className="text-center mt-4">
-        <p className="font-black text-sm">
+      <div className="text-center mt-3">
+        <p className="font-black text-base uppercase tracking-wider">
           {isRevision
             ? `*** KOT EDIT #${order.revisionNumber ?? 2} COPY ***`
             : '*** KITCHEN COPY ***'}
@@ -182,3 +198,4 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
 KOT.displayName = 'KOT';
 
 export default KOT;
+

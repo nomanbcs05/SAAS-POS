@@ -1064,15 +1064,19 @@ export const api = {
       return data;
     },
     getDailyCount: async (registerId?: string) => {
+      const activeShift = shiftService.getCurrentCashierOpenShift();
+      const targetRegisterId = registerId || activeShift?.id;
+
       // Force SQLite for desktop app
       if (isDesktop() && window.electronAPI) {
         const all = await window.electronAPI.getAllOrders();
-        if (registerId && isValidUUID(registerId)) {
-          return all.filter(o => o.register_id === registerId).length;
+        if (targetRegisterId && isValidUUID(targetRegisterId)) {
+          return all.filter(o => o.register_id === targetRegisterId).length;
         }
-        // Fallback to count of orders created today if no registerId
-        const today = new Date().toISOString().split('T')[0];
-        return all.filter(o => o.created_at?.startsWith(today)).length;
+        if (activeShift?.opened_at) {
+          return all.filter(o => o.created_at && o.created_at >= activeShift.opened_at).length;
+        }
+        return offline.getDailyCounter();
       }
       
       if (!offline.isOnline()) {
@@ -1080,12 +1084,11 @@ export const api = {
       }
 
       // If we have a valid registerId UUID, count orders in that shift
-      if (registerId && isValidUUID(registerId)) {
-        // 1.5-second timeout for quick offline fallback
+      if (targetRegisterId && isValidUUID(targetRegisterId)) {
         const fetchPromise = supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
-          .eq('register_id', registerId);
+          .eq('register_id', targetRegisterId);
         
         try {
           const result = await Promise.race([
@@ -1093,42 +1096,30 @@ export const api = {
             new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 800))
           ]);
 
-          if (result && !result.error && (result.count || 0) > 0) return result.count || 0;
+          if (result && !result.error && typeof result.count === 'number') return result.count;
         } catch (err) {
-          console.warn('Timeout or error fetching daily count, falling back to offline count');
+          console.warn('Timeout or error fetching shift order count, falling back to offline count');
           return offline.getDailyCounter();
         }
       }
 
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
+      if (activeShift?.opened_at) {
+        try {
+          const { count, error } = await Promise.race([
+            supabase
+              .from('orders')
+              .select('*', { count: 'exact', head: true })
+              .gte('created_at', activeShift.opened_at),
+            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 800))
+          ]);
 
-      // Use in-memory cache if fresh
-      if (cachedDailyCount && (Date.now() - cachedDailyCount.timestamp < COUNT_CACHE_TTL)) {
-        return cachedDailyCount.count;
-      }
-
-      try {
-        const { count, error } = await Promise.race([
-          supabase
-            .from('orders')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', startOfDay.toISOString()),
-          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 800))
-        ]);
-
-        if (error) {
-          console.error('Error fetching daily order count:', error);
-          return offline.getDailyCounter();
+          if (!error && typeof count === 'number') return count;
+        } catch (err) {
+          console.warn('Timeout fetching shift fallback count, using offline counter');
         }
-
-        // Cache the result
-        cachedDailyCount = { count: count || 0, timestamp: Date.now() };
-        return count || 0;
-      } catch (err) {
-        console.warn('Timeout fetching fallback daily count');
-        return offline.getDailyCounter();
       }
+
+      return offline.getDailyCounter();
     },
     create: async (order: any, items: OrderItemInsert[]) => {
       // Helper function to queue order locally
@@ -1628,9 +1619,6 @@ export const api = {
           .filter(o => o.status === 'pending' || o.status === 'preparing' || o.status === 'ready');
       }
 
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-
       let onlineOrders: any[] = [];
       try {
         const { data, error } = await Promise.race([
@@ -1645,7 +1633,7 @@ export const api = {
                 products(name, image)
               )
             `)
-            .gte('created_at', startOfDay.toISOString())
+            .in('status', ['pending', 'preparing', 'ready'])
             .order('created_at', { ascending: false }),
           new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
         ]);
