@@ -368,11 +368,19 @@ const CartPanel = () => {
 
       if (editingOrderId) {
         orderData.id = editingOrderId;
-        // Use the real daily_id/orderNumber from the saved order
+        // Priority: returned daily_id from update → orderNumber → cached ongoing order daily_id
         if (newOrder?.daily_id) {
           orderData.orderNumber = newOrder.daily_id.toString().padStart(2, '0');
         } else if (newOrder?.orderNumber) {
           orderData.orderNumber = newOrder.orderNumber;
+        } else {
+          // Fallback: look up the daily_id from the already-cached ongoing orders list
+          const cachedOngoing: any[] = queryClient.getQueryData(['ongoing-orders']) || [];
+          const cachedOrder = cachedOngoing.find((o: any) => o.id === editingOrderId);
+          if (cachedOrder?.daily_id) {
+            orderData.orderNumber = cachedOrder.daily_id.toString().padStart(2, '0');
+          }
+          // If still not found, keep whatever prepareOrderData returned (last resort)
         }
       } else if (newOrder && typeof newOrder === 'object') {
         orderData.id = newOrder.id;

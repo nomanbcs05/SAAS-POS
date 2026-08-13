@@ -1451,7 +1451,9 @@ export const api = {
         return { 
           id: orderId, 
           status: safeOrder.status,
-          total_amount: safeOrder.total_amount
+          total_amount: safeOrder.total_amount,
+          daily_id: safeOrder.daily_id || null,
+          orderNumber: safeOrder.daily_id ? safeOrder.daily_id.toString().padStart(2, '0') : undefined,
         };
       }
 
@@ -1583,7 +1585,25 @@ export const api = {
         .insert(itemsWithOrderIdFull);
 
       if (itemsError) throw itemsError;
-      return true;
+
+      // Fetch updated order to return daily_id so callers can display correct KOT number
+      try {
+        const { data: updatedOrder } = await supabase
+          .from('orders')
+          .select('id, daily_id')
+          .eq('id', orderId)
+          .maybeSingle();
+        if (updatedOrder) {
+          return {
+            id: orderId,
+            daily_id: updatedOrder.daily_id,
+            orderNumber: updatedOrder.daily_id
+              ? updatedOrder.daily_id.toString().padStart(2, '0')
+              : undefined,
+          };
+        }
+      } catch (_) { /* ignore – fall through */ }
+      return { id: orderId, daily_id: safeOrder.daily_id || null, orderNumber: safeOrder.daily_id ? safeOrder.daily_id.toString().padStart(2, '0') : undefined };
     },
     getOngoing: async () => {
       // Force SQLite for desktop
