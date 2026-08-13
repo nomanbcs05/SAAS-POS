@@ -1010,7 +1010,7 @@ export const api = {
 
       const { data, error } = await supabase
         .from('orders')
-        .select('*, customers(name)')
+        .select('*, customers(name, phone), restaurant_tables(table_number)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
@@ -1842,15 +1842,41 @@ export const api = {
       }
     },
     updateStatus: async (id: string, status: string) => {
+      // Helper function to auto-release table if present
+      const releaseTableIfPresent = async (tableId?: string | null) => {
+        if ((status === 'completed' || status === 'cancelled') && tableId) {
+          try {
+            await api.tables.updateStatus(tableId, 'available');
+          } catch (tErr) {
+            console.warn('[Table Auto-Release] Failed to release table:', tErr);
+          }
+        }
+      };
+
       // Force SQLite for desktop
       if (isDesktop() && window.electronAPI) {
         await window.electronAPI.updateStatus(id, status);
+        const records = await window.electronAPI.getAllOrders();
+        const target = records.find((r: any) => r.id === id);
+        if (target) {
+          try {
+            const data = JSON.parse(target.data || '{}');
+            await releaseTableIfPresent(data.table_id);
+          } catch (e) {
+            // ignore
+          }
+        }
         return { id, status };
       }
 
       // If offline, update the local queue
       if (!offline.isOnline()) {
         const success = offline.updateOrderStatus(id, status);
+        const pending = offline.getPendingOrders();
+        const found = pending.find(p => p.id === id);
+        if (found?.order?.table_id) {
+          await releaseTableIfPresent(found.order.table_id);
+        }
         if (success) return { id, status, _offline: true };
       }
 
@@ -1875,23 +1901,17 @@ export const api = {
         ]);
 
         if (error) {
-          // If it's a network error, try updating offline
           console.warn('Network error during status update, falling back to offline update');
           offline.updateOrderStatus(id, status);
+          if (existingOrder?.table_id) {
+            await releaseTableIfPresent(existingOrder.table_id);
+          }
           return { id, status, _offline: true };
         }
 
         // Auto-release table when order is completed or cancelled
-        if (status === 'completed' || status === 'cancelled') {
-          const targetTableId = existingOrder?.table_id || data?.table_id;
-          if (targetTableId) {
-            try {
-              await api.tables.updateStatus(targetTableId, 'available');
-            } catch (tErr) {
-              console.warn('[Table Auto-Release] Failed to release table:', tErr);
-            }
-          }
-        }
+        await releaseTableIfPresent(existingOrder?.table_id || data?.table_id);
+
 
         // If transitioning to completed and was not completed before, decrement stock
         if (status === 'completed' && !wasCompleted) {

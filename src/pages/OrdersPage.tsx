@@ -661,6 +661,7 @@ const OrdersPage = () => {
                     <TableHead>Status</TableHead>
                     <TableHead>Date & Time</TableHead>
                     <TableHead>Server</TableHead>
+                    <TableHead>Table</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -685,6 +686,13 @@ const OrdersPage = () => {
                       </TableCell>
                       <TableCell className="font-medium">
                         {order.server_name ? order.server_name.replace(/^\[.*?\]\s*/, '') : '-'}
+                      </TableCell>
+                      <TableCell className="font-bold text-slate-800 dark:text-slate-200">
+                        {order.restaurant_tables?.table_number
+                          ? `Table ${order.restaurant_tables.table_number}`
+                          : order.table_id
+                          ? `Table ${order.table_id}`
+                          : '-'}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">

@@ -118,7 +118,6 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutGrid, moduleKey: 'dashboard' },
-    { name: 'GenX', href: '/genx', icon: Zap, moduleKey: 'genx' },
     { name: 'SaaS Admin', href: '/saas-admin', icon: ShieldCheck, superAdminOnly: true, moduleKey: null as any },
     { name: 'Running Orders', href: '/ongoing-orders', icon: Clock, moduleKey: 'ongoing-orders' },
     { name: 'Orders', href: '/orders', icon: ClipboardList, moduleKey: 'orders' },

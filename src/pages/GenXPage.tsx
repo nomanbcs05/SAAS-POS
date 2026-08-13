@@ -16,7 +16,8 @@ import {
   Clock, 
   ChefHat,
   Zap,
-  RefreshCw
+  RefreshCw,
+  CheckCircle2
 } from 'lucide-react';
 
 interface GenXBillItem {
@@ -264,6 +265,42 @@ const GenXPage: React.FC = () => {
     }
     focusCodeInput();
   };
+
+  // Quick Pay Running Order directly from running order chip
+  const handleQuickPayRunningOrder = async (order: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setIsSaving(true);
+      await api.orders.updateStatus(order.id, 'completed');
+      if (order.table_id) {
+        await api.tables.updateStatus(order.table_id, 'available');
+      }
+      queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
+
+      if (activeOrderId === order.id) {
+        setActiveOrderId(null);
+        setBillItems([]);
+      }
+      const roNo = order.daily_id ? String(order.daily_id).padStart(2, '0') : order.id.slice(0, 4);
+      toast.success(`Order #${roNo} paid & Table released!`, { duration: 2500 });
+    } catch (err: any) {
+      toast.error('Failed to pay order: ' + (err.message || err));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Quick Print Running Order directly from running order chip
+  const handleQuickPrintRunningOrder = (order: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleSelectRunningOrder(order);
+    setTimeout(() => {
+      handlePrintBillClick();
+    }, 100);
+  };
+
 
   // Live item code matching preview
   const handleItemCodeChange = (val: string) => {
@@ -822,22 +859,42 @@ const GenXPage: React.FC = () => {
               {waiterRunningOrders.length === 0 ? (
                 <span className="text-[10px] text-slate-400 italic">No running orders for {selectedWaiter}</span>
               ) : (
-                <div className="flex gap-1.5 overflow-x-auto">
+                <div className="flex gap-2 overflow-x-auto py-0.5">
                   {waiterRunningOrders.map((ro: any) => {
                     const isActive = activeOrderId === ro.id;
                     const roNo = ro.daily_id ? String(ro.daily_id).padStart(2, '0') : ro.id.slice(0, 4);
                     return (
-                      <button
+                      <div
                         key={ro.id}
                         onClick={() => handleSelectRunningOrder(ro)}
-                        className={`text-[11px] font-black px-2.5 py-0.5 rounded border-2 flex items-center gap-1 transition-all ${
+                        className={`text-[11px] font-black px-2 py-1 rounded-md border-2 flex items-center gap-2 cursor-pointer transition-all ${
                           isActive
-                            ? 'bg-slate-800 text-white border-slate-900 shadow scale-105'
-                            : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-400 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            ? 'bg-slate-900 text-white border-slate-950 shadow-md scale-[1.02]'
+                            : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-400 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
                         }`}
                       >
-                        Order #{roNo} (Rs {Number(ro.total_amount || 0).toLocaleString()})
-                      </button>
+                        <span>Order #{roNo} (Rs {Number(ro.total_amount || 0).toLocaleString()})</span>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => handleQuickPrintRunningOrder(ro, e)}
+                            className="bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100 font-bold text-[10px] px-1.5 py-0.5 rounded border border-slate-400 dark:border-slate-600 transition-colors flex items-center gap-0.5"
+                            title="Print Bill"
+                          >
+                            <Printer className="h-3 w-3" /> Print
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => handleQuickPayRunningOrder(ro, e)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] px-2 py-0.5 rounded shadow-sm transition-colors flex items-center gap-0.5"
+                            title="Pay Bill"
+                          >
+                            <CheckCircle2 className="h-3 w-3" /> Pay
+                          </button>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
