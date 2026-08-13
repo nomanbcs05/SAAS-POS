@@ -614,21 +614,29 @@ const SettingsPage = () => {
                   
                   <div className="grid grid-cols-2 gap-4 py-4 border-t mt-4">
                     <div className="space-y-2">
-                      <Label>Plan Type</Label>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="capitalize">
-                         {tenant?.plan_type === 'free' ? 'Free Trial' : (tenant?.plan_type || 'Free Trial')}
-                       </Badge>
-                       <Button 
-                         variant="link" 
-                         size="sm" 
-                         className="h-auto p-0"
-                         onClick={() => window.open('https://wa.me/923342826675', '_blank')}
-                       >
-                         Upgrade
-                       </Button>
-                     </div>
-                   </div>
+                      <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 block">Plan Type</Label>
+                      <div className="relative inline-flex flex-col rounded-2xl overflow-hidden shadow-lg border-2 border-blue-500 bg-gradient-to-br from-blue-600 to-blue-700 text-white min-w-[220px]">
+                        {/* Most Popular Badge */}
+                        <div className="bg-amber-400 text-amber-900 text-[10px] font-black tracking-widest uppercase text-center py-1 px-4 leading-tight">
+                          ⭐ Most Popular
+                        </div>
+                        {/* Plan Content */}
+                        <div className="px-5 py-4 flex flex-col gap-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-widest text-blue-200">Current Plan</p>
+                              <p className="text-2xl font-black tracking-tight leading-tight">Pro</p>
+                            </div>
+                            <div className="bg-white/20 rounded-xl p-2">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                              </svg>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-blue-200 font-medium mt-1">Full-featured · Cloud Sync · Priority Support</p>
+                        </div>
+                      </div>
+                    </div>
                    <div className="space-y-2">
                      <Label>Billing Status</Label>
                      <Badge variant={tenant?.billing_status === 'active' ? 'default' : 'destructive'} className="capitalize">
