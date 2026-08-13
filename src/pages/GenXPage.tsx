@@ -608,10 +608,11 @@ const GenXPage: React.FC = () => {
       }));
 
       let savedOrder: any;
+      const existingOrder = ongoingOrders.find((o: any) => o.id === activeOrderId);
       if (activeOrderId) {
         await api.orders.updateItems(activeOrderId, orderItemsInsert);
         await api.orders.updateStatus(activeOrderId, 'completed');
-        savedOrder = { id: activeOrderId, daily_id: orderDailyId };
+        savedOrder = { id: activeOrderId, daily_id: existingOrder?.daily_id || orderDailyId };
       } else {
         savedOrder = await api.orders.create(orderInsert, orderItemsInsert);
       }

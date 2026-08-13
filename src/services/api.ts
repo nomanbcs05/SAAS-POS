@@ -1096,10 +1096,9 @@ export const api = {
             new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 800))
           ]);
 
-          if (result && !result.error && typeof result.count === 'number') return result.count;
+          if (result && !result.error && typeof result.count === 'number' && result.count > 0) return result.count;
         } catch (err) {
-          console.warn('Timeout or error fetching shift order count, falling back to offline count');
-          return offline.getDailyCounter();
+          console.warn('Timeout or error fetching shift order count, falling back');
         }
       }
 
@@ -1113,10 +1112,33 @@ export const api = {
             new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 800))
           ]);
 
-          if (!error && typeof count === 'number') return count;
+          if (!error && typeof count === 'number' && count > 0) return count;
         } catch (err) {
-          console.warn('Timeout fetching shift fallback count, using offline counter');
+          console.warn('Timeout fetching shift fallback count');
         }
+      }
+
+      // Count today's orders (since 00:00:00 local time)
+      try {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const { count, error } = await Promise.race([
+          supabase
+            .from('orders')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', todayStart.toISOString()),
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1000))
+        ]);
+
+        if (!error && typeof count === 'number') {
+          const currentOffline = offline.getDailyCounter();
+          if (count > currentOffline) {
+            localStorage.setItem('pos_daily_counter', count.toString());
+          }
+          return Math.max(count, currentOffline);
+        }
+      } catch (err) {
+        console.warn('Timeout fetching today order count');
       }
 
       return offline.getDailyCounter();
@@ -1189,6 +1211,17 @@ export const api = {
         return enqueueOffline();
       }
       
+      // Ensure daily_id is valid
+      let dailyId = Number(order.daily_id);
+      if (!dailyId || isNaN(dailyId) || dailyId <= 0) {
+        try {
+          const currentCount = await api.orders.getDailyCount();
+          dailyId = currentCount + 1;
+        } catch {
+          dailyId = offline.incrementDailyCounter();
+        }
+      }
+
       // Clean order data to match actual Supabase schema
       // Note: discount_amount, service_charges_amount, delivery_fee columns
       // do not exist in the orders table — do NOT include them
@@ -1198,7 +1231,7 @@ export const api = {
         payment_method: order.payment_method || 'cash',
         order_type: order.order_type || 'dine_in',
         register_id: null,
-        daily_id: order.daily_id || null,
+        daily_id: dailyId,
         tenant_id: tenantId || null,
         customer_id: order.customer_id || null,
         customer_address: order.customer_address || null,
@@ -1387,7 +1420,11 @@ export const api = {
         }
       }
 
-      return newOrder;
+      return {
+        ...newOrder,
+        daily_id: newOrder.daily_id || safeOrder.daily_id,
+        orderNumber: (newOrder.daily_id || safeOrder.daily_id)?.toString().padStart(2, '0')
+      };
     },
     update: async (orderId: string, order: any, items: OrderItemInsert[]) => {
       // Clean order data to match actual Supabase schema
