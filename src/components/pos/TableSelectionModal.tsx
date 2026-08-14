@@ -130,7 +130,15 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
 
   const deleteTableMutation = useMutation({
     mutationFn: async (id: string) => api.tables.delete(id),
-    onSuccess: () => {
+    onSuccess: (_, targetId) => {
+      queryClient.setQueryData(['tables'], (old: any[]) =>
+        (old || []).filter((t: any) =>
+          t.id !== targetId &&
+          t.table_number !== targetId &&
+          String(t.id) !== String(targetId) &&
+          String(t.table_number) !== String(targetId)
+        )
+      );
       queryClient.invalidateQueries({ queryKey: ['tables'] });
       toast.success('Table removed successfully');
     },
@@ -140,6 +148,7 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
   const deleteAllTablesMutation = useMutation({
     mutationFn: async () => api.tables.deleteAll(),
     onSuccess: () => {
+      queryClient.setQueryData(['tables'], []);
       queryClient.invalidateQueries({ queryKey: ['tables'] });
       toast.success('All tables removed successfully');
     },

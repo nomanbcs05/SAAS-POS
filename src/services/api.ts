@@ -843,10 +843,21 @@ export const api = {
       }
     },
     delete: async (id: string) => {
-      if (isDesktop() || !offline.isOnline()) {
-        const tables = await offline.getCachedTables();
-        const filtered = tables.filter((t: any) => t.id !== id && t.table_number !== id);
+      // Always filter out from local cache immediately
+      try {
+        const cached = await offline.getCachedTables();
+        const filtered = cached.filter((t: any) =>
+          t.id !== id &&
+          t.table_number !== id &&
+          String(t.id) !== String(id) &&
+          String(t.table_number) !== String(id)
+        );
         await offline.cacheTables(filtered);
+      } catch (e) {
+        console.warn('[Tables] Failed updating local cache on delete:', e);
+      }
+
+      if (isDesktop() || !offline.isOnline()) {
         return true;
       }
 
@@ -855,7 +866,14 @@ export const api = {
           .from('restaurant_tables')
           .delete()
           .eq('id', id);
-        if (error) throw error;
+        
+        if (error) {
+          // Fallback to table_number match if ID deletion didn't match UUID
+          await supabase
+            .from('restaurant_tables')
+            .delete()
+            .eq('table_number', id);
+        }
         return true;
       } catch (err) {
         console.warn('[Tables] restaurant_tables delete error:', err);
@@ -864,6 +882,9 @@ export const api = {
     },
     deleteAll: async () => {
       await offline.cacheTables([]);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('pos_offline_tables');
+      }
       try {
         const { error } = await supabase
           .from('restaurant_tables')
