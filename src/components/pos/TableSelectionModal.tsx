@@ -82,6 +82,31 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     enabled: isOpen,
   });
 
+  // Automatically seed initial tables if DB has none and not seeded yet
+  useEffect(() => {
+    if (!isOpen || isLoading) return;
+    const hasSeeded = localStorage.getItem('pos_tables_seeded_v1');
+    if (dbTables.length === 0 && !hasSeeded) {
+      localStorage.setItem('pos_tables_seeded_v1', 'true');
+      const initialTables: { table_number: string; section: string; capacity: number }[] = [];
+      let seq = 1;
+      (['indoor', 'outdoor', 'vip'] as TableSection[]).forEach((sec) => {
+        const { count, capacity } = SECTION_CONFIG[sec];
+        for (let i = 1; i <= count; i++) {
+          initialTables.push({
+            table_number: seq.toString(),
+            section: sec,
+            capacity,
+          });
+          seq++;
+        }
+      });
+      api.tables.bulkCreate(initialTables).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['tables'] });
+      }).catch(err => console.warn('Could not auto-seed tables:', err));
+    }
+  }, [isOpen, isLoading, dbTables.length, queryClient]);
+
   // Servers are managed purely via localStorage, separate from DB staff/cashiers
   const displayServers = serverList;
 
@@ -92,83 +117,19 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
   });
 
   const displayTables = useMemo(() => {
-    const allTables: any[] = [];
-    const isKhanshinwari = tenant?.restaurant_name?.toLowerCase().includes('khanshinwari') || tenant?.restaurant_name?.toLowerCase().includes('khan shinwari');
-
-    if (isKhanshinwari) {
-      const ranges = [
-        { start: 1, end: 30, section: 'indoor' as TableSection, capacity: 6 },
-        { start: 31, end: 46, section: 'outdoor' as TableSection, capacity: 8 },
-        { start: 47, end: 57, section: 'vip' as TableSection, capacity: 10 }
-      ];
-      
-      ranges.forEach(range => {
-        if (activeFilter === 'all' || activeFilter === range.section) {
-          for (let i = range.start; i <= range.end; i++) {
-            const tableNum = i.toString();
-            const existing = dbTables.find(
-              (t: any) => t.table_number === tableNum || t.table_number === `Table ${tableNum}`
-            );
-            allTables.push(
-              existing || {
-                table_number: tableNum,
-                section: range.section,
-                capacity: range.capacity,
-                status: 'available' as TableStatus,
-                isVirtual: true,
-              }
-            );
-          }
-        }
-      });
-
-      dbTables.forEach((t: any) => {
-        if (!allTables.some(item => item.id === t.id || item.table_number === t.table_number)) {
-          if (activeFilter === 'all' || activeFilter === t.section) {
-            allTables.push(t);
-          }
-        }
-      });
-
-      return allTables;
+    let list = [...dbTables];
+    if (activeFilter !== 'all') {
+      list = list.filter((t: any) => (t.section || 'indoor').toLowerCase() === activeFilter);
     }
-
-    let sequentialNum = 1;
-    const sectionsToBuild: TableSection[] = ['indoor', 'outdoor', 'vip'];
-
-    sectionsToBuild.forEach((sec) => {
-      const { count, capacity } = SECTION_CONFIG[sec];
-      for (let i = 1; i <= count; i++) {
-        const tableNumStr = sequentialNum.toString();
-        const existing = dbTables.find(
-          (t: any) => t.table_number === tableNumStr || t.table_number === `Table ${tableNumStr}`
-        );
-
-        if (activeFilter === 'all' || activeFilter === sec) {
-          allTables.push(
-            existing || {
-              table_number: tableNumStr,
-              section: sec,
-              capacity,
-              status: 'available' as TableStatus,
-              isVirtual: true,
-            }
-          );
-        }
-        sequentialNum++;
-      }
+    // Sort tables logically by number
+    list.sort((a: any, b: any) => {
+      const numA = parseInt(String(a.table_number).replace(/\D/g, '') || '0', 10);
+      const numB = parseInt(String(b.table_number).replace(/\D/g, '') || '0', 10);
+      if (numA !== numB) return numA - numB;
+      return String(a.table_number).localeCompare(String(b.table_number));
     });
-
-    dbTables.forEach((t: any) => {
-      if (!allTables.some(item => item.id === t.id || item.table_number === t.table_number)) {
-        if (activeFilter === 'all' || activeFilter === t.section) {
-          allTables.push(t);
-        }
-      }
-    });
-
-    return allTables;
-  }, [dbTables, activeFilter, tenant]);
+    return list;
+  }, [dbTables, activeFilter]);
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TableStatus }) =>
@@ -197,7 +158,7 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     mutationFn: async (id: string) => api.tables.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tables'] });
-      toast.success('Table removed');
+      toast.success('Table removed successfully');
     },
     onError: () => toast.error('Failed to delete table'),
   });
@@ -252,18 +213,18 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
 
   const handleDeleteTable = (e: React.MouseEvent, table: any) => {
     e.stopPropagation();
-    if (window.confirm(`Delete table ${table.table_number} from ${table.section.toUpperCase()}?`)) {
-      if (table.id) {
-        deleteTableMutation.mutate(table.id);
-      } else {
-        toast.info('Table removed');
-      }
+    const tableId = table.id || table.table_id || table.table_number;
+    if (window.confirm(`Delete table ${table.table_number} from ${String(table.section || 'indoor').toUpperCase()}?`)) {
+      deleteTableMutation.mutate(tableId);
     }
   };
 
   const handleOpenAddModal = () => {
+    if (activeFilter !== 'all') {
+      setNewTableSection(activeFilter);
+    }
     const maxNum = displayTables.reduce((max, t) => {
-      const n = parseInt(t.table_number.replace(/\D/g, ''), 10);
+      const n = parseInt(String(t.table_number).replace(/\D/g, ''), 10);
       return !isNaN(n) && n > max ? n : max;
     }, 0);
     setNewTableNumber((maxNum + 1).toString());
@@ -494,6 +455,7 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
                         onSelect={handleTableSelect}
                         onClear={handleClearTable}
                         onDelete={handleDeleteTable}
+                        onAddTable={handleOpenAddModal}
                       />
                     )}
                   </div>
@@ -599,9 +561,10 @@ interface TableGridProps {
   onSelect: (table: any) => void;
   onClear: (e: React.MouseEvent, table: any) => void;
   onDelete: (e: React.MouseEvent, table: any) => void;
+  onAddTable: () => void;
 }
 
-const TableGrid = ({ tables, ongoingOrders, getStatusColor, onSelect, onClear, onDelete }: TableGridProps) => (
+const TableGrid = ({ tables, ongoingOrders, getStatusColor, onSelect, onClear, onDelete, onAddTable }: TableGridProps) => (
   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 pb-2">
     {tables.map((table: any) => {
       const tableIdVal = table.id || table.table_id || table.table_number;
@@ -680,6 +643,23 @@ const TableGrid = ({ tables, ongoingOrders, getStatusColor, onSelect, onClear, o
         </div>
       );
     })}
+
+    {/* + Add Table Card */}
+    <div
+      onClick={onAddTable}
+      className={cn(
+        'border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-slate-50/60 hover:bg-emerald-50/50',
+        'rounded-2xl p-2.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer',
+        'h-28 shadow-sm hover:-translate-y-1 hover:shadow-lg group'
+      )}
+    >
+      <div className="w-9 h-9 rounded-full bg-slate-200 group-hover:bg-emerald-600 flex items-center justify-center transition-colors">
+        <Plus className="w-5 h-5 text-slate-600 group-hover:text-white transition-colors" />
+      </div>
+      <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 group-hover:text-emerald-700 mt-2">
+        + Add Table
+      </span>
+    </div>
   </div>
 );
 

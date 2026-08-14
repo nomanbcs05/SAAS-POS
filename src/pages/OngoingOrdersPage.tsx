@@ -56,9 +56,11 @@ import { supabase } from '@/integrations/supabase/client';
 
 const OngoingOrdersPage = () => {
   const navigate = useNavigate();
-  const { tenant, cashierName: hookCashierName } = useMultiTenant();
+  const { tenant, cashierName: hookCashierName, isCashierLogin, profile, isAdmin } = useMultiTenant();
+  const isCashier = isCashierLogin || profile?.role === 'cashier' || localStorage.getItem('active_role') === 'cashier';
   const loadOrder = useCartStore(state => state.loadOrder);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [tableSearchQuery, setTableSearchQuery] = useState('');
+  const [orderCustomerSearchQuery, setOrderCustomerSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -315,14 +317,23 @@ const OngoingOrdersPage = () => {
       result = result.filter(order => order.order_type === activeTab);
     }
 
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    // Filter by Table search query
+    if (tableSearchQuery.trim()) {
+      const tQuery = tableSearchQuery.toLowerCase().trim();
+      result = result.filter(order => {
+        const tableNum = String(order.restaurant_tables?.table_number || order.table_id || '').toLowerCase();
+        return tableNum.includes(tQuery) || `table ${tableNum}`.includes(tQuery);
+      });
+    }
+
+    // Filter by Order # and Customer query
+    if (orderCustomerSearchQuery.trim()) {
+      const oQuery = orderCustomerSearchQuery.toLowerCase().trim();
       result = result.filter(order =>
-        order.id.toLowerCase().includes(query) ||
-        getDailyOrderNumber(order, orders).includes(query) ||
-        order.customers?.name?.toLowerCase().includes(query) ||
-        order.restaurant_tables?.table_number?.toLowerCase().includes(query)
+        order.id.toLowerCase().includes(oQuery) ||
+        getDailyOrderNumber(order, orders).toLowerCase().includes(oQuery) ||
+        order.customers?.name?.toLowerCase().includes(oQuery) ||
+        order.customers?.phone?.toLowerCase().includes(oQuery)
       );
     }
 
@@ -339,7 +350,7 @@ const OngoingOrdersPage = () => {
     }
 
     return result;
-  }, [orders, activeTab, searchQuery]);
+  }, [orders, activeTab, tableSearchQuery, orderCustomerSearchQuery]);
 
   const selectedOrder = useMemo(() => {
     if (!Array.isArray(orders)) return null;
@@ -373,34 +384,66 @@ const OngoingOrdersPage = () => {
             <div className="flex items-center justify-between">
               <h1 className="text-2xl font-bold text-slate-900">Running Orders</h1>
               <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-red-600 border-red-200 hover:bg-red-50 font-bold"
-                  onClick={() => {
-                    if (window.confirm('Are you sure you want to clear all of today\'s orders?')) {
-                      clearAllMutation.mutate();
-                    }
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Clear All
-                </Button>
+                {!isCashier && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 border-red-200 hover:bg-red-50 font-bold"
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to clear all of today\'s orders?')) {
+                        clearAllMutation.mutate();
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clear All
+                  </Button>
+                )}
                 <Badge variant="outline" className="px-3 py-1 text-sm font-medium bg-white shadow-sm">
                   {orders.length} Active
                 </Badge>
               </div>
             </div>
 
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Search for foods, tables, or customers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-12 bg-slate-100/50 border-slate-200 focus:bg-white transition-all rounded-xl"
-              />
+            {/* Split Search Bars */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Table Search Bar */}
+              <div className="relative">
+                <Utensils className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search Table No. (e.g. 5, Table 5)..."
+                  value={tableSearchQuery}
+                  onChange={(e) => setTableSearchQuery(e.target.value)}
+                  className="pl-10 pr-8 h-11 bg-slate-100/60 border-slate-200 focus:bg-white transition-all rounded-xl text-xs font-semibold"
+                />
+                {tableSearchQuery && (
+                  <button
+                    onClick={() => setTableSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Order # / Customer Search Bar */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search Order # or Customer Name/Phone..."
+                  value={orderCustomerSearchQuery}
+                  onChange={(e) => setOrderCustomerSearchQuery(e.target.value)}
+                  className="pl-10 pr-8 h-11 bg-slate-100/60 border-slate-200 focus:bg-white transition-all rounded-xl text-xs font-semibold"
+                />
+                {orderCustomerSearchQuery && (
+                  <button
+                    onClick={() => setOrderCustomerSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Filter Tabs */}

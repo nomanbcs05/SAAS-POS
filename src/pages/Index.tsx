@@ -10,9 +10,8 @@ const Index = () => {
   const setTaxRate = useCartStore((state) => state.setTaxRate);
 
   useEffect(() => {
-    if (tenant?.tax_rate !== undefined) {
-      setTaxRate(Number(tenant.tax_rate));
-    }
+    const taxRateVal = tenant?.tax_rate !== undefined && tenant?.tax_rate !== null ? Number(tenant.tax_rate) : 8;
+    setTaxRate(taxRateVal);
   }, [tenant, setTaxRate]);
 
   return (

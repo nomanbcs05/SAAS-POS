@@ -10,6 +10,7 @@ interface Order {
   customer: Customer | null;
   subtotal: number;
   taxAmount: number;
+  taxRate?: number;
   discountAmount: number;
   serviceChargesAmount?: number;
   deliveryFee?: number;
@@ -207,6 +208,12 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
           <div className="flex justify-between font-medium">
             <span>Service Charges :</span>
             <span>+{(order.serviceChargesAmount || 0).toFixed(3)}</span>
+          </div>
+        )}
+        {order.taxAmount !== undefined && order.taxAmount > 0 && (
+          <div className="flex justify-between font-medium">
+            <span>GST ({order.taxRate || (tenant as any)?.tax_rate || 8}%):</span>
+            <span>+Rs {Number(order.taxAmount).toLocaleString()}</span>
           </div>
         )}
         {order.deliveryFee && order.deliveryFee > 0 && (

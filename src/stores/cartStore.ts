@@ -92,7 +92,7 @@ export const useCartStore = create<CartState>()(
       discountType: 'percentage',
       serviceCharges: 0,
       serviceChargesType: 'percentage',
-      taxRate: 0, // No tax
+      taxRate: 8, // Default 8% GST
       editingOrderId: null,
       
       subtotal: 0,

@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Minus, Plus, Trash2, User, Search, X, Printer, Wallet, ChefHat, FileText, Tag, CheckCircle2 } from 'lucide-react';
+import { Minus, Plus, Trash2, User, Search, X, Printer, Wallet, ChefHat, FileText, Tag, CheckCircle2, CreditCard } from 'lucide-react';
 import Fuse from 'fuse.js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCartStore, Customer } from '@/stores/cartStore';
 import PrintPreviewModal from './PrintPreviewModal';
 import Receipt from './Receipt';
@@ -30,12 +31,14 @@ import BillSettlementCalculatorModal from './BillSettlementCalculatorModal';
 
 const CartPanel = () => {
   const navigate = useNavigate();
-  const { tenant, cashierName: hookCashierName } = useMultiTenant();
+  const { tenant, cashierName: hookCashierName, isCashierLogin, profile, isAdmin } = useMultiTenant();
+  const isCashier = isCashierLogin || profile?.role === 'cashier' || localStorage.getItem('active_role') === 'cashier';
   const {
     items,
     customer,
     subtotal,
     taxAmount,
+    taxRate,
     discountAmount,
     serviceChargesAmount,
     total,
@@ -342,6 +345,7 @@ const CartPanel = () => {
       orderType,
       subtotal,
       taxAmount,
+      taxRate: taxRate || 8,
       discountAmount,
       serviceChargesAmount,
       deliveryFee,
@@ -651,7 +655,7 @@ const CartPanel = () => {
             {items.length} {items.length === 1 ? 'item' : 'items'}
           </p>
         </div>
-        {items.length > 0 && (
+        {items.length > 0 && !isCashier && (
           <Button
             variant="ghost"
             size="sm"
@@ -951,6 +955,13 @@ const CartPanel = () => {
             </span>
           </div>
 
+          {(taxAmount > 0 || taxRate > 0) && (
+            <div className="flex justify-between items-center text-slate-500 font-bold font-heading uppercase tracking-wider text-[10px]">
+              <span>GST ({taxRate || 8}%)</span>
+              <span className="font-bold text-slate-700">+Rs {Math.round(taxAmount || (subtotal - discountAmount + serviceChargesAmount) * ((taxRate || 8) / 100)).toLocaleString()}</span>
+            </div>
+          )}
+
           {deliveryFee > 0 && (
             <div className="flex justify-between">
               <span className="text-slate-500 font-bold font-heading uppercase tracking-wider text-[10px]">Delivery Fee</span>
@@ -983,24 +994,57 @@ const CartPanel = () => {
           )}
         </div>
 
-        {/* Payment Toggles */}
+        {/* Payment Selection & Pay (Print KOT) Button */}
         <div className="grid grid-cols-2 gap-2 mt-2">
-          <Button
-            variant={paymentMethod === 'cash' ? 'default' : 'outline'}
-            className={cn("h-10 font-black font-heading uppercase tracking-widest text-xs", paymentMethod === 'cash' && "bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-500/20")}
-            onClick={() => setPaymentMethod('cash')}
-          >
-            <Wallet className="w-4 h-4 mr-2" /> Cash
-          </Button>
-          <Button
-            variant={paymentMethod === 'credit' ? 'default' : 'outline'}
-            className={cn("h-10 font-black font-heading uppercase tracking-widest text-xs", paymentMethod === 'credit' && "bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20")}
-            onClick={() => {
-              setPaymentMethod('credit');
-              setShowCreditModal(true);
+          <Select
+            value={paymentMethod}
+            onValueChange={(val: any) => {
+              setPaymentMethod(val);
+              if (val === 'credit') {
+                setShowCreditModal(true);
+              }
             }}
           >
-            <User className="w-4 h-4 mr-2" /> Credit
+            <SelectTrigger className="h-10 font-black font-heading uppercase tracking-wider text-xs bg-white border-2 border-slate-200">
+              <div className="flex items-center gap-1.5 truncate">
+                {paymentMethod === 'cash' && <Wallet className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                {paymentMethod === 'credit' && <User className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                {paymentMethod === 'card' && <CreditCard className="w-3.5 h-3.5 text-purple-600 shrink-0" />}
+                {paymentMethod === 'wallet' && <Wallet className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
+                <span className="truncate">{paymentMethod === 'credit' ? 'Credit' : paymentMethod === 'cash' ? 'Cash' : paymentMethod === 'card' ? 'Card' : 'Wallet'}</span>
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cash" className="font-bold text-xs uppercase">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-3.5 h-3.5 text-emerald-600" /> Cash
+                </div>
+              </SelectItem>
+              <SelectItem value="credit" className="font-bold text-xs uppercase">
+                <div className="flex items-center gap-2">
+                  <User className="w-3.5 h-3.5 text-blue-600" /> Credit (Udhaar)
+                </div>
+              </SelectItem>
+              <SelectItem value="card" className="font-bold text-xs uppercase">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-3.5 h-3.5 text-purple-600" /> Card / POS
+                </div>
+              </SelectItem>
+              <SelectItem value="wallet" className="font-bold text-xs uppercase">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-3.5 h-3.5 text-amber-600" /> Digital Wallet
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Button
+            variant="default"
+            className="h-10 font-black font-heading uppercase tracking-widest text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20"
+            onClick={handleDone}
+            disabled={items.length === 0}
+          >
+            <Printer className="w-4 h-4 mr-1.5" /> Pay
           </Button>
         </div>
 
