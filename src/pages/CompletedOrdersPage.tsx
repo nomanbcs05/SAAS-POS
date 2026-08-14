@@ -209,6 +209,10 @@ const CompletedOrdersPage = () => {
       handlePrintBill();
     }, 500);
   };
+
+  return (
+    <MainLayout>
+      <div className="flex h-full bg-slate-50/50 relative">
         {/* Left Side: Order List */}
         <div className="flex-1 flex flex-col min-w-0 border-r bg-white">
           <div className="p-6 space-y-6">
