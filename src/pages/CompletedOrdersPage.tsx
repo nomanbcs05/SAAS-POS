@@ -192,10 +192,11 @@ const CompletedOrdersPage = () => {
         phone: order.customers.phone || ''
       } : null,
       subtotal: order.total_amount,
-      taxAmount: 0,
+      taxAmount: Math.round((order.total_amount || 0) * 0.08),
+      taxRate: 8,
       discountAmount: 0,
       deliveryFee: 0,
-      total: order.total_amount,
+      total: order.total_amount + Math.round((order.total_amount || 0) * 0.08),
       paymentMethod: order.payment_method || 'cash',
       orderType: order.order_type,
       createdAt: new Date(order.created_at),
@@ -208,10 +209,6 @@ const CompletedOrdersPage = () => {
       handlePrintBill();
     }, 500);
   };
-
-  return (
-    <MainLayout>
-      <div className="flex h-full bg-slate-50/50 relative">
         {/* Left Side: Order List */}
         <div className="flex-1 flex flex-col min-w-0 border-r bg-white">
           <div className="p-6 space-y-6">

@@ -1041,7 +1041,7 @@ const CartPanel = () => {
           <Button
             variant="default"
             className="h-10 font-black font-heading uppercase tracking-widest text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20"
-            onClick={handleDone}
+            onClick={handleCompleteSale}
             disabled={items.length === 0}
           >
             <Printer className="w-4 h-4 mr-1.5" /> Pay
