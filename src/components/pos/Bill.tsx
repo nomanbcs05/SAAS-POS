@@ -47,8 +47,10 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
     '!!!!FOR THE LOVE OF FOOD !!!!';
 
   // GST rate: read from order → tenant settings → fallback 8
-  const gstRate = order.taxRate ?? (tenant as any)?.tax_rate ?? 8;
-  const itemsTotal = Number(order.subtotal) || 0;
+  // Use || (not ??) so explicit 0 still falls back to saved tenant rate
+  const gstRate = order.taxRate || (tenant as any)?.tax_rate || 8;
+  // Items Total = pure sum of item amounts (never includes GST)
+  const itemsTotal = order.items.reduce((sum, item) => sum + ((item.lineTotal ?? (Number(item.product?.price || 0) * item.quantity)) || 0), 0);
   const gstAmount = itemsTotal * (gstRate / 100);
   const grandTotal = itemsTotal + gstAmount;
 
