@@ -46,13 +46,15 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
     tenant?.bill_footer ||
     '!!!!FOR THE LOVE OF FOOD !!!!';
 
-  // GST rate: read from order → tenant settings → fallback 8
-  // Use || (not ??) so explicit 0 still falls back to saved tenant rate
-  const gstRate = order.taxRate || (tenant as any)?.tax_rate || 8;
+  // GST rate: 8% hardcoded for bill print
+  const gstRate = 8;
   // Items Total = pure sum of item amounts (never includes GST)
   const itemsTotal = order.items.reduce((sum, item) => sum + ((item.lineTotal ?? (Number(item.product?.price || 0) * item.quantity)) || 0), 0);
   const gstAmount = itemsTotal * (gstRate / 100);
-  const grandTotal = itemsTotal + gstAmount;
+  const discountAmount = Number(order.discountAmount) || 0;
+  const serviceChargesAmount = Number(order.serviceChargesAmount) || 0;
+  const deliveryFee = Number(order.deliveryFee) || 0;
+  const grandTotal = itemsTotal + gstAmount - discountAmount + serviceChargesAmount + deliveryFee;
 
   const paymentMethodLabel: Record<string, string> = {
     cash: 'Cash',
@@ -206,7 +208,7 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
           <span>Items Total :</span>
           <span>{itemsTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
-        {/* GST – rate read once from settings */}
+        {/* GST @ 8% */}
         <div className="flex justify-between">
           <span>GST @ {gstRate}% :</span>
           <span>{gstAmount.toFixed(2)}</span>
@@ -216,22 +218,22 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
           <span>Grand Total :</span>
           <span>{grandTotal.toFixed(2)}</span>
         </div>
-        {order.discountAmount > 0 && (
+        {discountAmount > 0 && (
           <div className="flex justify-between">
             <span>Discount :</span>
-            <span>-{Number(order.discountAmount).toLocaleString()}</span>
+            <span>-{discountAmount.toLocaleString()}</span>
           </div>
         )}
-        {order.serviceChargesAmount && order.serviceChargesAmount > 0 && (
+        {serviceChargesAmount > 0 && (
           <div className="flex justify-between">
             <span>Service Charges :</span>
-            <span>+{Number(order.serviceChargesAmount).toLocaleString()}</span>
+            <span>+{serviceChargesAmount.toLocaleString()}</span>
           </div>
         )}
-        {order.deliveryFee && order.deliveryFee > 0 && (
+        {deliveryFee > 0 && (
           <div className="flex justify-between">
             <span>Delivery Charges :</span>
-            <span>{order.deliveryFee}</span>
+            <span>{deliveryFee.toLocaleString()}</span>
           </div>
         )}
         {(() => {
@@ -241,33 +243,33 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
               {prevBalance > 0 && (
                 <div className="flex justify-between font-bold text-red-600 mt-1 border-t border-black pt-1">
                   <span>Previous Credit Balance:</span>
-                  <span>Rs {prevBalance.toLocaleString()}</span>
+                  <span>Rs {prevBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-base mt-0.5 bg-gray-100 p-1">
                 <span>Current Order Total:</span>
-                <span>Rs {Number(order.total).toLocaleString()}</span>
+                <span>Rs {grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               {prevBalance > 0 && (
                 <div className="flex justify-between font-black text-sm mt-1 p-1 border-t-2 border-black bg-gray-200">
                   <span>TOTAL COMBINED BALANCE:</span>
-                  <span>Rs {((order.total || 0) + prevBalance).toLocaleString()}</span>
+                  <span>Rs {(grandTotal + prevBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               )}
             </>
           );
         })()}
-        {order.receivedCash !== undefined && order.receivedCash > 0 && (
-          <div className="flex justify-between font-bold mt-1 border-t border-dotted border-black pt-1">
-            <span>Cash Received:</span>
-            <span>Rs {order.receivedCash.toLocaleString()}</span>
-          </div>
-        )}
-        {order.remainingCash !== undefined && order.remainingCash > 0 && (
-          <div className="flex justify-between font-bold">
-            <span>Change Returned:</span>
-            <span>Rs {order.remainingCash.toLocaleString()}</span>
-          </div>
+        {order.receivedCash !== undefined && Number(order.receivedCash) > 0 && (
+          <>
+            <div className="flex justify-between font-bold mt-1 border-t border-dotted border-black pt-1">
+              <span>Cash Received:</span>
+              <span>Rs {Number(order.receivedCash).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between font-bold">
+              <span>Change Returned:</span>
+              <span>Rs {Math.max(0, Number(order.receivedCash) - grandTotal).toFixed(2)}</span>
+            </div>
+          </>
         )}
         {order.items.some(item => item.desiredAmount !== undefined) && (
           <div className="border-t border-dotted border-black mt-1 pt-1 space-y-0.5 text-[11px] font-bold">

@@ -46,13 +46,15 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
     tenant?.bill_footer ||
     '!!!!FOR THE LOVE OF FOOD !!!!';
 
-  // GST rate: read from order → tenant settings → fallback 8
-  // Use || (not ??) so explicit 0 still falls back to saved tenant rate
-  const gstRate = order.taxRate || (tenant as any)?.tax_rate || 8;
+  // GST rate: 8% hardcoded for receipt print
+  const gstRate = 8;
   // Items Total = pure sum of item amounts (never includes GST)
   const itemsTotal = order.items.reduce((sum, item) => sum + ((item.lineTotal ?? (Number(item.product?.price || 0) * item.quantity)) || 0), 0);
   const gstAmount = itemsTotal * (gstRate / 100);
-  const grandTotal = itemsTotal + gstAmount;
+  const discountAmount = Number(order.discountAmount) || 0;
+  const serviceChargesAmount = Number(order.serviceChargesAmount) || 0;
+  const deliveryFee = Number(order.deliveryFee) || 0;
+  const grandTotal = itemsTotal + gstAmount - discountAmount + serviceChargesAmount + deliveryFee;
 
   const paymentMethodLabel: Record<string, string> = {
     cash: 'Cash',
@@ -183,19 +185,22 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
             </tr>
           </thead>
           <tbody>
-            {order.items.map((item) => (
-              <tr key={item.product.id}>
-                <td className="py-1 pl-1 align-top font-medium text-[11px]">{item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)}</td>
-                <td className="py-1 align-top uppercase break-words font-medium text-[11px]">
-                  {item.product.name}
-                  {item.qtyMeasureLabel && (
-                    <span className="block text-[9px] text-gray-500 font-bold italic">({item.qtyMeasureLabel})</span>
-                  )}
-                </td>
-                <td className="text-right py-1 align-top font-medium text-[11px]">{item.product.price}</td>
-                <td className="text-right py-1 pr-1 align-top font-bold text-[11px]">{(item.lineTotal || 0).toFixed(3)}</td>
-              </tr>
-            ))}
+            {order.items.map((item) => {
+              const itemAmt = Number(item.lineTotal ?? (Number(item.product?.price || 0) * item.quantity)) || 0;
+              return (
+                <tr key={item.product.id}>
+                  <td className="py-1 pl-1 align-top font-medium text-[11px]">{item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)}</td>
+                  <td className="py-1 align-top uppercase break-words font-medium text-[11px]">
+                    {item.product.name}
+                    {item.qtyMeasureLabel && (
+                      <span className="block text-[9px] text-gray-500 font-bold italic">({item.qtyMeasureLabel})</span>
+                    )}
+                  </td>
+                  <td className="text-right py-1 align-top font-medium text-[11px]">{item.product.price}</td>
+                  <td className="text-right py-1 pr-1 align-top font-bold text-[11px]">{itemAmt.toLocaleString()}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -207,7 +212,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
           <span>Items Total :</span>
           <span>{itemsTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
-        {/* GST – rate read once from settings */}
+        {/* GST @ 8% */}
         <div className="flex justify-between font-medium">
           <span>GST @ {gstRate}% :</span>
           <span>{gstAmount.toFixed(2)}</span>
@@ -217,22 +222,22 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
           <span>Grand Total :</span>
           <span>{grandTotal.toFixed(2)}</span>
         </div>
-        {order.discountAmount > 0 && (
+        {discountAmount > 0 && (
           <div className="flex justify-between font-medium">
             <span>Discount :</span>
-            <span>-{(order.discountAmount || 0).toFixed(2)}</span>
+            <span>-{discountAmount.toFixed(2)}</span>
           </div>
         )}
-        {order.serviceChargesAmount && order.serviceChargesAmount > 0 && (
+        {serviceChargesAmount > 0 && (
           <div className="flex justify-between font-medium">
             <span>Service Charges :</span>
-            <span>+{(order.serviceChargesAmount || 0).toFixed(2)}</span>
+            <span>+{serviceChargesAmount.toFixed(2)}</span>
           </div>
         )}
-        {order.deliveryFee && order.deliveryFee > 0 && (
+        {deliveryFee > 0 && (
           <div className="flex justify-between font-medium">
             <span>Delivery Charges :</span>
-            <span>{order.deliveryFee}</span>
+            <span>{deliveryFee.toFixed(2)}</span>
           </div>
         )}
         {(() => {
@@ -242,33 +247,33 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
               {prevBalance > 0 && (
                 <div className="flex justify-between font-bold text-red-600 mt-1 border-t border-black pt-1">
                   <span>Previous Credit Balance:</span>
-                  <span>Rs {prevBalance.toLocaleString()}</span>
+                  <span>Rs {prevBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-base mt-1 bg-gray-100 p-1 border border-black/10">
                 <span>Current Order Total:</span>
-                <span>Rs {(order.total || 0).toLocaleString()}</span>
+                <span>Rs {grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               {prevBalance > 0 && (
                 <div className="flex justify-between font-black text-sm mt-1 p-1 border-t-2 border-black bg-gray-200">
                   <span>TOTAL COMBINED BALANCE:</span>
-                  <span>Rs {((order.total || 0) + prevBalance).toLocaleString()}</span>
+                  <span>Rs {(grandTotal + prevBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               )}
             </>
           );
         })()}
-        {order.receivedCash !== undefined && order.receivedCash > 0 && (
-          <div className="flex justify-between font-bold mt-1 border-t border-dotted border-black pt-1">
-            <span>Cash Received:</span>
-            <span>Rs {order.receivedCash.toLocaleString()}</span>
-          </div>
-        )}
-        {order.remainingCash !== undefined && order.remainingCash > 0 && (
-          <div className="flex justify-between font-bold">
-            <span>Change Returned:</span>
-            <span>Rs {order.remainingCash.toLocaleString()}</span>
-          </div>
+        {order.receivedCash !== undefined && Number(order.receivedCash) > 0 && (
+          <>
+            <div className="flex justify-between font-bold mt-1 border-t border-dotted border-black pt-1">
+              <span>Cash Received:</span>
+              <span>Rs {Number(order.receivedCash).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between font-bold">
+              <span>Change Returned:</span>
+              <span>Rs {Math.max(0, Number(order.receivedCash) - grandTotal).toFixed(2)}</span>
+            </div>
+          </>
         )}
         {order.items.some(item => item.desiredAmount !== undefined) && (
           <div className="border-t border-dotted border-black mt-1 pt-1 space-y-0.5 text-[10px] font-bold">
