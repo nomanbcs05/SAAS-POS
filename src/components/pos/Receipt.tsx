@@ -46,6 +46,12 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
     tenant?.bill_footer ||
     '!!!!FOR THE LOVE OF FOOD !!!!';
 
+  // GST rate: read from order → tenant settings → fallback 8
+  const gstRate = order.taxRate ?? (tenant as any)?.tax_rate ?? 8;
+  const itemsTotal = Number(order.subtotal) || 0;
+  const gstAmount = itemsTotal * (gstRate / 100);
+  const grandTotal = itemsTotal + gstAmount;
+
   const paymentMethodLabel: Record<string, string> = {
     cash: 'Cash',
     card: 'Card',
@@ -194,26 +200,31 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
 
       {/* Totals */}
       <div className="border-x border-b border-black p-1 text-[11px]">
+        {/* Items Total – pure sum of item amounts, no GST */}
         <div className="flex justify-between font-medium">
-          <span>SubTotal :</span>
-          <span>{(order.subtotal || 0).toFixed(3)}</span>
+          <span>Items Total :</span>
+          <span>{itemsTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        {/* GST – rate read once from settings */}
+        <div className="flex justify-between font-medium">
+          <span>GST @ {gstRate}% :</span>
+          <span>{gstAmount.toFixed(2)}</span>
+        </div>
+        {/* Grand Total = Items Total + GST */}
+        <div className="flex justify-between font-bold border-t border-dotted border-black pt-0.5 mt-0.5">
+          <span>Grand Total :</span>
+          <span>{grandTotal.toFixed(2)}</span>
         </div>
         {order.discountAmount > 0 && (
           <div className="flex justify-between font-medium">
             <span>Discount :</span>
-            <span>-{(order.discountAmount || 0).toFixed(3)}</span>
+            <span>-{(order.discountAmount || 0).toFixed(2)}</span>
           </div>
         )}
         {order.serviceChargesAmount && order.serviceChargesAmount > 0 && (
           <div className="flex justify-between font-medium">
             <span>Service Charges :</span>
-            <span>+{(order.serviceChargesAmount || 0).toFixed(3)}</span>
-          </div>
-        )}
-        {order.taxAmount !== undefined && order.taxAmount > 0 && (
-          <div className="flex justify-between font-medium">
-            <span>GST ({order.taxRate || (tenant as any)?.tax_rate || 8}%):</span>
-            <span>+Rs {Number(order.taxAmount).toLocaleString()}</span>
+            <span>+{(order.serviceChargesAmount || 0).toFixed(2)}</span>
           </div>
         )}
         {order.deliveryFee && order.deliveryFee > 0 && (
