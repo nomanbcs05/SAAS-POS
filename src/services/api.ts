@@ -1540,17 +1540,25 @@ export const api = {
         return enqueueOfflineUpdate();
       }
 
-      // Fetch previous order details before update to avoid duplicate crediting
+      // Fetch previous order details before update to verify existence
       let prevOrder: any = null;
-      try {
-        const { data } = await supabase
-          .from('orders')
-          .select('status, payment_method, total_amount, customer_id, tenant_id')
-          .eq('id', orderId)
-          .maybeSingle();
-        prevOrder = data;
-      } catch (err) {
-        console.warn('Failed to fetch previous order state:', err);
+      if (isValidUUID(orderId)) {
+        try {
+          const { data } = await supabase
+            .from('orders')
+            .select('id, status, payment_method, total_amount, customer_id, tenant_id')
+            .eq('id', orderId)
+            .maybeSingle();
+          prevOrder = data;
+        } catch (err) {
+          console.warn('Failed to fetch previous order state:', err);
+        }
+      }
+
+      // If order does not exist in Supabase database, fallback to create
+      if (!prevOrder) {
+        console.warn(`Order ID ${orderId} does not exist in Supabase DB. Creating order instead.`);
+        return api.orders.create(order, items);
       }
 
       // 1. Update order with fallback
