@@ -82,32 +82,6 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     enabled: isOpen,
   });
 
-  // Automatically seed initial tables if DB has none and not seeded yet
-  useEffect(() => {
-    if (!isOpen || isLoading) return;
-    const hasSeeded = localStorage.getItem('pos_tables_seeded_v1');
-    if (dbTables.length === 0 && !hasSeeded) {
-      localStorage.setItem('pos_tables_seeded_v1', 'true');
-      const initialTables: { table_number: string; section: string; capacity: number }[] = [];
-      let seq = 1;
-      (['indoor', 'outdoor', 'vip'] as TableSection[]).forEach((sec) => {
-        const { count, capacity } = SECTION_CONFIG[sec];
-        for (let i = 1; i <= count; i++) {
-          initialTables.push({
-            table_number: seq.toString(),
-            section: sec,
-            capacity,
-          });
-          seq++;
-        }
-      });
-      api.tables.bulkCreate(initialTables).then(() => {
-        queryClient.invalidateQueries({ queryKey: ['tables'] });
-      }).catch(err => console.warn('Could not auto-seed tables:', err));
-    }
-  }, [isOpen, isLoading, dbTables.length, queryClient]);
-
-  // Servers are managed purely via localStorage, separate from DB staff/cashiers
   const displayServers = serverList;
 
   const { data: ongoingOrders = [] } = useQuery({
@@ -162,6 +136,21 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     },
     onError: () => toast.error('Failed to delete table'),
   });
+
+  const deleteAllTablesMutation = useMutation({
+    mutationFn: async () => api.tables.deleteAll(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
+      toast.success('All tables removed successfully');
+    },
+    onError: () => toast.error('Failed to remove tables'),
+  });
+
+  const handleClearAllTables = () => {
+    if (window.confirm('Are you sure you want to remove ALL tables from Dine In?')) {
+      deleteAllTablesMutation.mutate();
+    }
+  };
 
   const handleServerSelect = (name: string) => {
     setServerName(name);
@@ -306,6 +295,16 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
                       >
                         <Plus className="w-3.5 h-3.5" /> Add Table
                       </Button>
+                      {dbTables.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleClearAllTables}
+                          className="text-red-600 border-red-200 hover:bg-red-50 text-[10px] font-black uppercase tracking-wider rounded-xl h-9 px-3 gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Remove All
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"

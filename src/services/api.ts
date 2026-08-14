@@ -861,6 +861,19 @@ export const api = {
         console.warn('[Tables] restaurant_tables delete error:', err);
         return false;
       }
+    },
+    deleteAll: async () => {
+      await offline.cacheTables([]);
+      try {
+        const { error } = await supabase
+          .from('restaurant_tables')
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000');
+        if (error) console.warn('[Tables] restaurant_tables deleteAll error:', error.message);
+      } catch (err) {
+        console.warn('[Tables] deleteAll catch error:', err);
+      }
+      return true;
     }
   },
   staff: {
