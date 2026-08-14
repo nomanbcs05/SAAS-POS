@@ -862,18 +862,18 @@ export const api = {
       }
 
       try {
-        const { error } = await supabase
+        // Delete by ID
+        await supabase
           .from('restaurant_tables')
           .delete()
           .eq('id', id);
         
-        if (error) {
-          // Fallback to table_number match if ID deletion didn't match UUID
-          await supabase
-            .from('restaurant_tables')
-            .delete()
-            .eq('table_number', id);
-        }
+        // Delete by table_number (handles cases where ID passed is table number string)
+        await supabase
+          .from('restaurant_tables')
+          .delete()
+          .eq('table_number', id);
+
         return true;
       } catch (err) {
         console.warn('[Tables] restaurant_tables delete error:', err);
@@ -884,13 +884,21 @@ export const api = {
       await offline.cacheTables([]);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('pos_offline_tables');
+        localStorage.setItem('pos_tables_seeded_v1', 'true');
       }
       try {
         const { error } = await supabase
           .from('restaurant_tables')
           .delete()
-          .neq('id', '00000000-0000-0000-0000-000000000000');
-        if (error) console.warn('[Tables] restaurant_tables deleteAll error:', error.message);
+          .not('id', 'is', null);
+
+        if (error) {
+          console.warn('[Tables] restaurant_tables deleteAll not.is.null failed, retrying with gt:', error.message);
+          await supabase
+            .from('restaurant_tables')
+            .delete()
+            .gt('table_number', '');
+        }
       } catch (err) {
         console.warn('[Tables] deleteAll catch error:', err);
       }
