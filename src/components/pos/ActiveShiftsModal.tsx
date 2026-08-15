@@ -76,11 +76,24 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
     documentTitle: `Shift-Item-Summary-${format(new Date(), 'yyyy-MM-dd-HHmm')}`,
   });
 
+  const [shiftsList, setShiftsList] = useState<ShiftSession[]>(() => shiftService.getStoredShifts());
+
+  React.useEffect(() => {
+    if (open) {
+      shiftService.getAllShiftsFromCloud().then((cloudShifts) => {
+        if (Array.isArray(cloudShifts) && cloudShifts.length > 0) {
+          setShiftsList(cloudShifts);
+        }
+      });
+    }
+  }, [open]);
+
   const allStoredShifts = useMemo(() => {
-    return shiftService.getStoredShifts().sort(
+    const list = shiftsList.length > 0 ? shiftsList : shiftService.getStoredShifts();
+    return [...list].sort(
       (a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime()
     );
-  }, [open, closingShift]);
+  }, [open, closingShift, shiftsList]);
 
   const runningShifts = useMemo(() => {
     return allStoredShifts.filter(s => s.status === 'open');

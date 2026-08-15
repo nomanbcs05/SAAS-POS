@@ -130,6 +130,55 @@ const syncActiveShiftsFromCloud = async (): Promise<ShiftSession[]> => {
   return getActiveShifts();
 };
 
+const getAllShiftsFromCloud = async (): Promise<ShiftSession[]> => {
+  if (!isOnline()) return getStoredShifts();
+
+  try {
+    const { data, error } = await supabase
+      .from('daily_registers')
+      .select('*')
+      .order('opened_at', { ascending: false });
+
+    if (!error && Array.isArray(data)) {
+      const cloudShifts: ShiftSession[] = data.map((r: any) => {
+        let cName = (r.cashier_name || '').trim();
+        if (!cName && r.notes) {
+          const match = r.notes.match(/Cashier:\s*(.*)/i);
+          if (match && match[1]) {
+            cName = match[1].trim();
+          }
+        }
+        if (!cName) cName = 'CASHIER';
+
+        return {
+          id: r.id,
+          cashier_name: cName,
+          cashier_id: r.cashier_id || undefined,
+          opened_at: r.opened_at,
+          closed_at: r.closed_at || null,
+          starting_amount: Number(r.starting_amount) || 0,
+          ending_amount: r.ending_amount != null ? Number(r.ending_amount) : null,
+          status: (r.status as 'open' | 'closed') || 'open',
+          notes: r.notes || null,
+        };
+      });
+
+      const stored = getStoredShifts();
+      const mergedMap = new Map<string, ShiftSession>();
+      stored.forEach(s => mergedMap.set(s.id, s));
+      cloudShifts.forEach(s => mergedMap.set(s.id, s));
+
+      const merged = Array.from(mergedMap.values());
+      saveShifts(merged);
+      return merged;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch historical shifts from Supabase:', err);
+  }
+
+  return getStoredShifts();
+};
+
 // Initial background sync
 if (typeof window !== 'undefined') {
   setTimeout(() => {
@@ -159,6 +208,8 @@ export const shiftService = {
 
   syncActiveShiftsFromCloud,
 
+  getAllShiftsFromCloud,
+
   getCurrentCashierOpenShift,
 
   openShift: async (startingAmount: number, cashierName?: string): Promise<ShiftSession> => {
@@ -171,14 +222,14 @@ export const shiftService = {
       starting_amount: Number(startingAmount) || 0,
       ending_amount: null,
       status: 'open',
-      notes: 'Shift started',
+      notes: `Cashier: ${name}`,
     };
 
     const shifts = getStoredShifts();
     shifts.push(newShift);
     saveShifts(shifts);
     localStorage.setItem('pos_current_shift_id', newShift.id);
-    // Reset order counter so new shift starts with order #1
+    // Reset order counter so new shift starts with clean sequence
     resetDailyCounter();
 
     if (isOnline()) {
@@ -198,7 +249,7 @@ export const shiftService = {
     return newShift;
   },
 
-  closeShift: async (id: string, endingAmount?: number): Promise<ShiftSession | null> => {
+  closeShift: async (id: string, endingAmount?: number, notes?: string): Promise<ShiftSession | null> => {
     const shifts = getStoredShifts();
     const index = shifts.findIndex((s) => s.id === id);
     if (index === -1) return null;
@@ -209,6 +260,7 @@ export const shiftService = {
       status: 'closed',
       closed_at: new Date().toISOString(),
       ending_amount: endingAmount ?? shift.starting_amount,
+      notes: notes || shift.notes || 'Shift closed',
     };
 
     shifts[index] = updated;
@@ -227,6 +279,7 @@ export const shiftService = {
             status: 'closed',
             closed_at: updated.closed_at,
             ending_amount: updated.ending_amount,
+            notes: updated.notes,
           } as any)
           .eq('id', id);
       } catch (err) {

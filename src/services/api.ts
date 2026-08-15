@@ -1105,11 +1105,73 @@ export const api = {
       if (error) throw error;
       return data;
     },
-    getDailyCount: async (registerId?: string) => {
+    getNextDailyId: async (registerId?: string) => {
       const activeShift = shiftService.getCurrentCashierOpenShift();
       const targetRegisterId = registerId || activeShift?.id;
 
       // Force SQLite for desktop app
+      if (isDesktop() && window.electronAPI) {
+        const all = await window.electronAPI.getAllOrders();
+        let shiftOrders: any[] = [];
+        if (targetRegisterId && isValidUUID(targetRegisterId)) {
+          shiftOrders = all.filter(o => o.register_id === targetRegisterId);
+        } else if (activeShift?.opened_at) {
+          shiftOrders = all.filter(o => o.created_at && o.created_at >= activeShift.opened_at);
+        } else {
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+          shiftOrders = all.filter(o => o.created_at && new Date(o.created_at) >= todayStart);
+        }
+        const maxDailyId = shiftOrders.reduce((max, o) => Math.max(max, Number(o.daily_id) || 0), 0);
+        const nextId = Math.max(maxDailyId, offline.getDailyCounter()) + 1;
+        offline.setDailyCounter(nextId);
+        return nextId;
+      }
+      
+      if (!offline.isOnline()) {
+        return offline.incrementDailyCounter();
+      }
+
+      let maxDbId = 0;
+      const todayStartIso = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+      const startTime = activeShift?.opened_at
+        ? new Date(activeShift.opened_at).toISOString()
+        : todayStartIso;
+
+      try {
+        let query = supabase
+          .from('orders')
+          .select('daily_id')
+          .order('daily_id', { ascending: false })
+          .limit(1);
+
+        if (targetRegisterId && isValidUUID(targetRegisterId)) {
+          query = query.eq('register_id', targetRegisterId);
+        } else {
+          query = query.gte('created_at', startTime);
+        }
+
+        const { data, error } = await Promise.race([
+          query,
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+        ]);
+
+        if (!error && Array.isArray(data) && data.length > 0 && data[0]?.daily_id) {
+          maxDbId = Number(data[0].daily_id) || 0;
+        }
+      } catch (err) {
+        console.warn('Timeout or error fetching highest daily_id:', err);
+      }
+
+      const currentOffline = offline.getDailyCounter();
+      const nextId = Math.max(maxDbId, currentOffline) + 1;
+      localStorage.setItem('pos_daily_counter', nextId.toString());
+      return nextId;
+    },
+    getDailyCount: async (registerId?: string) => {
+      const activeShift = shiftService.getCurrentCashierOpenShift();
+      const targetRegisterId = registerId || activeShift?.id;
+
       if (isDesktop() && window.electronAPI) {
         const all = await window.electronAPI.getAllOrders();
         if (targetRegisterId && isValidUUID(targetRegisterId)) {
@@ -1125,64 +1187,33 @@ export const api = {
         return offline.getDailyCounter();
       }
 
-      // If we have a valid registerId UUID, count orders in that shift
-      if (targetRegisterId && isValidUUID(targetRegisterId)) {
-        const fetchPromise = supabase
-          .from('orders')
-          .select('*', { count: 'exact', head: true })
-          .eq('register_id', targetRegisterId);
-        
-        try {
-          const result = await Promise.race([
-            fetchPromise,
-            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 800))
-          ]);
+      const todayStartIso = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+      const startTime = activeShift?.opened_at
+        ? new Date(activeShift.opened_at).toISOString()
+        : todayStartIso;
 
-          if (result && !result.error && typeof result.count === 'number' && result.count > 0) return result.count;
-        } catch (err) {
-          console.warn('Timeout or error fetching shift order count, falling back');
-        }
-      }
-
-      if (activeShift?.opened_at) {
-        try {
-          const { count, error } = await Promise.race([
-            supabase
-              .from('orders')
-              .select('*', { count: 'exact', head: true })
-              .gte('created_at', activeShift.opened_at),
-            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 800))
-          ]);
-
-          if (!error && typeof count === 'number' && count > 0) return count;
-        } catch (err) {
-          console.warn('Timeout fetching shift fallback count');
-        }
-      }
-
-      // Count orders for the current active shift (or since today start)
       try {
-        const activeShift = shiftService.getCurrentCashierOpenShift();
-        const startTime = activeShift?.opened_at
-          ? new Date(activeShift.opened_at).toISOString()
-          : new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
-
-        // Fetch count of orders created in this active shift
-        const countPromise = supabase
+        let query = supabase
           .from('orders')
-          .select('*', { count: 'exact', head: true })
-          .gte('created_at', startTime);
+          .select('daily_id')
+          .order('daily_id', { ascending: false })
+          .limit(1);
 
-        const countRes = await Promise.race([
-          countPromise,
-          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
-        ]).catch(() => null);
+        if (targetRegisterId && isValidUUID(targetRegisterId)) {
+          query = query.eq('register_id', targetRegisterId);
+        } else {
+          query = query.gte('created_at', startTime);
+        }
 
-        const shiftCount = typeof countRes?.count === 'number' ? countRes.count : 0;
-        const currentOffline = offline.getDailyCounter();
+        const { data, error } = await Promise.race([
+          query,
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+        ]);
 
-        const bestCount = Math.max(shiftCount, currentOffline);
-        return bestCount;
+        if (!error && Array.isArray(data) && data.length > 0 && data[0]?.daily_id) {
+          const maxDbId = Number(data[0].daily_id) || 0;
+          return Math.max(maxDbId, offline.getDailyCounter());
+        }
       } catch (err) {
         console.warn('Timeout or error fetching shift order count, using local sequence');
       }
@@ -1257,28 +1288,28 @@ export const api = {
         return enqueueOffline();
       }
       
+      const activeShift = shiftService.getCurrentCashierOpenShift();
+      const targetRegisterId = order.register_id || activeShift?.id || null;
+
       // Ensure daily_id is valid and collision-free
       let dailyId = Number(order.daily_id);
-      try {
-        const currentHighest = await api.orders.getDailyCount();
-        if (!dailyId || isNaN(dailyId) || dailyId <= 0 || dailyId <= currentHighest) {
-          dailyId = currentHighest + 1;
+      if (!dailyId || isNaN(dailyId) || dailyId <= 0) {
+        try {
+          dailyId = await api.orders.getNextDailyId(targetRegisterId || undefined);
+        } catch {
+          dailyId = offline.incrementDailyCounter();
         }
-      } catch {
-        dailyId = offline.incrementDailyCounter();
+      } else {
+        localStorage.setItem('pos_daily_counter', dailyId.toString());
       }
-      // Instantly reserve next counter in localStorage to protect against concurrent clicks
-      localStorage.setItem('pos_daily_counter', dailyId.toString());
 
       // Clean order data to match actual Supabase schema
-      // Note: discount_amount, service_charges_amount, delivery_fee columns
-      // do not exist in the orders table — do NOT include them
       const safeOrder: any = {
         total_amount: Number(order.total_amount) || 0,
         status: order.status || 'completed',
         payment_method: order.payment_method || 'cash',
         order_type: order.order_type || 'dine_in',
-        register_id: null,
+        register_id: (targetRegisterId && isValidUUID(String(targetRegisterId))) ? String(targetRegisterId) : null,
         daily_id: dailyId,
         tenant_id: tenantId || null,
         customer_id: order.customer_id || null,
@@ -1475,13 +1506,16 @@ export const api = {
       };
     },
     update: async (orderId: string, order: any, items: OrderItemInsert[]) => {
+      const activeShift = shiftService.getCurrentCashierOpenShift();
+      const targetRegisterId = order.register_id || activeShift?.id || null;
+
       // Clean order data to match actual Supabase schema
       const safeOrder: any = {
         total_amount: Number(order.total_amount) || 0,
         status: order.status || 'pending',
         payment_method: order.payment_method || 'cash',
         order_type: order.order_type || 'dine_in',
-        register_id: null,
+        register_id: (targetRegisterId && isValidUUID(String(targetRegisterId))) ? String(targetRegisterId) : null,
         daily_id: order.daily_id || null,
       };
 
@@ -2116,7 +2150,7 @@ export const api = {
         return await window.electronAPI.clearAllToday();
       }
 
-      // Clear local offline queue first
+      // Clear local offline queue for pending orders
       offline.clearAllToday();
 
       if (!offline.isOnline()) return true;
@@ -2125,10 +2159,12 @@ export const api = {
       startOfDay.setHours(0, 0, 0, 0);
 
       try {
+        // Only target pending/ongoing orders to cancel or clear from running list
         const { data: orders, error: fetchError } = await Promise.race([
           supabase
             .from('orders')
             .select('id')
+            .in('status', ['pending', 'preparing', 'ready'])
             .gte('created_at', startOfDay.toISOString()),
           new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
         ]);
@@ -2138,7 +2174,7 @@ export const api = {
 
         const orderIds = orders.map(o => o.id);
 
-        // Delete order items first
+        // Delete order items for pending orders
         const { error: itemsError } = await Promise.race([
           supabase
             .from('order_items')
@@ -2149,7 +2185,7 @@ export const api = {
 
         if (itemsError) throw itemsError;
 
-        // Delete orders
+        // Delete only pending orders
         const { error: orderError } = await Promise.race([
           supabase
             .from('orders')

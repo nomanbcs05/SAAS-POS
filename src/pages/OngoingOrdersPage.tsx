@@ -374,8 +374,12 @@ const OngoingOrdersPage = () => {
       });
     }
 
-    return result;
-  }, [orders, activeTab, tableSearchQuery, orderCustomerSearchQuery]);
+    return [...result].sort((a, b) => {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [orders, activeTab, tableSearchQuery, orderCustomerSearchQuery, isAdmin, hookCashierName, adminCashierFilter]);
 
   const selectedOrder = useMemo(() => {
     if (!Array.isArray(orders)) return null;
@@ -442,13 +446,13 @@ const OngoingOrdersPage = () => {
                     size="sm"
                     className="text-red-600 border-red-200 hover:bg-red-50 font-bold"
                     onClick={() => {
-                      if (window.confirm('Are you sure you want to clear all of today\'s orders?')) {
+                      if (window.confirm('Are you sure you want to clear all ongoing pending orders?')) {
                         clearAllMutation.mutate();
                       }
                     }}
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Clear All
+                    Clear Running
                   </Button>
                 )}
                 <Badge variant="outline" className="px-3 py-1 text-sm font-medium bg-white shadow-sm">

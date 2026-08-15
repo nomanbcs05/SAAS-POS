@@ -258,48 +258,83 @@ const ReportsPage = () => {
     }
   };
 
-  const stats = useMemo(() => {
-    if (!data?.orders || !data?.customers) return null;
+    // Check if we are in active shift mode or historical date range mode
+    const currentShift = shiftService.getCurrentCashierOpenShift();
+    const openShifts = activeShifts.filter((s: any) => s.status === 'open');
+    const isShiftMode = !dateRange?.from;
 
-    const now = new Date();
-    let startDate = startOfMonth(now);
-    let endDate = endOfDay(now);
-    let previousStartDate = startOfMonth(subMonths(now, 1));
-    let previousEndDate = endOfDay(subMonths(now, 1));
+    let startDate: Date;
+    let endDate: Date;
+    let previousStartDate: Date;
+    let previousEndDate: Date;
 
     if (dateRange?.from) {
+      // Historical Date Range Mode
       startDate = startOfDay(dateRange.from);
       endDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
-
       const days = differenceInCalendarDays(endDate, startDate) + 1;
       previousEndDate = subDays(startDate, 1);
       previousStartDate = startOfDay(subDays(previousEndDate, days - 1));
+    } else if (currentShift?.opened_at) {
+      // Active Shift Mode (Default): Only from shift start time to now!
+      startDate = new Date(currentShift.opened_at);
+      endDate = new Date();
+      previousStartDate = subDays(startDate, 1);
+      previousEndDate = subDays(endDate, 1);
+    } else if (openShifts.length > 0 && openShifts[0].opened_at) {
+      startDate = new Date(openShifts[0].opened_at);
+      endDate = new Date();
+      previousStartDate = subDays(startDate, 1);
+      previousEndDate = subDays(endDate, 1);
+    } else {
+      // Fallback to today's start
+      startDate = startOfDay(now);
+      endDate = endOfDay(now);
+      previousStartDate = startOfDay(subDays(now, 1));
+      previousEndDate = endOfDay(subDays(now, 1));
     }
 
-    // Filter current period orders
+    // Filter current period orders (active shift or date range)
     const currentOrders = data.orders.filter(order => {
-      if (!order.created_at) return false;
+      if (!order.created_at || order.status !== 'completed') return false;
       const orderDate = parseISO(order.created_at);
-      return isWithinInterval(orderDate, { start: startDate, end: endDate });
+      const matchesTime = isWithinInterval(orderDate, { start: startDate, end: endDate }) || orderDate >= startDate;
+      if (isShiftMode && currentShift?.id && order.register_id) {
+        return order.register_id === currentShift.id || matchesTime;
+      }
+      return matchesTime;
     });
 
     // Filter previous period orders (for comparison)
     const previousOrders = data.orders.filter(order => {
-      if (!order.created_at) return false;
+      if (!order.created_at || order.status !== 'completed') return false;
       const orderDate = parseISO(order.created_at);
       return isWithinInterval(orderDate, { start: previousStartDate, end: previousEndDate });
     });
 
     const isCreditOrder = (o: any) => o.payment_method === 'credit' || (o.payment_method || '').toLowerCase() === 'credit';
+    const isCashOrder = (o: any) => !o.payment_method || o.payment_method === 'cash' || (o.payment_method || '').toLowerCase() === 'cash';
+    const isCardOrder = (o: any) => o.payment_method === 'card' || (o.payment_method || '').toLowerCase() === 'card' || (o.payment_method || '').toLowerCase() === 'online';
 
-    // Calculate metrics - Exclude unpaid Credit orders from Total Revenue & Sales Analytics!
+    // Calculate metrics - Exclude unpaid Credit orders from Total Revenue
     const currentRevenue = currentOrders
       .filter(order => !isCreditOrder(order))
+      .reduce((sum, order) => sum + Number(order.total_amount), 0);
+
+    const cashRevenue = currentOrders
+      .filter(order => isCashOrder(order))
+      .reduce((sum, order) => sum + Number(order.total_amount), 0);
+
+    const cardRevenue = currentOrders
+      .filter(order => isCardOrder(order))
       .reduce((sum, order) => sum + Number(order.total_amount), 0);
 
     const pendingCreditRevenue = currentOrders
       .filter(order => isCreditOrder(order))
       .reduce((sum, order) => sum + Number(order.total_amount), 0);
+
+    const startingCash = currentShift ? Number(currentShift.starting_amount) || 0 : (openShifts[0] ? Number(openShifts[0].starting_amount) || 0 : 0);
+    const totalCashInDrawer = startingCash + cashRevenue;
 
     const previousRevenue = previousOrders
       .filter(order => !isCreditOrder(order))
@@ -337,7 +372,7 @@ const ReportsPage = () => {
 
     // Prepare Chart Data (Excluding unpaid credit orders)
     const salesDataMap = new Map<string, number>();
-    const chartFormat = differenceInCalendarDays(endDate, startDate) === 0 ? 'HH:00' : 'dd MMM';
+    const chartFormat = differenceInCalendarDays(endDate, startDate) <= 1 ? 'HH:00' : 'dd MMM';
 
     currentOrders.forEach(order => {
       if (!order.created_at || isCreditOrder(order)) return;
@@ -390,6 +425,10 @@ const ReportsPage = () => {
 
     return {
       revenue: currentRevenue,
+      cashRevenue,
+      cardRevenue,
+      startingCash,
+      totalCashInDrawer,
       revenueGrowth,
       orders: currentOrdersCount,
       ordersGrowth,
@@ -401,20 +440,36 @@ const ReportsPage = () => {
       salesData,
       categoryData,
       topProducts,
+      isShiftMode,
+      activeShiftInfo: currentShift || openShifts[0] || null,
+      periodLabel: isShiftMode 
+        ? (currentShift ? `Active Shift (${currentShift.cashier_name})` : (openShifts[0] ? `Active Shift (${openShifts[0].cashier_name})` : "Today's Active Shift"))
+        : `Selected Period: ${format(startDate, 'dd MMM yyyy')} - ${format(endDate, 'dd MMM yyyy')}`
     };
-  }, [data, dateRange, categories]);
+  }, [data, dateRange, categories, activeShifts]);
 
   const summaryOrders = useMemo(() => {
     if (!data?.orders) return [];
+    const currentShift = shiftService.getCurrentCashierOpenShift();
+    const openShifts = activeShifts.filter((s: any) => s.status === 'open');
+
+    if (!dateRange?.from && (currentShift?.opened_at || openShifts[0]?.opened_at)) {
+      const shiftStartTime = new Date(currentShift?.opened_at || openShifts[0].opened_at);
+      return data.orders.filter((order: any) => {
+        if (!order.created_at || order.status !== 'completed') return false;
+        const orderDate = parseISO(order.created_at);
+        return orderDate >= shiftStartTime;
+      });
+    }
+
     const { start, end } = getRangeInterval();
     const filtered = data.orders.filter((order: any) => {
-      if (!order.created_at) return false;
+      if (!order.created_at || order.status !== 'completed') return false;
       const orderDate = parseISO(order.created_at);
-      return isWithinInterval(orderDate, { start, end }) && order.status === 'completed';
+      return isWithinInterval(orderDate, { start, end });
     });
-    console.log('summaryOrders filtered:', filtered.length, 'for range:', format(start, 'yyyy-MM-dd'), 'to', format(end, 'yyyy-MM-dd'));
     return filtered;
-  }, [data?.orders, dateRange]);
+  }, [data?.orders, dateRange, activeShifts]);
 
   if (isError) {
     return (
@@ -510,75 +565,124 @@ const ReportsPage = () => {
             </div>
           </div>
 
+          {/* Active Shift / Period Indicator Banner */}
+          <div className={cn(
+            "p-4 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm",
+            stats?.isShiftMode 
+              ? "bg-emerald-50/70 border-emerald-200 text-emerald-950" 
+              : "bg-blue-50/70 border-blue-200 text-blue-950"
+          )}>
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-sm",
+                stats?.isShiftMode ? "bg-emerald-600" : "bg-blue-600"
+              )}>
+                {stats?.isShiftMode ? <Clock className="h-5 w-5" /> : <CalendarIcon className="h-5 w-5" />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-sm uppercase tracking-wide">
+                    {stats?.periodLabel}
+                  </span>
+                  {stats?.isShiftMode && (
+                    <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] font-bold">
+                      LIVE SHIFT ONLY
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {stats?.isShiftMode 
+                    ? "Displaying revenue and cash collected exclusively for the active shift session."
+                    : "Displaying aggregated historical sales and revenue for the selected date range."}
+                </p>
+              </div>
+            </div>
+
+            {stats?.isShiftMode && (
+              <div className="flex flex-wrap items-center gap-4 text-xs font-semibold bg-white/80 border border-emerald-200/80 px-4 py-2 rounded-lg">
+                <div>
+                  <span className="text-slate-500">Starting Cash: </span>
+                  <span className="font-bold text-slate-900">Rs {(stats?.startingCash || 0).toLocaleString()}</span>
+                </div>
+                <Separator orientation="vertical" className="h-4" />
+                <div>
+                  <span className="text-slate-500">Cash Collected: </span>
+                  <span className="font-bold text-emerald-600">Rs {(stats?.cashRevenue || 0).toLocaleString()}</span>
+                </div>
+                <Separator orientation="vertical" className="h-4" />
+                <div>
+                  <span className="text-slate-500">In Drawer: </span>
+                  <span className="font-black text-slate-900">Rs {(stats?.totalCashInDrawer || 0).toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
+            <Card className="border-emerald-100 shadow-sm">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Revenue</p>
-                    <p className="text-2xl font-bold">Rs {(stats?.revenue || 0).toLocaleString()}</p>
-                    <div className={`flex items-center gap-1 text-sm ${stats?.revenueGrowth && stats.revenueGrowth >= 0 ? 'text-success' : 'text-destructive'}`}>
-                      {stats?.revenueGrowth && stats.revenueGrowth >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                      <span>{Math.abs(stats?.revenueGrowth || 0).toFixed(1)}% vs last period</span>
+                    <p className="text-sm text-muted-foreground">{stats?.isShiftMode ? 'Shift Revenue' : 'Total Revenue'}</p>
+                    <p className="text-2xl font-bold text-slate-900">Rs {(stats?.revenue || 0).toLocaleString()}</p>
+                    <div className={`flex items-center gap-1 text-xs mt-1 ${stats?.revenueGrowth && stats.revenueGrowth >= 0 ? 'text-success font-semibold' : 'text-muted-foreground'}`}>
+                      <span>Excludes unpaid credits</span>
                     </div>
                   </div>
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <DollarSign className="h-6 w-6 text-primary" />
+                  <div className="w-12 h-12 rounded-full bg-emerald-100/80 flex items-center justify-center">
+                    <DollarSign className="h-6 w-6 text-emerald-600" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-blue-100 shadow-sm">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Orders</p>
-                    <p className="text-2xl font-bold">{stats?.orders || 0}</p>
-                    <div className={`flex items-center gap-1 text-sm ${stats?.ordersGrowth && stats.ordersGrowth >= 0 ? 'text-success' : 'text-destructive'}`}>
-                      {stats?.ordersGrowth && stats.ordersGrowth >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                      <span>{Math.abs(stats?.ordersGrowth || 0).toFixed(1)}% vs last period</span>
-                    </div>
+                    <p className="text-sm text-muted-foreground">{stats?.isShiftMode ? 'Cash in Drawer' : 'Cash Sales'}</p>
+                    <p className="text-2xl font-bold text-blue-900">
+                      Rs {(stats?.isShiftMode ? stats?.totalCashInDrawer : stats?.cashRevenue || 0).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1 font-semibold">
+                      {stats?.isShiftMode ? `Rs ${(stats?.cashRevenue || 0).toLocaleString()} shift cash + Rs ${(stats?.startingCash || 0).toLocaleString()} start` : 'Cash payments only'}
+                    </p>
                   </div>
-                  <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
-                    <ShoppingCart className="h-6 w-6 text-success" />
+                  <div className="w-12 h-12 rounded-full bg-blue-100/80 flex items-center justify-center">
+                    <DollarSign className="h-6 w-6 text-blue-600" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="shadow-sm">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Avg Order Value</p>
-                    <p className="text-2xl font-bold">Rs {(stats?.avgOrderValue || 0).toLocaleString()}</p>
-                    <div className={`flex items-center gap-1 text-sm ${stats?.avgOrderValueGrowth && stats.avgOrderValueGrowth >= 0 ? 'text-success' : 'text-destructive'}`}>
-                      {stats?.avgOrderValueGrowth && stats.avgOrderValueGrowth >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                      <span>{Math.abs(stats?.avgOrderValueGrowth || 0).toFixed(1)}% vs last period</span>
+                    <p className="text-sm text-muted-foreground">{stats?.isShiftMode ? 'Shift Orders' : 'Total Orders'}</p>
+                    <p className="text-2xl font-bold text-slate-900">{stats?.orders || 0}</p>
+                    <div className="flex items-center gap-1 text-xs mt-1 text-slate-500 font-medium">
+                      <span>Avg: Rs {Math.round(stats?.avgOrderValue || 0).toLocaleString()}</span>
                     </div>
                   </div>
-                  <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
-                    <TrendingUp className="h-6 w-6 text-warning" />
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                    <ShoppingCart className="h-6 w-6 text-slate-700" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="shadow-sm">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">New Customers</p>
-                    <p className="text-2xl font-bold">{stats?.newCustomers || 0}</p>
-                    <div className={`flex items-center gap-1 text-sm ${stats?.customersGrowth && stats.customersGrowth >= 0 ? 'text-success' : 'text-destructive'}`}>
-                      {stats?.customersGrowth && stats.customersGrowth >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                      <span>{Math.abs(stats?.customersGrowth || 0).toFixed(1)}% vs last period</span>
-                    </div>
+                    <p className="text-sm text-muted-foreground">Digital / Card Sales</p>
+                    <p className="text-2xl font-bold text-purple-900">Rs {(stats?.cardRevenue || 0).toLocaleString()}</p>
+                    <p className="text-xs text-purple-600 mt-1 font-semibold">Online & POS card</p>
                   </div>
-                  <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center">
-                    <Users className="h-6 w-6 text-purple-500" />
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <TrendingUp className="h-6 w-6 text-purple-600" />
                   </div>
                 </div>
               </CardContent>
@@ -586,16 +690,16 @@ const ReportsPage = () => {
 
             {/* Pending Credit Balance Card */}
             {(stats?.pendingCreditRevenue || 0) > 0 && (
-              <Card className="border-amber-200 bg-amber-50/50">
-                <CardContent className="p-6">
+              <Card className="border-amber-200 bg-amber-50/50 col-span-full">
+                <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-amber-700 font-semibold">Pending Credit (Udhaar)</p>
-                      <p className="text-2xl font-black text-amber-600">Rs {(stats?.pendingCreditRevenue || 0).toLocaleString()}</p>
-                      <p className="text-xs text-amber-600/70 mt-0.5">Excluded from Total Revenue until paid</p>
+                      <p className="text-xs text-amber-700 font-semibold uppercase tracking-wider">Pending Credit (Udhaar)</p>
+                      <p className="text-xl font-black text-amber-600">Rs {(stats?.pendingCreditRevenue || 0).toLocaleString()}</p>
+                      <p className="text-xs text-amber-600/70">Unpaid balance is tracked in Credit Ledger and excluded from Total Revenue until received.</p>
                     </div>
-                    <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
-                      <DollarSign className="h-6 w-6 text-amber-600" />
+                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                      <DollarSign className="h-5 w-5 text-amber-600" />
                     </div>
                   </div>
                 </CardContent>
@@ -608,7 +712,9 @@ const ReportsPage = () => {
             {/* Sales Chart */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Sales Trend</CardTitle>
+                <CardTitle className="text-lg">
+                  {stats?.isShiftMode ? 'Active Shift Hourly Trend' : 'Sales Trend'}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -676,7 +782,7 @@ const ReportsPage = () => {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Package className="h-5 w-5" />
-                Top Selling Products
+                {stats?.isShiftMode ? 'Shift Top Selling Products' : 'Top Selling Products'}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -700,86 +806,26 @@ const ReportsPage = () => {
             </CardContent>
           </Card>
 
-          {/* Danger Zone */}
-          <div className="pt-12 pb-6">
-            <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Maintenance & Recovery</h3>
-            <div className="flex flex-wrap gap-4 p-6 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/30 mb-8">
-              <div className="w-full mb-2">
-                <p className="text-xs text-slate-500 font-medium">If your today's orders are missing after a refresh, use the restore button below to recover them.</p>
+          {/* Shift Management & Database Archival */}
+          <div className="pt-10 pb-6">
+            <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Shift Archival & Session Management</h3>
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-6 border-2 border-emerald-100 rounded-2xl bg-emerald-50/30">
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-slate-900">End & Archive Active Shift</p>
+                <p className="text-xs text-slate-500 max-w-xl">
+                  Ending a shift safely saves ending cash, records the session in the database, resets the live active view for the next shift, and permanently archives shift order revenues so admin can review shift reports for years anytime.
+                </p>
               </div>
-              <Button 
-                variant="outline" 
-                onClick={() => fixOrphanedOrdersMutation.mutate()} 
-                disabled={fixOrphanedOrdersMutation.isPending}
-                className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-600 hover:text-white transition-all font-bold shadow-sm"
-              >
-                {fixOrphanedOrdersMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <ArrowUpRight className="h-4 w-4 mr-2" />
-                )}
-                Restore Today's Orders
-              </Button>
-            </div>
-
-            <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Danger Zone</h3>
-            <div className="flex flex-wrap gap-4 p-6 border-2 border-dashed border-red-100 rounded-2xl bg-red-50/30">
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-600 hover:text-white transition-all font-bold">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Clear Today's Orders
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete all orders created today. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => deleteTodayMutation.mutate()} className="bg-red-600 hover:bg-red-700">
-                      Delete Today's Orders
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="text-red-700 border-red-300 hover:bg-red-700 hover:text-white transition-all font-black">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Reset All History
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete ALL order history from the database. This is a complete reset.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => deleteAllMutation.mutate()} className="bg-red-700 hover:bg-red-800">
-                      Reset All History
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-
-              <div className="flex-1" />
 
               <Button
-                variant="destructive"
-                className="bg-red-600 hover:bg-red-700 font-bold px-8 h-10 shadow-lg shadow-red-500/20"
-                onClick={handleEndShift}
-                disabled={closeRegisterMutation.isPending}
+                className="bg-emerald-600 hover:bg-emerald-700 font-bold px-6 h-10 text-white shadow-md shadow-emerald-500/20"
+                onClick={() => {
+                  refetchActiveShifts();
+                  setIsActiveShiftsOpen(true);
+                }}
               >
-                <LogOut className="h-4 w-4 mr-2" />
-                End Shift & Logout
+                <Clock className="h-4 w-4 mr-2" />
+                Manage & Close Shift
               </Button>
             </div>
           </div>
