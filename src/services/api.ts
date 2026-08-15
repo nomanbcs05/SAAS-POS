@@ -1164,23 +1164,37 @@ export const api = {
       try {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
-        const { count, error } = await Promise.race([
-          supabase
-            .from('orders')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', todayStart.toISOString()),
-          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1000))
+
+        // 1. Fetch highest daily_id
+        const maxPromise = supabase
+          .from('orders')
+          .select('daily_id')
+          .gte('created_at', todayStart.toISOString())
+          .order('daily_id', { ascending: false })
+          .limit(1);
+
+        // 2. Fetch count of today's orders
+        const countPromise = supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', todayStart.toISOString());
+
+        const [maxRes, countRes] = await Promise.all([
+          Promise.race([maxPromise, new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))]).catch(() => null),
+          Promise.race([countPromise, new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))]).catch(() => null)
         ]);
 
-        if (!error && typeof count === 'number') {
-          const currentOffline = offline.getDailyCounter();
-          if (count > currentOffline) {
-            localStorage.setItem('pos_daily_counter', count.toString());
-          }
-          return Math.max(count, currentOffline);
+        const maxDailyId = (maxRes?.data && maxRes.data[0]?.daily_id) ? Number(maxRes.data[0].daily_id) : 0;
+        const totalCount = typeof countRes?.count === 'number' ? countRes.count : 0;
+        const currentOffline = offline.getDailyCounter();
+
+        const bestCount = Math.max(maxDailyId, totalCount, currentOffline);
+        if (bestCount > currentOffline) {
+          localStorage.setItem('pos_daily_counter', bestCount.toString());
         }
+        return bestCount;
       } catch (err) {
-        console.warn('Timeout fetching today order count');
+        console.warn('Timeout or error fetching today order count, using local sequence');
       }
 
       return offline.getDailyCounter();
@@ -1253,16 +1267,18 @@ export const api = {
         return enqueueOffline();
       }
       
-      // Ensure daily_id is valid
+      // Ensure daily_id is valid and collision-free
       let dailyId = Number(order.daily_id);
-      if (!dailyId || isNaN(dailyId) || dailyId <= 0) {
-        try {
-          const currentCount = await api.orders.getDailyCount();
-          dailyId = currentCount + 1;
-        } catch {
-          dailyId = offline.incrementDailyCounter();
+      try {
+        const currentHighest = await api.orders.getDailyCount();
+        if (!dailyId || isNaN(dailyId) || dailyId <= 0 || dailyId <= currentHighest) {
+          dailyId = currentHighest + 1;
         }
+      } catch {
+        dailyId = offline.incrementDailyCounter();
       }
+      // Instantly reserve next counter in localStorage to protect against concurrent clicks
+      localStorage.setItem('pos_daily_counter', dailyId.toString());
 
       // Clean order data to match actual Supabase schema
       // Note: discount_amount, service_charges_amount, delivery_fee columns

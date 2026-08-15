@@ -75,11 +75,14 @@ const OngoingOrdersPage = () => {
 
   const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
     if (!order) return '00';
-    if (order.daily_id) {
-      return order.daily_id.toString().padStart(2, '0');
+    if (order.daily_id !== undefined && order.daily_id !== null && order.daily_id !== '') {
+      return String(order.daily_id).padStart(2, '0');
     }
-    if (order.dailyId) {
-      return order.dailyId.toString().padStart(2, '0');
+    if (order.dailyId !== undefined && order.dailyId !== null && order.dailyId !== '') {
+      return String(order.dailyId).padStart(2, '0');
+    }
+    if (order.orderNumber !== undefined && order.orderNumber !== null && order.orderNumber !== '') {
+      return String(order.orderNumber).padStart(2, '0');
     }
     if (Array.isArray(allOrders)) {
       const orderDate = new Date(order.created_at);
@@ -211,6 +214,8 @@ const OngoingOrdersPage = () => {
           discountAmount: 0,
           deliveryFee: 0,
           total: order.total_amount + Math.round((order.total_amount || 0) * 0.08),
+          status: 'completed',
+          isPrePayment: false,
           paymentMethod: 'cash',
           orderType: order.order_type,
           createdAt: new Date(order.created_at),
@@ -560,6 +565,8 @@ const OngoingOrdersPage = () => {
                                   discountAmount: 0,
                                   deliveryFee: 0,
                                   total: order.total_amount + Math.round((order.total_amount || 0) * 0.08),
+                                  status: 'pending',
+                                  isPrePayment: true,
                                   paymentMethod: order.payment_method || 'cash',
                                   orderType: order.order_type,
                                   createdAt: new Date(order.created_at),
@@ -633,6 +640,8 @@ const OngoingOrdersPage = () => {
                                     discountAmount: 0,
                                     deliveryFee: 0,
                                     total: order.total_amount + Math.round((order.total_amount || 0) * 0.08),
+                                    status: order.status || 'pending',
+                                    isPrePayment: order.status !== 'completed' && order.status !== 'paid',
                                     paymentMethod: order.payment_method || 'cash',
                                     orderType: order.order_type,
                                     createdAt: new Date(order.created_at),

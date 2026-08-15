@@ -61,11 +61,14 @@ import { useMultiTenant } from '@/hooks/useMultiTenant';
 
 const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
   if (!order) return '00';
-  if (order.dailyId) {
-    return order.dailyId;
+  if (order.daily_id !== undefined && order.daily_id !== null && order.daily_id !== '') {
+    return String(order.daily_id).padStart(2, '0');
   }
-  if (order.daily_id) {
-    return order.daily_id.toString().padStart(2, '0');
+  if (order.dailyId !== undefined && order.dailyId !== null && order.dailyId !== '') {
+    return String(order.dailyId).padStart(2, '0');
+  }
+  if (order.orderNumber !== undefined && order.orderNumber !== null && order.orderNumber !== '') {
+    return String(order.orderNumber).padStart(2, '0');
   }
   if (Array.isArray(allOrders)) {
     const orderDate = new Date(order.created_at);
@@ -223,6 +226,8 @@ const OrdersPage = () => {
         taxAmount: 0,
         discountAmount: 0,
         total: fullOrder.total_amount,
+        status: fullOrder.status,
+        isPrePayment: fullOrder.status !== 'completed' && fullOrder.status !== 'paid',
         paymentMethod: fullOrder.payment_method,
         orderType: fullOrder.order_type,
         createdAt: new Date(fullOrder.created_at),
@@ -304,6 +309,8 @@ const OrdersPage = () => {
         discountAmount: 0,
         deliveryFee: 0,
         total: fullOrder.total_amount,
+        status: fullOrder.status,
+        isPrePayment: fullOrder.status !== 'completed' && fullOrder.status !== 'paid',
         paymentMethod: fullOrder.payment_method || 'cash',
         orderType: fullOrder.order_type,
         createdAt: new Date(fullOrder.created_at),
@@ -369,7 +376,9 @@ const OrdersPage = () => {
         if (!order) return null;
         return {
           ...order,
-          dailyId: dailyIdMap.get(order.id) || (order?.daily_id ? order.daily_id.toString().padStart(2, '0') : undefined),
+          dailyId: (order?.daily_id !== undefined && order?.daily_id !== null && order?.daily_id !== '')
+            ? String(order.daily_id).padStart(2, '0')
+            : (dailyIdMap.get(order.id) || (order.id ? String(order.id).slice(0, 8) : '00')),
         };
       })
       .filter(Boolean);

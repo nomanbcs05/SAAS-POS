@@ -56,6 +56,10 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
   const deliveryFee = Number(order.deliveryFee) || 0;
   const grandTotal = itemsTotal + gstAmount - discountAmount + serviceChargesAmount + deliveryFee;
 
+  // Determine if this is a pre-payment bill (unpaid/running) or paid bill
+  const isPrePayment = order.isPrePayment === true || 
+    (order.status !== 'completed' && order.status !== 'paid' && (order.status === 'pending' || order.status === 'ongoing' || order.status === 'in_progress'));
+
   const paymentMethodLabel: Record<string, string> = {
     cash: 'Cash',
     card: 'Card',
@@ -105,6 +109,10 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
       {/* Order Number Box */}
       <div className="border-x border-t border-black py-0.5 px-1 text-center">
         <div className="text-3xl font-black tracking-widest">{order.orderNumber}</div>
+        {/* Payment Status Tag */}
+        <div className={`text-[11px] font-black uppercase tracking-wider py-0.5 border-t border-dashed border-black mt-0.5 ${isPrePayment ? 'bg-amber-100 text-black' : 'bg-gray-100 text-black'}`}>
+          {isPrePayment ? '*** PRE-PAYMENT BILL ***' : '*** PAID BILL ***'}
+        </div>
       </div>
 
       {/* Info Section */}

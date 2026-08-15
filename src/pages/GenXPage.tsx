@@ -292,13 +292,54 @@ const GenXPage: React.FC = () => {
     }
   };
 
-  // Quick Print Running Order directly from running order chip
+  // Quick Print Running Order directly from running order chip (Pre-Payment Bill)
   const handleQuickPrintRunningOrder = (order: any, e: React.MouseEvent) => {
     e.stopPropagation();
-    handleSelectRunningOrder(order);
-    setTimeout(() => {
-      handlePrintBillClick();
-    }, 100);
+    try {
+      const roDailyId = order.daily_id ? String(order.daily_id).padStart(2, '0') : (order.id ? order.id.slice(0, 4) : '00');
+      const orderItems = order.order_items || [];
+      const printObj = {
+        orderNumber: roDailyId,
+        items: orderItems.map((oi: any) => {
+          const prod = oi.products || products.find((p: any) => p.id === oi.product_id || p.sku === oi.product_name) || {
+            id: oi.product_id || crypto.randomUUID(),
+            name: oi.product_name || 'Item',
+            price: oi.price,
+          };
+          return {
+            product: prod,
+            quantity: Number(oi.quantity) || 1,
+            lineTotal: (Number(oi.price) || 0) * (Number(oi.quantity) || 1),
+            variants: [],
+            addons: [],
+            itemNotes: '',
+          };
+        }),
+        customer: null,
+        subtotal: Number(order.total_amount) || 0,
+        taxAmount: 0,
+        discountAmount: 0,
+        total: Number(order.total_amount) || 0,
+        status: 'pending',
+        isPrePayment: true,
+        paymentMethod: 'cash',
+        orderType: 'dine_in',
+        createdAt: new Date(order.created_at || Date.now()),
+        cashierName: order.server_name || selectedWaiter,
+        serverName: order.server_name || selectedWaiter,
+        tableId: order.table_id ? (tables.find((t: any) => t.id === order.table_id)?.table_number || order.table_id) : tableNo,
+        receivedCash: 0,
+        remainingCash: 0,
+      };
+
+      setLastOrderForPrint(printObj);
+      setTimeout(() => {
+        handlePrintReceipt();
+      }, 100);
+      toast.info(`Pre-Payment Bill #${roDailyId} printed`, { duration: 1500 });
+    } catch (err: any) {
+      toast.error('Failed to print pre-payment bill: ' + (err.message || err));
+    }
   };
 
 
@@ -607,8 +648,10 @@ const GenXPage: React.FC = () => {
         price: item.price,
       }));
 
-      let savedOrder: any;
       const existingOrder = ongoingOrders.find((o: any) => o.id === activeOrderId);
+      const effectiveServerName = existingOrder?.server_name || selectedWaiter;
+
+      let savedOrder: any;
       if (activeOrderId) {
         await api.orders.updateItems(activeOrderId, orderItemsInsert);
         await api.orders.updateStatus(activeOrderId, 'completed');
@@ -632,8 +675,9 @@ const GenXPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['daily-order-count'] });
 
+      const finalDailyId = savedOrder?.daily_id || existingOrder?.daily_id || orderDailyId;
       const printObj = {
-        orderNumber: String(savedOrder?.daily_id || orderDailyId).padStart(2, '0'),
+        orderNumber: String(finalDailyId).padStart(2, '0'),
         items: billItems.map((item) => ({
           product: item.product,
           quantity: item.quantity,
@@ -646,11 +690,13 @@ const GenXPage: React.FC = () => {
         taxAmount: 0,
         discountAmount: 0,
         total: totalAmount,
+        status: 'completed',
+        isPrePayment: false,
         paymentMethod: 'cash',
         orderType: 'dine_in',
         createdAt: new Date(),
         cashierName: selectedWaiter,
-        serverName: selectedWaiter,
+        serverName: effectiveServerName,
         tableId: tableNo,
         receivedCash: totalAmount,
         remainingCash: 0,

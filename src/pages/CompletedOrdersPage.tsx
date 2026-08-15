@@ -143,24 +143,34 @@ const CompletedOrdersPage = () => {
     }
   };
 
-  const getDailyOrderNumber = (order: any, allOrders: any[]) => {
+  const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
     if (!order) return '00';
+    if (order.daily_id !== undefined && order.daily_id !== null && order.daily_id !== '') {
+      return String(order.daily_id).padStart(2, '0');
+    }
+    if (order.dailyId !== undefined && order.dailyId !== null && order.dailyId !== '') {
+      return String(order.dailyId).padStart(2, '0');
+    }
+    if (order.orderNumber !== undefined && order.orderNumber !== null && order.orderNumber !== '') {
+      return String(order.orderNumber).padStart(2, '0');
+    }
     const orderDate = new Date(order.created_at);
-    const start = new Date(orderDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(orderDate);
-    end.setHours(23, 59, 59, 999);
-    const sortedDayOrders = allOrders
-      .filter((o: any) => {
-        if (!o?.created_at) return false;
-        const d = new Date(o.created_at);
-        return !isNaN(d.getTime()) && d >= start && d <= end;
-      })
-      .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    const dailyIndex = sortedDayOrders.findIndex((o: any) => o.id === order.id);
-    if (dailyIndex !== -1) return (dailyIndex + 1).toString().padStart(2, '0');
-    if (order.daily_id) return order.daily_id.toString().padStart(2, '0');
-    return order.id.slice(0, 8).toUpperCase();
+    if (Array.isArray(allOrders) && !isNaN(orderDate.getTime())) {
+      const start = new Date(orderDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(orderDate);
+      end.setHours(23, 59, 59, 999);
+      const sortedDayOrders = allOrders
+        .filter((o: any) => {
+          if (!o?.created_at) return false;
+          const d = new Date(o.created_at);
+          return !isNaN(d.getTime()) && d >= start && d <= end;
+        })
+        .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      const dailyIndex = sortedDayOrders.findIndex((o: any) => o.id === order.id);
+      if (dailyIndex !== -1) return (dailyIndex + 1).toString().padStart(2, '0');
+    }
+    return order.id ? String(order.id).slice(0, 8).toUpperCase() : '00';
   };
 
   const onPrintBill = (order: any) => {
@@ -197,6 +207,8 @@ const CompletedOrdersPage = () => {
       discountAmount: 0,
       deliveryFee: 0,
       total: order.total_amount + Math.round((order.total_amount || 0) * 0.08),
+      status: 'completed',
+      isPrePayment: false,
       paymentMethod: order.payment_method || 'cash',
       orderType: order.order_type,
       createdAt: new Date(order.created_at),

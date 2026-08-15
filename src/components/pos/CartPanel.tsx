@@ -304,28 +304,51 @@ const CartPanel = () => {
   };
 
   const prepareOrderData = async (): Promise<{
-    id?: string;
     orderNumber: string;
+    daily_id?: number;
     items: typeof items;
     customer: typeof customer;
     rider: typeof rider;
     customerAddress: typeof customerAddress;
     serverName: typeof serverName;
-    tableId: typeof tableId;
+    tableId: string | null;
     orderType: typeof orderType;
     subtotal: number;
     taxAmount: number;
+    taxRate: number;
     discountAmount: number;
-    deliveryFee: number;
     total: number;
     serviceChargesAmount: number;
     paymentMethod: typeof paymentMethod;
     createdAt: Date;
     cashierName: typeof cashierName;
+    status?: string;
+    isPrePayment?: boolean;
   }> => {
     const count = await api.orders.getDailyCount();
-    const dailyId = count + 1;
-    const dailyIdStr = dailyId.toString().padStart(2, '0');
+    let dailyId = count + 1;
+    let dailyIdStr = dailyId.toString().padStart(2, '0');
+    let effectiveServerName = (() => {
+      const role = localStorage.getItem('active_role');
+      if (role && role !== 'admin') {
+        return `[${role}] ${serverName || ''}`.trim();
+      }
+      return serverName;
+    })();
+
+    if (editingOrderId) {
+      const cachedOngoing: any[] = queryClient.getQueryData(['ongoing-orders']) || [];
+      const cachedOrder = cachedOngoing.find((o: any) => o.id === editingOrderId);
+      if (cachedOrder) {
+        if (cachedOrder.daily_id) {
+          dailyId = cachedOrder.daily_id;
+          dailyIdStr = cachedOrder.daily_id.toString().padStart(2, '0');
+        }
+        if (cachedOrder.server_name) {
+          effectiveServerName = cachedOrder.server_name;
+        }
+      }
+    }
 
     return {
       orderNumber: dailyIdStr,
@@ -334,13 +357,7 @@ const CartPanel = () => {
       customer,
       rider, // Include rider
       customerAddress, // Include address
-      serverName: (() => {
-        const role = localStorage.getItem('active_role');
-        if (role && role !== 'admin') {
-          return `[${role}] ${serverName || ''}`.trim();
-        }
-        return serverName;
-      })(), // Include server name with role tag
+      serverName: effectiveServerName,
       tableId: selectedTable?.table_number ?? null,
       orderType,
       subtotal,
@@ -353,6 +370,8 @@ const CartPanel = () => {
       paymentMethod,
       createdAt: new Date(),
       cashierName, // Use real cashier name
+      status: 'completed',
+      isPrePayment: false,
     };
   };
 
