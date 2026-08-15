@@ -108,7 +108,7 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
 
       {/* Order Number Box */}
       <div className="border-x border-t border-black py-0.5 px-1 text-center">
-        <div className="text-3xl font-black tracking-widest">{order.orderNumber}</div>
+        <div className="text-3xl font-black tracking-widest">{order.orderNumber || String(order.daily_id || '01').padStart(2, '0')}</div>
         {/* Payment Status Tag */}
         <div className={`text-[11px] font-black uppercase tracking-wider py-0.5 border-t border-dashed border-black mt-0.5 ${isPrePayment ? 'bg-amber-100 text-black' : 'bg-gray-100 text-black'}`}>
           {isPrePayment ? '*** PRE-PAYMENT BILL ***' : '*** PAID BILL ***'}
@@ -117,9 +117,9 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
 
       {/* Info Section */}
       <div className="border border-black p-1 text-[12px] leading-snug">
-        <div className="flex justify-between">
+        <div className="flex justify-between font-bold">
           <span>Invoice #:</span>
-          <span>{order.orderNumber}</span>
+          <span>{order.invoiceNumber || ('INV-' + String(order.daily_id || order.orderNumber || '1').padStart(4, '0'))}</span>
         </div>
         <div className="flex justify-between">
           <span>Restaurant:</span>

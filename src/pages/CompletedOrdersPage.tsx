@@ -32,6 +32,7 @@ import { toast } from 'sonner';
 import { useReactToPrint } from 'react-to-print';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 import Bill from '@/components/pos/Bill';
+import { shiftService } from '@/services/shiftService';
 import {
   Table,
   TableBody,
@@ -127,15 +128,24 @@ const CompletedOrdersPage = () => {
       );
     }
 
-    // Cashier isolation: non-admins only see their own orders
+    // Cashier isolation: non-admins only see their own orders from their current active shift
     const isAdminUser = isAdmin || (!isCashierLogin && profile?.role !== 'cashier' && !localStorage.getItem('active_role'));
     if (!isAdminUser) {
       const activeName = cashierName || localStorage.getItem('active_staff_name') || '';
       const activeRole = localStorage.getItem('active_role') || '';
+      const currentShift = shiftService.getCurrentCashierOpenShift();
+      const shiftStartTime = currentShift?.opened_at
+        ? new Date(currentShift.opened_at).getTime()
+        : new Date().setHours(0, 0, 0, 0);
+
       result = result.filter(order => {
+        const orderTime = order.created_at ? new Date(order.created_at).getTime() : 0;
+        const matchesTime = !shiftStartTime || orderTime >= shiftStartTime;
         const sn = ((order as any).server_name || '').toLowerCase();
-        return (activeName && sn.includes(activeName.toLowerCase()))
+        const matchesCashier = (!activeName && !activeRole)
+          || (activeName && sn.includes(activeName.toLowerCase()))
           || (activeRole && activeRole !== 'admin' && sn.includes(activeRole.toLowerCase()));
+        return matchesTime && matchesCashier;
       });
     } else if (adminCashierFilter !== 'all') {
       result = result.filter(order => {

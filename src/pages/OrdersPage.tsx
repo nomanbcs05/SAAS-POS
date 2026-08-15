@@ -15,6 +15,7 @@ import ActiveShiftsModal from '@/components/pos/ActiveShiftsModal';
 import Receipt from '@/components/pos/Receipt';
 import KOT from '@/components/pos/KOT';
 import Bill from '@/components/pos/Bill';
+import { shiftService } from '@/services/shiftService';
 import { DateRange } from 'react-day-picker';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -393,15 +394,23 @@ const OrdersPage = () => {
     // Filter by order type if not 'all'
     const matchesOrderType = orderTypeFilter === 'all' || order.order_type === orderTypeFilter;
 
-    // Cashier isolation: non-admins only see their own orders
+    // Cashier isolation: non-admins only see their own orders from their current active shift
     const isAdminUser = isAdmin || (!isCashierLogin && profile?.role !== 'cashier' && !localStorage.getItem('active_role'));
     let matchesCashier = true;
     if (!isAdminUser) {
       const activeCashierName = cashierName || localStorage.getItem('active_staff_name') || '';
       const activeRole = localStorage.getItem('active_role') || '';
+      const currentShift = shiftService.getCurrentCashierOpenShift();
+      const shiftStartTime = currentShift?.opened_at
+        ? new Date(currentShift.opened_at).getTime()
+        : new Date().setHours(0, 0, 0, 0);
+
+      const orderTime = orderDate.getTime();
+      const matchesTime = !shiftStartTime || orderTime >= shiftStartTime;
+
       const serverName = ((order as any).server_name || '').toLowerCase();
-      matchesCashier = (activeCashierName && serverName.includes(activeCashierName.toLowerCase()))
-        || (activeRole && activeRole !== 'admin' && serverName.includes(activeRole.toLowerCase()));
+      matchesCashier = matchesTime && ((activeCashierName && serverName.includes(activeCashierName.toLowerCase()))
+        || (activeRole && activeRole !== 'admin' && serverName.includes(activeRole.toLowerCase())));
     } else if (adminCashierFilter !== 'all') {
       const serverName = ((order as any).server_name || '').toLowerCase();
       matchesCashier = serverName.includes(adminCashierFilter.toLowerCase());

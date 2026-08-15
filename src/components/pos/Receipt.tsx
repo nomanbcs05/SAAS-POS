@@ -108,7 +108,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
 
       {/* Order Number Box */}
       <div className="border-x border-t border-black p-1 text-center bg-gray-100">
-        <div className="text-2xl font-black">{order.orderNumber}</div>
+        <div className="text-2xl font-black">{order.orderNumber || String(order.daily_id || '01').padStart(2, '0')}</div>
         {/* Payment Status Tag */}
         <div className={`text-[10px] font-black uppercase tracking-wider py-0.5 border-t border-dashed border-black mt-0.5 ${isPrePayment ? 'bg-amber-100 text-black' : 'bg-gray-200 text-black'}`}>
           {isPrePayment ? '*** PRE-PAYMENT BILL ***' : '*** PAID BILL ***'}
@@ -117,10 +117,9 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
 
       {/* Info Section */}
       <div className="border border-black p-1 text-[10px]">
-        <div className="flex justify-between">
+        <div className="flex justify-between font-bold">
           <span>Invoice #:</span>
-          <span>{order.orderNumber}</span>
-          <span>DAY-00{new Date().getDate()}</span>
+          <span>{order.invoiceNumber || ('INV-' + String(order.daily_id || order.orderNumber || '1').padStart(4, '0'))}</span>
         </div>
         <div className="flex justify-between mt-1">
           <span>Restaurant:</span>

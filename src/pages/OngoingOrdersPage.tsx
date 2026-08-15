@@ -53,6 +53,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import Bill from '@/components/pos/Bill';
 import { supabase } from '@/integrations/supabase/client';
+import { shiftService } from '@/services/shiftService';
 
 const OngoingOrdersPage = () => {
   const navigate = useNavigate();
@@ -347,15 +348,23 @@ const OngoingOrdersPage = () => {
     // Filter out completed orders to "move" them to history
     result = result.filter(order => order.status !== 'completed');
 
-    // Cashier isolation: cashiers only see their own orders
+    // Cashier isolation: cashiers only see their current same-day active shift orders
     if (!isAdmin) {
       const activeCashierName = hookCashierName || localStorage.getItem('active_staff_name') || '';
       const activeRole = localStorage.getItem('active_role') || '';
+      const currentShift = shiftService.getCurrentCashierOpenShift();
+      const shiftStartTime = currentShift?.opened_at
+        ? new Date(currentShift.opened_at).getTime()
+        : new Date().setHours(0, 0, 0, 0);
+
       result = result.filter(order => {
+        const orderTime = order.created_at ? new Date(order.created_at).getTime() : 0;
+        const matchesTime = !shiftStartTime || orderTime >= shiftStartTime;
         const serverName = ((order as any).server_name || '').toLowerCase();
-        if (activeCashierName && serverName.includes(activeCashierName.toLowerCase())) return true;
-        if (activeRole && activeRole !== 'admin' && serverName.includes(activeRole.toLowerCase())) return true;
-        return false;
+        const matchesCashier = (!activeCashierName && !activeRole)
+          || (activeCashierName && serverName.includes(activeCashierName.toLowerCase()))
+          || (activeRole && activeRole !== 'admin' && serverName.includes(activeRole.toLowerCase()));
+        return matchesTime && matchesCashier;
       });
     } else if (adminCashierFilter !== 'all') {
       // Admin filtered view by specific cashier
