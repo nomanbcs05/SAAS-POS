@@ -400,3 +400,8 @@ export const incrementDailyCounter = () => {
   return next;
 };
 
+export const setDailyCounter = (val: number) => {
+  localStorage.setItem(CACHE_KEYS.DAILY_COUNTER, val.toString());
+  return val;
+};
+

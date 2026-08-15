@@ -258,6 +258,10 @@ const ReportsPage = () => {
     }
   };
 
+  const stats = useMemo(() => {
+    if (!data?.orders || !data?.customers) return null;
+    const now = new Date();
+
     // Check if we are in active shift mode or historical date range mode
     const currentShift = shiftService.getCurrentCashierOpenShift();
     const openShifts = activeShifts.filter((s: any) => s.status === 'open');
