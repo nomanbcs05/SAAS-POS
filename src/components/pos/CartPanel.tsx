@@ -81,6 +81,8 @@ const CartPanel = () => {
   const [previewActive, setPreviewActive] = useState<'none' | 'receipt' | 'kot' | 'bill'>('none');
   const [kotItemsToPrint, setKotItemsToPrint] = useState<any[]>([]);
   const [cashierName, setCashierName] = useState(hookCashierName || 'Anas');
+  const [cartFlash, setCartFlash] = useState<string | null>(null);
+  const cartFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
   const kotRef = useRef<HTMLDivElement>(null);
   const billRef = useRef<HTMLDivElement>(null);
@@ -92,6 +94,37 @@ const CartPanel = () => {
       setCashierName(hookCashierName);
     }
   }, [hookCashierName]);
+
+  // Flash notification: detect newly added item by items length change
+  const prevItemsLengthRef = useRef(items.length);
+  const prevItemsRef = useRef<typeof items>([]);
+  useEffect(() => {
+    if (items.length > 0) {
+      // Find the item with changed quantity or a newly added item
+      let flashName: string | null = null;
+      if (items.length > prevItemsLengthRef.current) {
+        // New item added
+        const added = items[items.length - 1];
+        flashName = added?.product?.name || null;
+      } else if (items.length === prevItemsLengthRef.current) {
+        // Same count — check if any quantity increased
+        for (const item of items) {
+          const prev = prevItemsRef.current.find(p => p.product.id === item.product.id);
+          if (prev && item.quantity > prev.quantity) {
+            flashName = item.product.name;
+            break;
+          }
+        }
+      }
+      if (flashName) {
+        setCartFlash(flashName);
+        if (cartFlashTimerRef.current) clearTimeout(cartFlashTimerRef.current);
+        cartFlashTimerRef.current = setTimeout(() => setCartFlash(null), 700);
+      }
+    }
+    prevItemsLengthRef.current = items.length;
+    prevItemsRef.current = items;
+  }, [items]);
 
   const getServerNameWithRole = () => {
     const role = localStorage.getItem('active_role');
@@ -665,15 +698,27 @@ const CartPanel = () => {
   }, [orderType, rider, pendingAfterRider]);
 
   return (
-    <div className="flex flex-col h-full bg-card border-l font-sans pb-4">
+    <div className="flex flex-col h-full bg-card border-l font-sans pb-4 relative">
       {/* Header */}
-      <div className="px-3 py-2 border-b flex justify-between items-center bg-muted/20">
+      <div className="px-3 py-2 border-b flex justify-between items-center bg-muted/20 relative">
         <div>
           <h2 className="text-xs font-black font-heading tracking-wider uppercase text-slate-800">Current Order</h2>
           <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-widest">
             {items.length} {items.length === 1 ? 'item' : 'items'}
           </p>
         </div>
+
+        {/* Tiny cart flash: shows item name for 700ms, positioned inside the header */}
+        <div
+          style={{ transition: 'opacity 0.15s, transform 0.15s' }}
+          className={`flex items-center gap-1 bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow pointer-events-none mx-auto
+            ${cartFlash ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}
+          aria-live="polite"
+        >
+          <span>✓</span>
+          <span className="max-w-[90px] truncate">{cartFlash ?? ''}</span>
+        </div>
+
         {items.length > 0 && !isCashier && (
           <Button
             variant="ghost"
