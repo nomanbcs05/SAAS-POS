@@ -50,8 +50,8 @@ export const OpenShiftModal: React.FC = () => {
   const handleOpenShift = async (e: React.FormEvent) => {
     e.preventDefault();
     const cashNum = parseFloat(openingCash);
-    if (isNaN(cashNum) || cashNum < 1) {
-      toast.error('Please enter a valid opening cash amount (Min: 1 Rs.)');
+    if (isNaN(cashNum) || cashNum < 0) {
+      toast.error('Please enter a valid opening cash balance (e.g. 0 or positive amount)');
       return;
     }
 
@@ -59,22 +59,22 @@ export const OpenShiftModal: React.FC = () => {
 
     setLoading(true);
     try {
-      // Validate PIN against staff management database
-      const staffList = await staffManagementApi.staff.getAll();
-      const staff = staffList.find(
-        (s) => s.name.toLowerCase() === cashierName.toLowerCase()
-      );
+      // Validate PIN if staff has a PIN configured and user is asked
+      if (loginPin.trim()) {
+        const staffList = await staffManagementApi.staff.getAll().catch(() => []);
+        const staff = staffList.find(
+          (s) => s.name.toLowerCase() === cashierName.toLowerCase()
+        );
 
-      if (staff && staff.pin) {
-        if (loginPin.trim() !== staff.pin.trim()) {
-          toast.error(`Invalid 4-digit PIN for ${cashierName}`);
+        if (staff && staff.pin && loginPin.trim() !== staff.pin.trim()) {
+          toast.error(`Invalid PIN for ${cashierName}`);
           setLoading(false);
           return;
         }
       }
 
       await shiftService.openShift(cashNum, cashierName);
-      toast.success(`Shift opened successfully for ${cashierName} with Rs. ${cashNum.toLocaleString()}`);
+      toast.success(`Shift opened for ${cashierName} with Rs. ${cashNum.toLocaleString()}`);
       setIsOpen(false);
       setLoginPin('');
     } catch (err: any) {

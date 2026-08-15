@@ -49,13 +49,14 @@ import {
 
 const CompletedOrdersPage = () => {
   const navigate = useNavigate();
-  const { tenant, cashierName: hookCashierName } = useMultiTenant();
+  const { tenant, cashierName: hookCashierName, isAdmin, isCashierLogin, profile } = useMultiTenant();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [billOrder, setBillOrder] = useState<any>(null);
   const billRef = useRef<HTMLDivElement>(null);
   const [cashierName, setCashierName] = useState(hookCashierName || 'Ali Hyder');
+  const [adminCashierFilter, setAdminCashierFilter] = useState<string>('all');
   const [showDetailPanel, setShowDetailPanel] = useState(() => {
     const saved = localStorage.getItem('completed_detail_panel');
     return saved !== 'false';
@@ -126,8 +127,25 @@ const CompletedOrdersPage = () => {
       );
     }
 
+    // Cashier isolation: non-admins only see their own orders
+    const isAdminUser = isAdmin || (!isCashierLogin && profile?.role !== 'cashier' && !localStorage.getItem('active_role'));
+    if (!isAdminUser) {
+      const activeName = cashierName || localStorage.getItem('active_staff_name') || '';
+      const activeRole = localStorage.getItem('active_role') || '';
+      result = result.filter(order => {
+        const sn = ((order as any).server_name || '').toLowerCase();
+        return (activeName && sn.includes(activeName.toLowerCase()))
+          || (activeRole && activeRole !== 'admin' && sn.includes(activeRole.toLowerCase()));
+      });
+    } else if (adminCashierFilter !== 'all') {
+      result = result.filter(order => {
+        const sn = ((order as any).server_name || '').toLowerCase();
+        return sn.includes(adminCashierFilter.toLowerCase());
+      });
+    }
+
     return result;
-  }, [orders, activeTab, searchQuery]);
+  }, [orders, activeTab, searchQuery, isAdmin, isCashierLogin, profile, cashierName, adminCashierFilter]);
 
   const selectedOrder = useMemo(() => {
     if (!Array.isArray(orders)) return null;
@@ -231,11 +249,36 @@ const CompletedOrdersPage = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-black text-slate-900 tracking-tight">Completed Orders</h1>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">History & Offline Records</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">History &amp; Offline Records</p>
+                {!(isAdmin || (!isCashierLogin && profile?.role !== 'cashier' && !localStorage.getItem('active_role'))) && cashierName && (
+                  <span className="text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5 mt-1 inline-block">
+                    My Orders Only: {cashierName}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-3">
+                {(isAdmin || (!isCashierLogin && profile?.role !== 'cashier' && !localStorage.getItem('active_role'))) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className={adminCashierFilter !== 'all' ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold' : 'font-semibold'}>
+                        👤 {adminCashierFilter === 'all' ? 'All Cashiers' : adminCashierFilter}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem onClick={() => setAdminCashierFilter('all')} className={adminCashierFilter === 'all' ? 'bg-accent font-bold' : ''}>
+                        All Cashiers
+                      </DropdownMenuItem>
+                      <Separator className="my-1" />
+                      {Array.from(new Set(orders.map((o: any) => ((o.server_name || '').replace(/^\[.*?\]\s*/, '') || '').trim()).filter(Boolean))).map((name: any) => (
+                        <DropdownMenuItem key={name} onClick={() => setAdminCashierFilter(name)} className={adminCashierFilter === name ? 'bg-accent font-bold' : ''}>
+                          {name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
                 <Badge variant="outline" className="px-3 py-1.5 text-xs font-black bg-emerald-50 text-emerald-600 border-emerald-100 shadow-sm">
-                  {orders.length} Completed
+                  {filteredOrders.length} Completed
                 </Badge>
               </div>
             </div>

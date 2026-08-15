@@ -17,23 +17,33 @@ const STORAGE_KEY = 'pos_active_shifts';
 
 export const getCurrentCashierName = (): string => {
   if (typeof window === 'undefined') return 'CASHIER';
+
+  // 1. Direct cashier login profile
+  const cpRaw = localStorage.getItem('pos_cashier_profile');
+  if (cpRaw) {
+    try {
+      const cp = JSON.parse(cpRaw);
+      if (cp.name && cp.name.trim()) return cp.name.trim();
+    } catch {}
+  }
+
+  // 2. Active staff name
   const staff = localStorage.getItem('active_staff_name');
-  if (staff && staff.trim()) return staff;
+  if (staff && staff.trim()) return staff.trim();
 
-  const role = localStorage.getItem('active_role');
-  if (role) return role.toUpperCase();
-
+  // 3. User offline profile full_name
   const profileRaw = localStorage.getItem('pos_offline_profile');
   if (profileRaw) {
     try {
       const p = JSON.parse(profileRaw);
-      if (p.full_name) return p.full_name;
-    } catch {
-      // ignore
-    }
+      if (p.full_name && p.full_name.trim()) return p.full_name.trim();
+    } catch {}
   }
 
-  return 'CASHIER';
+  const role = localStorage.getItem('active_role');
+  if (role && role !== 'admin') return role.toUpperCase();
+
+  return 'ADMIN';
 };
 
 // ---------------------------------------------------------------------------
@@ -65,13 +75,13 @@ const getCurrentCashierOpenShift = (): ShiftSession | null => {
   const active = getActiveShifts();
   if (active.length === 0) return null;
 
-  const currentName = getCurrentCashierName();
+  const currentName = getCurrentCashierName().toLowerCase();
   const found = active.find(
-    (s) => s.cashier_name.toLowerCase() === currentName.toLowerCase()
+    (s) => s.cashier_name.toLowerCase() === currentName
   );
   if (found) return found;
 
-  return active[active.length - 1] || null;
+  return null;
 };
 
 export const shiftService = {

@@ -91,9 +91,10 @@ const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
 };
 
 const OrdersPage = () => {
-  const { cashierName } = useMultiTenant();
+  const { cashierName, isAdmin, isCashierLogin, profile } = useMultiTenant();
   const [searchQuery, setSearchQuery] = useState('');
   const [orderTypeFilter, setOrderTypeFilter] = useState('all');
+  const [adminCashierFilter, setAdminCashierFilter] = useState<string>('all');
   const [date, setDate] = useState<DateRange | undefined>({
     from: undefined,
     to: undefined,
@@ -392,12 +393,18 @@ const OrdersPage = () => {
     // Filter by order type if not 'all'
     const matchesOrderType = orderTypeFilter === 'all' || order.order_type === orderTypeFilter;
 
-    // Filter by Role (using server_name tag)
-    const activeRole = localStorage.getItem('active_role');
-    let matchesRole = true;
-    if (activeRole && activeRole !== 'admin') {
-      const serverName = (order as any).server_name || '';
-      matchesRole = serverName.startsWith(`[${activeRole}]`);
+    // Cashier isolation: non-admins only see their own orders
+    const isAdminUser = isAdmin || (!isCashierLogin && profile?.role !== 'cashier' && !localStorage.getItem('active_role'));
+    let matchesCashier = true;
+    if (!isAdminUser) {
+      const activeCashierName = cashierName || localStorage.getItem('active_staff_name') || '';
+      const activeRole = localStorage.getItem('active_role') || '';
+      const serverName = ((order as any).server_name || '').toLowerCase();
+      matchesCashier = (activeCashierName && serverName.includes(activeCashierName.toLowerCase()))
+        || (activeRole && activeRole !== 'admin' && serverName.includes(activeRole.toLowerCase()));
+    } else if (adminCashierFilter !== 'all') {
+      const serverName = ((order as any).server_name || '').toLowerCase();
+      matchesCashier = serverName.includes(adminCashierFilter.toLowerCase());
     }
 
     // Filter by date range if set
@@ -419,7 +426,7 @@ const OrdersPage = () => {
       (order.dailyId && order.dailyId.includes(query)) ||
       (order.restaurant_tables?.table_number?.toLowerCase().includes(query));
 
-    return matchesOrderType && matchesDateRange && matchesSearch && matchesRole;
+    return matchesOrderType && matchesDateRange && matchesSearch && matchesCashier;
   });
 
   // --- Summary Printing Logic ---
@@ -636,10 +643,37 @@ const OrdersPage = () => {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              {isAdmin && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant={adminCashierFilter !== 'all' ? 'default' : 'outline'} className={adminCashierFilter !== 'all' ? 'bg-blue-600 hover:bg-blue-700' : ''}>
+                      👤 {adminCashierFilter === 'all' ? 'All Cashiers' : adminCashierFilter}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={() => setAdminCashierFilter('all')} className={adminCashierFilter === 'all' ? 'bg-accent font-bold' : ''}>
+                      All Cashiers
+                    </DropdownMenuItem>
+                    <Separator className="my-1" />
+                    {Array.from(new Set(orders.map((o: any) => ((o.server_name || '').replace(/^\[.*?\]\s*/, '') || '').trim()).filter(Boolean))).map((name: any) => (
+                      <DropdownMenuItem key={name} onClick={() => setAdminCashierFilter(name)} className={adminCashierFilter === name ? 'bg-accent font-bold' : ''}>
+                        {name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
 
           <div className="relative max-w-md">
+            {!isAdmin && cashierName && (
+              <div className="mb-2">
+                <span className="text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">
+                  My Orders Only: {cashierName}
+                </span>
+              </div>
+            )}
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by order ID or customer..."

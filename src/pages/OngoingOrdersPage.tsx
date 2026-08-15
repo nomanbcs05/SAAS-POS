@@ -68,6 +68,7 @@ const OngoingOrdersPage = () => {
   const [billOrder, setBillOrder] = useState<any>(null);
   const billRef = useRef<HTMLDivElement>(null);
   const [cashierName, setCashierName] = useState(hookCashierName || 'Ali Hyder');
+  const [adminCashierFilter, setAdminCashierFilter] = useState<string>('all');
   const [showDetailPanel, setShowDetailPanel] = useState(() => {
     const saved = localStorage.getItem('ongo_detail_panel');
     return saved !== 'false';
@@ -346,12 +347,21 @@ const OngoingOrdersPage = () => {
     // Filter out completed orders to "move" them to history
     result = result.filter(order => order.status !== 'completed');
 
-    // Filter by Role (using server_name tag)
-    const activeRole = localStorage.getItem('active_role');
-    if (activeRole && activeRole !== 'admin') {
+    // Cashier isolation: cashiers only see their own orders
+    if (!isAdmin) {
+      const activeCashierName = hookCashierName || localStorage.getItem('active_staff_name') || '';
+      const activeRole = localStorage.getItem('active_role') || '';
       result = result.filter(order => {
-        const serverName = (order as any).server_name || '';
-        return serverName.startsWith(`[${activeRole}]`);
+        const serverName = ((order as any).server_name || '').toLowerCase();
+        if (activeCashierName && serverName.includes(activeCashierName.toLowerCase())) return true;
+        if (activeRole && activeRole !== 'admin' && serverName.includes(activeRole.toLowerCase())) return true;
+        return false;
+      });
+    } else if (adminCashierFilter !== 'all') {
+      // Admin filtered view by specific cashier
+      result = result.filter(order => {
+        const serverName = ((order as any).server_name || '').toLowerCase();
+        return serverName.includes(adminCashierFilter.toLowerCase());
       });
     }
 
@@ -388,8 +398,35 @@ const OngoingOrdersPage = () => {
         <div className="flex-1 flex flex-col min-w-0 border-r bg-white">
           <div className="p-6 space-y-6">
             <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold text-slate-900">Running Orders</h1>
+              <div className="flex flex-col gap-0.5">
+                <h1 className="text-2xl font-bold text-slate-900">Running Orders</h1>
+                {!isAdmin && (hookCashierName || localStorage.getItem('active_staff_name')) && (
+                  <span className="text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5 w-fit">
+                    My Orders Only: {hookCashierName || localStorage.getItem('active_staff_name')}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-3">
+                {isAdmin && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className={adminCashierFilter !== 'all' ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold' : 'font-semibold'}>
+                        👤 {adminCashierFilter === 'all' ? 'All Cashiers' : adminCashierFilter}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem onClick={() => setAdminCashierFilter('all')} className={adminCashierFilter === 'all' ? 'bg-accent font-bold' : ''}>
+                        All Cashiers
+                      </DropdownMenuItem>
+                      <Separator className="my-1" />
+                      {Array.from(new Set(orders.map((o: any) => ((o.server_name || '').replace(/^\[.*?\]\s*/, '') || '').trim()).filter(Boolean))).map((name: any) => (
+                        <DropdownMenuItem key={name} onClick={() => setAdminCashierFilter(name)} className={adminCashierFilter === name ? 'bg-accent font-bold' : ''}>
+                          {name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
                 {!isCashier && (
                   <Button
                     variant="outline"
@@ -406,10 +443,11 @@ const OngoingOrdersPage = () => {
                   </Button>
                 )}
                 <Badge variant="outline" className="px-3 py-1 text-sm font-medium bg-white shadow-sm">
-                  {orders.length} Active
+                  {filteredOrders.length} Active
                 </Badge>
               </div>
             </div>
+
 
             {/* Split Search Bars */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
