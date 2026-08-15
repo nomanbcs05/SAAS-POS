@@ -253,7 +253,6 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
         image: catIcon,
       });
     }
-    toast.success(`${multiplier > 1 ? `${multiplier}x ` : ''}${itemName} added to cart`);
   };
 
   const categoryKeys = Object.keys(SMBUTT_MENU_DATA) as MenuCategory[];

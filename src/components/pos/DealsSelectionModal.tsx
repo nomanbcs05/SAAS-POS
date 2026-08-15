@@ -135,7 +135,6 @@ export default function DealsSelectionModal({ isOpen, onClose, onAdd, dbProducts
       quantity: 1
     };
     onAdd(dealProduct);
-    toast.success(`${deal.name} added to cart`);
   };
 
   return (

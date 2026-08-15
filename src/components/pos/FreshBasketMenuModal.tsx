@@ -340,7 +340,6 @@ export default function FreshBasketMenuModal({ isOpen, onClose, onAdd, category:
     };
 
     onAdd(product, selectedQuantity);
-    toast.success(`${name} (${selectedQuantity} ${unitLabel}) added to cart`);
   };
 
   return (

@@ -167,7 +167,6 @@ export default function GenXRestaurantMenuModal({
       sku: `GX-${item.name.substring(0, 3).toUpperCase()}${size ? `-${size[0]}` : ''}`,
     };
     onAdd(product, selectedQuantity);
-    toast.success(`${name} (${selectedQuantity}x) added to cart`);
   };
 
   const cancelEditing = () => {

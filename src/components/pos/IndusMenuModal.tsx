@@ -322,7 +322,6 @@ export default function IndusMenuModal({ isOpen, onClose, onAdd, category: initi
     };
 
     onAdd(product);
-    toast.success(`${name} added to cart`);
   };
 
   return (

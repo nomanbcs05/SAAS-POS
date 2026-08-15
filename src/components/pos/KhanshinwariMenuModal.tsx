@@ -303,7 +303,6 @@ export default function KhanshinwariMenuModal({ isOpen, onClose, onAdd, category
     };
 
     onAdd(product, selectedQuantity);
-    toast.success(`${name} (${selectedQuantity}x) added to cart`);
   };
 
   return (

@@ -1160,41 +1160,31 @@ export const api = {
         }
       }
 
-      // Count today's orders (since 00:00:00 local time)
+      // Count orders for the current active shift (or since today start)
       try {
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        const activeShift = shiftService.getCurrentCashierOpenShift();
+        const startTime = activeShift?.opened_at
+          ? new Date(activeShift.opened_at).toISOString()
+          : new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
 
-        // 1. Fetch highest daily_id
-        const maxPromise = supabase
-          .from('orders')
-          .select('daily_id')
-          .gte('created_at', todayStart.toISOString())
-          .order('daily_id', { ascending: false })
-          .limit(1);
-
-        // 2. Fetch count of today's orders
+        // Fetch count of orders created in this active shift
         const countPromise = supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
-          .gte('created_at', todayStart.toISOString());
+          .gte('created_at', startTime);
 
-        const [maxRes, countRes] = await Promise.all([
-          Promise.race([maxPromise, new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))]).catch(() => null),
-          Promise.race([countPromise, new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))]).catch(() => null)
-        ]);
+        const countRes = await Promise.race([
+          countPromise,
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+        ]).catch(() => null);
 
-        const maxDailyId = (maxRes?.data && maxRes.data[0]?.daily_id) ? Number(maxRes.data[0].daily_id) : 0;
-        const totalCount = typeof countRes?.count === 'number' ? countRes.count : 0;
+        const shiftCount = typeof countRes?.count === 'number' ? countRes.count : 0;
         const currentOffline = offline.getDailyCounter();
 
-        const bestCount = Math.max(maxDailyId, totalCount, currentOffline);
-        if (bestCount > currentOffline) {
-          localStorage.setItem('pos_daily_counter', bestCount.toString());
-        }
+        const bestCount = Math.max(shiftCount, currentOffline);
         return bestCount;
       } catch (err) {
-        console.warn('Timeout or error fetching today order count, using local sequence');
+        console.warn('Timeout or error fetching shift order count, using local sequence');
       }
 
       return offline.getDailyCounter();
