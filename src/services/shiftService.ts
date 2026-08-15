@@ -71,6 +71,72 @@ const getActiveShifts = (): ShiftSession[] => {
   return shifts.filter((s) => s.status === 'open');
 };
 
+const syncActiveShiftsFromCloud = async (): Promise<ShiftSession[]> => {
+  if (!isOnline()) return getActiveShifts();
+
+  try {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const { data, error } = await Promise.race([
+      supabase
+        .from('daily_registers')
+        .select('*')
+        .eq('status', 'open')
+        .gte('opened_at', todayStart.toISOString())
+        .order('opened_at', { ascending: false }),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+    ]);
+
+    if (!error && Array.isArray(data)) {
+      const cloudShifts: ShiftSession[] = data.map((r: any) => {
+        let cName = (r.cashier_name || '').trim();
+        if (!cName && r.notes) {
+          const match = r.notes.match(/Cashier:\s*(.*)/i);
+          if (match && match[1]) {
+            cName = match[1].trim();
+          }
+        }
+        if (!cName) cName = 'CASHIER';
+
+        return {
+          id: r.id,
+          cashier_name: cName,
+          cashier_id: r.cashier_id || undefined,
+          opened_at: r.opened_at,
+          closed_at: r.closed_at || null,
+          starting_amount: Number(r.starting_amount) || 0,
+          ending_amount: r.ending_amount != null ? Number(r.ending_amount) : null,
+          status: (r.status as 'open' | 'closed') || 'open',
+          notes: r.notes || null,
+        };
+      });
+
+      const stored = getStoredShifts();
+      const nonOpenStored = stored.filter(s => s.status !== 'open');
+      const mergedMap = new Map<string, ShiftSession>();
+      
+      nonOpenStored.forEach(s => mergedMap.set(s.id, s));
+      cloudShifts.forEach(s => mergedMap.set(s.id, s));
+
+      const merged = Array.from(mergedMap.values());
+      saveShifts(merged);
+      return cloudShifts;
+    }
+  } catch (err) {
+    console.warn('Failed to sync active shifts from Supabase:', err);
+  }
+
+  return getActiveShifts();
+};
+
+// Initial background sync
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    syncActiveShiftsFromCloud();
+  }, 500);
+}
+
 const getCurrentCashierOpenShift = (): ShiftSession | null => {
   const active = getActiveShifts();
   if (active.length === 0) return null;
@@ -90,6 +156,8 @@ export const shiftService = {
   saveShifts,
 
   getActiveShifts,
+
+  syncActiveShiftsFromCloud,
 
   getCurrentCashierOpenShift,
 

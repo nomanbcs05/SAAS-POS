@@ -18,7 +18,7 @@ export const OpenShiftModal: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [isOpen, setIsOpen] = useState<boolean>(false);
 
-  const checkShiftStatus = () => {
+  const checkShiftStatus = async () => {
     // Only check shift status on protected routes (not auth/login pages)
     const unauthenticatedPaths = ['/auth', '/login', '/license-manager', '/saas-admin'];
     if (unauthenticatedPaths.includes(location.pathname)) {
@@ -26,7 +26,14 @@ export const OpenShiftModal: React.FC = () => {
       return;
     }
 
-    const currentShift = shiftService.getCurrentCashierOpenShift();
+    // First check local
+    let currentShift = shiftService.getCurrentCashierOpenShift();
+    if (!currentShift) {
+      // Sync from Supabase cloud (e.g. if shift was started on another PC/browser)
+      await shiftService.syncActiveShiftsFromCloud();
+      currentShift = shiftService.getCurrentCashierOpenShift();
+    }
+
     if (!currentShift) {
       setIsOpen(true);
     } else {
