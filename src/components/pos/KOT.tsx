@@ -86,10 +86,9 @@ const KOT = forwardRef<HTMLDivElement, KOTProps>(({ order, isDuplicate = false }
         </h1>
       </div>
 
-      {/* Prominent Order # Banner */}
+      {/* Prominent Order Type Banner */}
       <div className="mb-3 border-b-4 border-black pb-3">
-        <div className="flex justify-between items-baseline mb-2">
-          <span className="text-3xl font-black tracking-tight">ORDER #{order.orderNumber}</span>
+        <div className="flex justify-end items-baseline mb-2">
           <span className="text-xs font-black uppercase px-2 py-1 border-2 border-black">
             {order.orderType?.replace('_', ' ').toUpperCase() || 'DINE IN'}
           </span>

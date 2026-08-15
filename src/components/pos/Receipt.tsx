@@ -106,14 +106,12 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
         </p>
       </div>
 
-      {/* Order Number Box */}
-      <div className="border-x border-t border-black p-1 text-center bg-gray-100">
-        <div className="text-2xl font-black">{order.orderNumber || String(order.daily_id || '01').padStart(2, '0')}</div>
-        {/* Payment Status Tag */}
-        <div className={`text-[10px] font-black uppercase tracking-wider py-0.5 border-t border-dashed border-black mt-0.5 ${isPrePayment ? 'bg-amber-100 text-black' : 'bg-gray-200 text-black'}`}>
-          {isPrePayment ? '*** PRE-PAYMENT BILL ***' : '*** PAID BILL ***'}
-        </div>
+      {/* Payment Status Tag */}
+      <div className={`border-x border-t border-black p-1 text-center text-[10px] font-black uppercase tracking-wider ${isPrePayment ? 'bg-amber-100 text-black' : 'bg-gray-200 text-black'}`}>
+        {isPrePayment ? '*** PRE-PAYMENT BILL ***' : '*** PAID BILL ***'}
       </div>
+
+
 
       {/* Info Section */}
       <div className="border border-black p-1 text-[10px]">

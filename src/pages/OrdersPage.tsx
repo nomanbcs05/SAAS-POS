@@ -576,14 +576,7 @@ const OrdersPage = () => {
               <p className="text-muted-foreground">View and manage order history</p>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="default"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                onClick={() => setIsActiveShiftsOpen(true)}
-              >
-                <Clock className="h-4 w-4 mr-2" />
-                Active Shift
-              </Button>
+
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -706,7 +699,6 @@ const OrdersPage = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-16">Sr #</TableHead>
-                    <TableHead>Daily #</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Total</TableHead>
@@ -723,9 +715,6 @@ const OrdersPage = () => {
                         <TableRow key={order.id}>
                           <TableCell className="font-semibold text-slate-500 text-sm">
                             #{idx + 1}
-                          </TableCell>
-                          <TableCell className="font-bold text-lg text-slate-900">
-                            #{getDailyOrderNumber(order, orders)}
                           </TableCell>
                           <TableCell>{order.customers?.name || 'Walk-in Customer'}</TableCell>
                       <TableCell>
