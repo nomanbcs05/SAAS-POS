@@ -77,16 +77,7 @@ const OngoingOrdersPage = () => {
 
   const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
     if (!order) return '00';
-    if (order.daily_id !== undefined && order.daily_id !== null && order.daily_id !== '') {
-      return String(order.daily_id).padStart(2, '0');
-    }
-    if (order.dailyId !== undefined && order.dailyId !== null && order.dailyId !== '') {
-      return String(order.dailyId).padStart(2, '0');
-    }
-    if (order.orderNumber !== undefined && order.orderNumber !== null && order.orderNumber !== '') {
-      return String(order.orderNumber).padStart(2, '0');
-    }
-    if (Array.isArray(allOrders)) {
+    if (Array.isArray(allOrders) && allOrders.length > 0 && order.created_at) {
       const orderDate = new Date(order.created_at);
       const start = new Date(orderDate);
       start.setHours(0, 0, 0, 0);
@@ -103,6 +94,15 @@ const OngoingOrdersPage = () => {
       if (dailyIndex !== -1) {
         return (dailyIndex + 1).toString().padStart(2, '0');
       }
+    }
+    if (order.daily_id !== undefined && order.daily_id !== null && order.daily_id !== '') {
+      return String(order.daily_id).padStart(2, '0');
+    }
+    if (order.dailyId !== undefined && order.dailyId !== null && order.dailyId !== '') {
+      return String(order.dailyId).padStart(2, '0');
+    }
+    if (order.orderNumber !== undefined && order.orderNumber !== null && order.orderNumber !== '') {
+      return String(order.orderNumber).padStart(2, '0');
     }
     return order.id?.slice(0, 8).toUpperCase() || '00';
   };

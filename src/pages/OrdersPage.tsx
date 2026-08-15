@@ -62,22 +62,14 @@ import { useMultiTenant } from '@/hooks/useMultiTenant';
 
 const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
   if (!order) return '00';
-  if (order.daily_id !== undefined && order.daily_id !== null && order.daily_id !== '') {
-    return String(order.daily_id).padStart(2, '0');
-  }
-  if (order.dailyId !== undefined && order.dailyId !== null && order.dailyId !== '') {
-    return String(order.dailyId).padStart(2, '0');
-  }
-  if (order.orderNumber !== undefined && order.orderNumber !== null && order.orderNumber !== '') {
-    return String(order.orderNumber).padStart(2, '0');
-  }
-  if (Array.isArray(allOrders)) {
+  if (Array.isArray(allOrders) && allOrders.length > 0 && order.created_at) {
     const orderDate = new Date(order.created_at);
     const startOfOrderDay = startOfDay(orderDate);
     const endOfOrderDay = endOfDay(orderDate);
     
     const sortedDayOrders = allOrders
       .filter((o: any) => {
+        if (!o?.created_at) return false;
         const d = new Date(o.created_at);
         return d >= startOfOrderDay && d <= endOfOrderDay;
       })
@@ -87,6 +79,15 @@ const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
     if (dailyIndex !== -1) {
       return (dailyIndex + 1).toString().padStart(2, '0');
     }
+  }
+  if (order.daily_id !== undefined && order.daily_id !== null && order.daily_id !== '') {
+    return String(order.daily_id).padStart(2, '0');
+  }
+  if (order.dailyId !== undefined && order.dailyId !== null && order.dailyId !== '') {
+    return String(order.dailyId).padStart(2, '0');
+  }
+  if (order.orderNumber !== undefined && order.orderNumber !== null && order.orderNumber !== '') {
+    return String(order.orderNumber).padStart(2, '0');
   }
   return order.id?.slice(0, 8).toUpperCase() || '00';
 };
@@ -704,8 +705,8 @@ const OrdersPage = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-16">Sr #</TableHead>
                     <TableHead>Daily #</TableHead>
-                    <TableHead>Order ID</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Total</TableHead>
@@ -718,12 +719,14 @@ const OrdersPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                      {filteredOrders.map((order: any) => (
+                      {filteredOrders.map((order: any, idx: number) => (
                         <TableRow key={order.id}>
-                          <TableCell className="font-bold text-lg">
+                          <TableCell className="font-semibold text-slate-500 text-sm">
+                            #{idx + 1}
+                          </TableCell>
+                          <TableCell className="font-bold text-lg text-slate-900">
                             #{getDailyOrderNumber(order, orders)}
                           </TableCell>
-                          <TableCell className="font-medium text-muted-foreground text-xs">{order.id.substring(0, 8)}...</TableCell>
                           <TableCell>{order.customers?.name || 'Walk-in Customer'}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="capitalize">

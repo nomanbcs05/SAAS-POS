@@ -1106,22 +1106,12 @@ export const api = {
       return data;
     },
     getNextDailyId: async (registerId?: string) => {
-      const activeShift = shiftService.getCurrentCashierOpenShift();
-      const targetRegisterId = registerId || activeShift?.id;
-
       // Force SQLite for desktop app
       if (isDesktop() && window.electronAPI) {
         const all = await window.electronAPI.getAllOrders();
-        let shiftOrders: any[] = [];
-        if (targetRegisterId && isValidUUID(targetRegisterId)) {
-          shiftOrders = all.filter(o => o.register_id === targetRegisterId);
-        } else if (activeShift?.opened_at) {
-          shiftOrders = all.filter(o => o.created_at && o.created_at >= activeShift.opened_at);
-        } else {
-          const todayStart = new Date();
-          todayStart.setHours(0, 0, 0, 0);
-          shiftOrders = all.filter(o => o.created_at && new Date(o.created_at) >= todayStart);
-        }
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const shiftOrders = all.filter(o => o.created_at && new Date(o.created_at) >= todayStart);
         const maxDailyId = shiftOrders.reduce((max, o) => Math.max(max, Number(o.daily_id) || 0), 0);
         const nextId = Math.max(maxDailyId, offline.getDailyCounter()) + 1;
         offline.setDailyCounter(nextId);
@@ -1134,25 +1124,15 @@ export const api = {
 
       let maxDbId = 0;
       const todayStartIso = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
-      const startTime = activeShift?.opened_at
-        ? new Date(activeShift.opened_at).toISOString()
-        : todayStartIso;
 
       try {
-        let query = supabase
-          .from('orders')
-          .select('daily_id')
-          .order('daily_id', { ascending: false })
-          .limit(1);
-
-        if (targetRegisterId && isValidUUID(targetRegisterId)) {
-          query = query.eq('register_id', targetRegisterId);
-        } else {
-          query = query.gte('created_at', startTime);
-        }
-
         const { data, error } = await Promise.race([
-          query,
+          supabase
+            .from('orders')
+            .select('daily_id')
+            .gte('created_at', todayStartIso)
+            .order('daily_id', { ascending: false })
+            .limit(1),
           new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
         ]);
 
@@ -1169,18 +1149,11 @@ export const api = {
       return nextId;
     },
     getDailyCount: async (registerId?: string) => {
-      const activeShift = shiftService.getCurrentCashierOpenShift();
-      const targetRegisterId = registerId || activeShift?.id;
-
       if (isDesktop() && window.electronAPI) {
         const all = await window.electronAPI.getAllOrders();
-        if (targetRegisterId && isValidUUID(targetRegisterId)) {
-          return all.filter(o => o.register_id === targetRegisterId).length;
-        }
-        if (activeShift?.opened_at) {
-          return all.filter(o => o.created_at && o.created_at >= activeShift.opened_at).length;
-        }
-        return offline.getDailyCounter();
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        return all.filter(o => o.created_at && new Date(o.created_at) >= todayStart).length;
       }
       
       if (!offline.isOnline()) {
@@ -1188,25 +1161,15 @@ export const api = {
       }
 
       const todayStartIso = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
-      const startTime = activeShift?.opened_at
-        ? new Date(activeShift.opened_at).toISOString()
-        : todayStartIso;
 
       try {
-        let query = supabase
-          .from('orders')
-          .select('daily_id')
-          .order('daily_id', { ascending: false })
-          .limit(1);
-
-        if (targetRegisterId && isValidUUID(targetRegisterId)) {
-          query = query.eq('register_id', targetRegisterId);
-        } else {
-          query = query.gte('created_at', startTime);
-        }
-
         const { data, error } = await Promise.race([
-          query,
+          supabase
+            .from('orders')
+            .select('daily_id')
+            .gte('created_at', todayStartIso)
+            .order('daily_id', { ascending: false })
+            .limit(1),
           new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
         ]);
 
