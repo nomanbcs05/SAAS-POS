@@ -908,56 +908,66 @@ export const api = {
   staff: {
     getWaiters: async () => {
       const isWaiterRole = (role?: string | null) => {
-        const r = String(role || '').toLowerCase();
+        const r = String(role || '').toLowerCase().trim();
         return r === 'waiter' || r === 'server';
       };
-      const toEntry = (s: any) => {
-        const name = String(s?.name || s?.full_name || '').trim();
-        if (!name || !isWaiterRole(s?.role)) return null;
-        return { id: s.id || name, name, role: 'waiter' as const };
-      };
-      const merged = new Map<string, { id: string; name: string; role: 'waiter' }>();
-      const addAll = (rows: any[]) => {
-        for (const s of rows || []) {
-          const entry = toEntry(s);
-          if (!entry) continue;
-          const key = entry.name.toLowerCase();
-          if (!merged.has(key)) merged.set(key, entry);
+
+      if (!isDesktop() && offline.isOnline()) {
+        try {
+          const { data, error } = await supabase
+            .from('staff')
+            .select('*')
+            .order('name');
+          
+          if (!error && Array.isArray(data)) {
+            const list: Array<{ id: string; name: string; role: 'waiter' }> = [];
+            const seen = new Set<string>();
+
+            for (const s of data) {
+              if (!isWaiterRole(s.role)) continue;
+              const name = String(s.name || s.full_name || '').trim();
+              if (!name) continue;
+              const key = name.toLowerCase();
+              if (!seen.has(key)) {
+                seen.add(key);
+                list.push({ id: s.id || name, name, role: 'waiter' });
+              }
+            }
+            return list;
+          }
+        } catch { /* ignore */ }
+      }
+
+      // Desktop / Offline fallback
+      const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
+      const list: Array<{ id: string; name: string; role: 'waiter' }> = [];
+      const seen = new Set<string>();
+
+      for (const u of localUsers) {
+        if (!isWaiterRole(u.role)) continue;
+        const name = String(u.full_name || u.name || '').trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          list.push({ id: u.id || name, name, role: 'waiter' });
         }
-      };
+      }
 
-      addAll(JSON.parse(localStorage.getItem('pos_local_users') || '[]'));
-
-      try {
-        const { staffManagementApi } = await import('./staffManagementApi');
-        addAll(await staffManagementApi.staff.getAll());
-      } catch { /* ignore */ }
-
-      try {
-        if (!isDesktop() && offline.isOnline()) {
-          const { data } = await supabase.from('staff').select('*').order('name');
-          addAll(data || []);
-        }
-      } catch { /* ignore */ }
-
-      // One-time migrate dine-in names that were only stored in localStorage
       try {
         const legacy: string[] = JSON.parse(localStorage.getItem('pos_server_names') || '[]');
         for (const raw of legacy) {
           const name = String(raw || '').trim();
           if (!name) continue;
           const key = name.toLowerCase();
-          if (merged.has(key)) continue;
-          try {
-            const created = await api.staff.create({ name, role: 'waiter' });
-            merged.set(key, { id: created?.id || name, name, role: 'waiter' });
-          } catch {
-            merged.set(key, { id: name, name, role: 'waiter' });
+          if (!seen.has(key)) {
+            seen.add(key);
+            list.push({ id: name, name, role: 'waiter' });
           }
         }
       } catch { /* ignore */ }
 
-      return Array.from(merged.values());
+      return list;
     },
     getAll: async () => {
       if (isDesktop() || !offline.isOnline()) {
@@ -977,14 +987,17 @@ export const api = {
       return data;
     },
     create: async (staff: { name: string; role?: string }) => {
+      const cleanName = staff.name.trim();
+      const role = staff.role || 'waiter';
+
       if (isDesktop() || !offline.isOnline()) {
         const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
         const newUser = {
           id: crypto.randomUUID(),
-          email: `${staff.name.toLowerCase().replace(/\s+/g, '')}@offline.pos`,
+          email: `${cleanName.toLowerCase().replace(/\s+/g, '')}@offline.pos`,
           password: 'password123',
-          full_name: staff.name,
-          role: staff.role || 'cashier'
+          full_name: cleanName,
+          role: role
         };
         localUsers.push(newUser);
         localStorage.setItem('pos_local_users', JSON.stringify(localUsers));
@@ -997,25 +1010,70 @@ export const api = {
 
       const { data, error } = await supabase
         .from('staff')
-        .insert(staff)
+        .insert({ name: cleanName, role: role })
         .select()
         .single();
       if (error) throw error;
       return data;
     },
-    delete: async (id: string) => {
-      if (isDesktop() || !offline.isOnline()) {
+    delete: async (idOrName: string) => {
+      const targetStr = String(idOrName || '').trim();
+      if (!targetStr) return;
+
+      // Clean local storage cache keys
+      try {
         const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
-        const filtered = localUsers.filter((u: any) => u.id !== id);
-        localStorage.setItem('pos_local_users', JSON.stringify(filtered));
+        const filteredUsers = localUsers.filter((u: any) => 
+          u.id !== targetStr && 
+          u.full_name?.toLowerCase() !== targetStr.toLowerCase() && 
+          u.name?.toLowerCase() !== targetStr.toLowerCase()
+        );
+        localStorage.setItem('pos_local_users', JSON.stringify(filteredUsers));
+
+        const legacy: string[] = JSON.parse(localStorage.getItem('pos_server_names') || '[]');
+        const filteredLegacy = legacy.filter(n => n.toLowerCase() !== targetStr.toLowerCase());
+        localStorage.setItem('pos_server_names', JSON.stringify(filteredLegacy));
+      } catch { /* ignore */ }
+
+      if (isDesktop() || !offline.isOnline()) {
         return;
       }
 
-      const { error } = await supabase
+      // Try deleting by ID first, then fallback to name
+      const { error: idError } = await supabase
         .from('staff')
         .delete()
-        .eq('id', id);
-      if (error) throw error;
+        .eq('id', targetStr);
+
+      if (idError) {
+        await supabase
+          .from('staff')
+          .delete()
+          .ilike('name', targetStr);
+      }
+    },
+    deleteAllWaiters: async () => {
+      try {
+        localStorage.removeItem('pos_server_names');
+        const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
+        const filteredUsers = localUsers.filter((u: any) => {
+          const r = String(u.role || '').toLowerCase();
+          return r !== 'waiter' && r !== 'server';
+        });
+        localStorage.setItem('pos_local_users', JSON.stringify(filteredUsers));
+      } catch { /* ignore */ }
+
+      if (!isDesktop() && offline.isOnline()) {
+        try {
+          await supabase
+            .from('staff')
+            .delete()
+            .or('role.eq.waiter,role.eq.server,role.ilike.waiter,role.ilike.server');
+        } catch (err) {
+          console.warn('Failed to delete all waiters from Supabase:', err);
+        }
+      }
+      return true;
     }
   },
   drivers: {
@@ -1779,7 +1837,7 @@ export const api = {
               }))
             };
           })
-          .filter(o => o.status === 'pending' || o.status === 'preparing' || o.status === 'ready');
+          .filter(o => o.status === 'pending' || o.status === 'preparing' || o.status === 'ready' || o.status === 'refunded' || o.status === 'cancelled' || o.status === 'canceled');
       }
 
       let onlineOrders: any[] = [];
@@ -1796,7 +1854,7 @@ export const api = {
                 products(name, image)
               )
             `)
-            .in('status', ['pending', 'preparing', 'ready'])
+            .in('status', ['pending', 'preparing', 'ready', 'refunded', 'cancelled', 'canceled'])
             .order('created_at', { ascending: false }),
           new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
         ]);

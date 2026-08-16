@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import MainLayout from "@/components/layout/MainLayout";
@@ -315,6 +315,12 @@ const PosDashboardPage = () => {
           closingCash,
           `Closing count: Rs.${closingCash}`
         );
+      } else {
+        await shiftService.closeShift(
+          '',
+          closingCash,
+          `Closing count: Rs.${closingCash}`
+        );
       }
       localStorage.removeItem("pos_local_user");
       localStorage.removeItem("pos_hide_management");
@@ -322,10 +328,12 @@ const PosDashboardPage = () => {
       localStorage.removeItem("pos_session_id");
       localStorage.removeItem("pos_offline_session");
       localStorage.removeItem("pos_offline_profile");
+      localStorage.removeItem("active_staff_name");
       cashierApi.auth.clearSession();
       if (!isDesktop()) {
         await supabase.auth.signOut();
       }
+      window.dispatchEvent(new Event('shift_changed'));
       queryClient.clear();
       toast.success("Shift ended & signed out");
       navigate("/auth");

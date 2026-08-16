@@ -85,7 +85,13 @@ const syncActiveShiftsFromCloud = async (): Promise<ShiftSession[]> => {
     ]);
 
     if (!error && Array.isArray(data)) {
-      const cloudShifts: ShiftSession[] = data.map((r: any) => {
+      const now = Date.now();
+      const MAX_SHIFT_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+      const cloudShifts: ShiftSession[] = [];
+      const staleShiftIds: string[] = [];
+
+      data.forEach((r: any) => {
         let cName = (r.cashier_name || '').trim();
         if (!cName && r.notes) {
           const match = r.notes.match(/Cashier:\s*(.*)/i);
@@ -95,18 +101,39 @@ const syncActiveShiftsFromCloud = async (): Promise<ShiftSession[]> => {
         }
         if (!cName) cName = 'CASHIER';
 
-        return {
-          id: r.id,
-          cashier_name: cName,
-          cashier_id: r.cashier_id || undefined,
-          opened_at: r.opened_at,
-          closed_at: r.closed_at || null,
-          starting_amount: Number(r.starting_amount) || 0,
-          ending_amount: r.ending_amount != null ? Number(r.ending_amount) : null,
-          status: (r.status as 'open' | 'closed') || 'open',
-          notes: r.notes || null,
-        };
+        const openTime = new Date(r.opened_at).getTime();
+        const isStale = isNaN(openTime) || (now - openTime) > MAX_SHIFT_AGE_MS;
+
+        if (isStale) {
+          staleShiftIds.push(r.id);
+        } else {
+          cloudShifts.push({
+            id: r.id,
+            cashier_name: cName,
+            cashier_id: r.cashier_id || undefined,
+            opened_at: r.opened_at,
+            closed_at: r.closed_at || null,
+            starting_amount: Number(r.starting_amount) || 0,
+            ending_amount: r.ending_amount != null ? Number(r.ending_amount) : null,
+            status: (r.status as 'open' | 'closed') || 'open',
+            notes: r.notes || null,
+          });
+        }
       });
+
+      // Background auto-close stale shifts in Supabase
+      if (staleShiftIds.length > 0) {
+        supabase
+          .from('daily_registers')
+          .update({
+            status: 'closed',
+            closed_at: new Date().toISOString(),
+            notes: 'Auto-closed expired shift (>24h)',
+          } as any)
+          .in('id', staleShiftIds)
+          .then(() => {})
+          .catch(() => {});
+      }
 
       const stored = getStoredShifts();
       const nonOpenStored = stored.filter(s => s.status !== 'open');
@@ -159,14 +186,8 @@ const getAllShiftsFromCloud = async (): Promise<ShiftSession[]> => {
         };
       });
 
-      const stored = getStoredShifts();
-      const mergedMap = new Map<string, ShiftSession>();
-      stored.forEach(s => mergedMap.set(s.id, s));
-      cloudShifts.forEach(s => mergedMap.set(s.id, s));
-
-      const merged = Array.from(mergedMap.values());
-      saveShifts(merged);
-      return merged;
+      saveShifts(cloudShifts);
+      return cloudShifts;
     }
   } catch (err) {
     console.warn('Failed to fetch historical shifts from Supabase:', err);
@@ -240,30 +261,31 @@ export const shiftService = {
       }
     }
 
+    window.dispatchEvent(new Event('shift_changed'));
     return newShift;
   },
 
   closeShift: async (id: string, endingAmount?: number, notes?: string): Promise<ShiftSession | null> => {
     const shifts = getStoredShifts();
-    const index = shifts.findIndex((s) => s.id === id);
-    if (index === -1) return null;
+    const targetShift = shifts.find((s) => s.id === id);
+    const cashierName = targetShift?.cashier_name || getCurrentCashierName();
 
-    const shift = shifts[index];
-    const updated: ShiftSession = {
-      ...shift,
-      status: 'closed',
-      closed_at: new Date().toISOString(),
-      ending_amount: endingAmount ?? shift.starting_amount,
-      notes: notes || shift.notes || 'Shift closed',
-    };
+    const updatedShifts = shifts.map((s) => {
+      if (s.id === id || s.cashier_name.toLowerCase() === cashierName.toLowerCase()) {
+        return {
+          ...s,
+          status: 'closed' as const,
+          closed_at: new Date().toISOString(),
+          ending_amount: endingAmount ?? s.starting_amount,
+          notes: notes || s.notes || 'Shift closed',
+        };
+      }
+      return s;
+    });
 
-    shifts[index] = updated;
-    saveShifts(shifts);
-
-    const currentShiftId = localStorage.getItem('pos_current_shift_id');
-    if (currentShiftId === id) {
-      localStorage.removeItem('pos_current_shift_id');
-    }
+    saveShifts(updatedShifts);
+    localStorage.removeItem('pos_current_shift_id');
+    window.dispatchEvent(new Event('shift_changed'));
 
     if (isOnline()) {
       try {
@@ -271,16 +293,56 @@ export const shiftService = {
           .from('daily_registers')
           .update({
             status: 'closed',
-            closed_at: updated.closed_at,
-            ending_amount: updated.ending_amount,
-            notes: updated.notes,
+            closed_at: new Date().toISOString(),
+            ending_amount: endingAmount ?? targetShift?.starting_amount ?? 0,
+            notes: notes || 'Shift closed by cashier',
           } as any)
           .eq('id', id);
+
+        // Also close any remaining open registers for this cashier
+        await supabase
+          .from('daily_registers')
+          .update({
+            status: 'closed',
+            closed_at: new Date().toISOString(),
+            notes: 'Auto-closed on session end',
+          } as any)
+          .eq('status', 'open')
+          .ilike('notes', `%${cashierName}%`);
       } catch (err) {
         console.warn('Failed to sync closed shift to Supabase:', err);
       }
     }
 
-    return updated;
+    return updatedShifts.find((s) => s.id === id) || null;
+  },
+
+  closeAllOpenShifts: async (): Promise<void> => {
+    const shifts = getStoredShifts();
+    const closedShifts = shifts.map(s => ({
+      ...s,
+      status: 'closed' as const,
+      closed_at: s.closed_at || new Date().toISOString(),
+      ending_amount: s.ending_amount ?? s.starting_amount,
+      notes: s.notes || 'Cleaned / closed shift',
+    }));
+    saveShifts(closedShifts);
+    localStorage.removeItem('pos_current_shift_id');
+    window.dispatchEvent(new Event('shift_changed'));
+
+    if (isOnline()) {
+      try {
+        await supabase
+          .from('daily_registers')
+          .update({
+            status: 'closed',
+            closed_at: new Date().toISOString(),
+            notes: 'Batch closed by user action',
+          } as any)
+          .eq('status', 'open');
+      } catch (err) {
+        console.warn('Failed to batch close open shifts in Supabase:', err);
+      }
+    }
   },
 };

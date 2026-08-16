@@ -190,15 +190,41 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
     }
   };
 
+  const handleCloseAllShifts = async () => {
+    if (!window.confirm('Are you sure you want to close and clean ALL running shifts?')) return;
+    const toastId = toast.loading('Closing and cleaning all active shifts...');
+    try {
+      await shiftService.closeAllOpenShifts();
+      const updated = await shiftService.getAllShiftsFromCloud();
+      setShiftsList(updated);
+      toast.dismiss(toastId);
+      toast.success('All active shifts closed and cleaned successfully');
+      if (onShiftClosed) onShiftClosed();
+    } catch (err: any) {
+      toast.dismiss(toastId);
+      toast.error('Failed to clean shifts: ' + err.message);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Clock className="h-6 w-6 text-emerald-600" />
               Cashier Active Shifts & Reports
             </DialogTitle>
+            {runningShifts.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCloseAllShifts}
+                className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 font-bold shrink-0 self-start sm:self-auto text-xs"
+              >
+                Close & Clean All ({runningShifts.length})
+              </Button>
+            )}
           </div>
           <DialogDescription>
             Manage active cashier shifts, inspect orders summaries, and close shifts with automatic receipt printing.

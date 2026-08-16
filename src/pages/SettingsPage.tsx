@@ -394,10 +394,9 @@ const SettingsPage = () => {
   }, []);
 
   // Database-backed staff and riders
-  const { data: staffMembersDb = [], refetch: refetchStaff } = useQuery({
-    queryKey: ['staff-db', tenant?.id],
-    queryFn: () => api.staff.getAll(),
-    enabled: !!tenant?.id,
+  const { data: serversDb = [], refetch: refetchStaff } = useQuery({
+    queryKey: ['waiters'],
+    queryFn: () => api.staff.getWaiters(),
   });
 
   const { data: ridersDb = [], refetch: refetchRiders } = useQuery({
@@ -411,6 +410,9 @@ const SettingsPage = () => {
     try {
       await api.staff.create({ name: newServerName.trim(), role: 'waiter' });
       setNewServerName('');
+      queryClient.invalidateQueries({ queryKey: ['waiters'] });
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-db'] });
       refetchStaff();
       toast.success('Server added to database');
     } catch (err) {
@@ -418,13 +420,30 @@ const SettingsPage = () => {
     }
   };
 
-  const handleDeleteServerDb = async (id: string) => {
+  const handleDeleteServerDb = async (idOrName: string) => {
     try {
-      await api.staff.delete(id);
+      await api.staff.delete(idOrName);
+      queryClient.invalidateQueries({ queryKey: ['waiters'] });
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-db'] });
       refetchStaff();
       toast.success('Server removed from database');
     } catch (err) {
       toast.error('Failed to remove server');
+    }
+  };
+
+  const handleDeleteAllServersDb = async () => {
+    if (!window.confirm('Are you sure you want to remove ALL servers from database? This cannot be undone.')) return;
+    try {
+      await api.staff.deleteAllWaiters();
+      queryClient.invalidateQueries({ queryKey: ['waiters'] });
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-db'] });
+      refetchStaff();
+      toast.success('All servers removed from database');
+    } catch (err) {
+      toast.error('Failed to remove all servers');
     }
   };
 
@@ -947,9 +966,22 @@ const SettingsPage = () => {
                   <Separator className="my-8" />
 
                   <div className="space-y-6">
-                    <div className="flex flex-col gap-1">
-                      <h3 className="font-bold text-slate-900">Servers Management</h3>
-                      <p className="text-sm text-muted-foreground">Add or remove servers for Dine-In orders</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex flex-col gap-1">
+                        <h3 className="font-bold text-slate-900">Servers Management</h3>
+                        <p className="text-sm text-muted-foreground">Add or remove servers for Dine-In orders</p>
+                      </div>
+                      {serversDb.length > 0 && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleDeleteAllServersDb}
+                          className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 font-bold shrink-0 self-start sm:self-auto"
+                        >
+                          <Trash2 className="h-4 w-4 mr-1.5" />
+                          Remove All Servers ({serversDb.length})
+                        </Button>
+                      )}
                     </div>
                     
                     <div className="flex gap-2 max-w-md">
@@ -966,14 +998,14 @@ const SettingsPage = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {staffMembersDb.map((staff: any) => (
-                        <div key={staff.id} className="flex items-center justify-between p-3 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow group">
+                      {serversDb.map((staff: any) => (
+                        <div key={staff.id || staff.name} className="flex items-center justify-between p-3 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow group">
                           <span className="font-bold text-slate-700 ml-2">{staff.name}</span>
                           <Button 
                             variant="ghost" 
                             size="icon" 
                             className="h-8 w-8 text-slate-300 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleDeleteServerDb(staff.id)}
+                            onClick={() => handleDeleteServerDb(staff.id || staff.name)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
