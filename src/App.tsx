@@ -18,6 +18,7 @@ import SettingsPage from "./pages/SettingsPage";
 import CreditPage from "./pages/CreditPage";
 import StaffManagementPage from "./pages/StaffManagementPage";
 import InventoryPage from "./modules/inventory/InventoryPage";
+import PosDashboardPage from "./pages/PosDashboardPage";
 
 import Welcome from "./pages/Welcome";
 import LoginPage from "./pages/LoginPage";
@@ -139,6 +140,11 @@ const AppContent = () => {
           } />
 
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/pos-dashboard" element={
+            <ProtectedRoute>
+              <PosDashboardPage />
+            </ProtectedRoute>
+          } />
           <Route path="*" element={<NotFound />} />
       </Routes>
     </HashRouter>

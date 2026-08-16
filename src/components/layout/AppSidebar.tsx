@@ -117,7 +117,8 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
   }, [profile]);
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutGrid, moduleKey: 'dashboard' },
+    { name: 'POS', href: '/', icon: LayoutGrid, moduleKey: 'dashboard' },
+    { name: 'POS Dashboard', href: '/pos-dashboard', icon: Zap, moduleKey: 'dashboard' },
     { name: 'SaaS Admin', href: '/saas-admin', icon: ShieldCheck, superAdminOnly: true, moduleKey: null as any },
     { name: 'Running Orders', href: '/ongoing-orders', icon: Clock, moduleKey: 'ongoing-orders' },
     { name: 'Orders', href: '/orders', icon: ClipboardList, moduleKey: 'orders' },
@@ -266,7 +267,7 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
                 >
                   <item.icon className="h-5 w-5 shrink-0" />
                   <span className="animate-in fade-in slide-in-from-left-2 duration-300">{item.name}</span>
-                  {item.name === 'Dashboard' && (
+                  {item.name === 'POS' && (
                     <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-sidebar-border text-sidebar-foreground/50 animate-in fade-in zoom-in duration-300">
                       F1
                     </span>
