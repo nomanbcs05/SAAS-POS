@@ -790,27 +790,65 @@ export const api = {
         return [];
       }
     },
-    updateStatus: async (id: string, status: 'available' | 'occupied' | 'reserved' | 'cleaning') => {
-      if (isDesktop() || !offline.isOnline()) {
+    updateStatus: async (tableIdOrNumber: string, status: 'available' | 'occupied' | 'reserved' | 'cleaning') => {
+      if (!tableIdOrNumber) return null;
+      const targetStr = String(tableIdOrNumber).trim();
+      const cleanNum = targetStr.replace(/^table\s+/i, '').trim();
+
+      // 1. Update local cache
+      try {
         const tables = await offline.getCachedTables();
-        const index = tables.findIndex((t: any) => t.id === id);
-        if (index !== -1) {
-          tables[index].status = status;
-          await offline.cacheTables(tables);
-          return tables[index];
+        let updatedLocally = false;
+        for (const t of tables) {
+          if (
+            t.id === targetStr || 
+            String(t.table_number).toLowerCase() === targetStr.toLowerCase() ||
+            String(t.table_number).toLowerCase() === cleanNum.toLowerCase()
+          ) {
+            t.status = status;
+            updatedLocally = true;
+          }
         }
-        return null;
+        if (updatedLocally) {
+          await offline.cacheTables(tables);
+        }
+      } catch (e) {
+        console.warn('[Tables] Local cache update failed:', e);
       }
 
+      if (isDesktop() || !offline.isOnline()) {
+        return { status };
+      }
+
+      // 2. Update Supabase
       try {
-        const { data, error } = await supabase
-          .from('restaurant_tables')
-          .update({ status })
-          .eq('id', id)
-          .select()
-          .single();
-        if (error) throw error;
-        return data;
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetStr);
+        let updatedData = null;
+
+        if (isUUID) {
+          const { data, error } = await supabase
+            .from('restaurant_tables')
+            .update({ status })
+            .eq('id', targetStr)
+            .select();
+          if (!error && data && data.length > 0) {
+            updatedData = data[0];
+          }
+        }
+
+        // If not UUID or UUID didn't match, update by table_number
+        if (!updatedData) {
+          const { data, error } = await supabase
+            .from('restaurant_tables')
+            .update({ status })
+            .or(`table_number.eq.${targetStr},table_number.eq.${cleanNum},table_number.ilike.${targetStr}`)
+            .select();
+          if (!error && data && data.length > 0) {
+            updatedData = data[0];
+          }
+        }
+
+        return updatedData || { status };
       } catch (err) {
         console.warn('[Tables] restaurant_tables updateStatus error:', err);
         return null;
@@ -1686,6 +1724,20 @@ export const api = {
         cachedDailyCount.count++;
       }
 
+      // Update table occupancy status
+      const assignedTable = order.table_id || safeOrder.table_id;
+      if (assignedTable) {
+        try {
+          if (safeOrder.status === 'completed') {
+            await api.tables.updateStatus(assignedTable, 'available');
+          } else {
+            await api.tables.updateStatus(assignedTable, 'occupied');
+          }
+        } catch (tErr) {
+          console.warn('[Table Status] Failed to update table status on order create:', tErr);
+        }
+      }
+
       // Decrement stock if order is created as completed
       if (safeOrder.status === 'completed') {
         try {
@@ -1908,6 +1960,20 @@ export const api = {
         .insert(itemsWithOrderIdFull);
 
       if (itemsError) throw itemsError;
+
+      // Update table occupancy status
+      const assignedTable = safeOrder.table_id || prevOrder?.table_id || order.table_id;
+      if (assignedTable) {
+        try {
+          if (safeOrder.status === 'completed') {
+            await api.tables.updateStatus(assignedTable, 'available');
+          } else {
+            await api.tables.updateStatus(assignedTable, 'occupied');
+          }
+        } catch (tErr) {
+          console.warn('[Table Status] Failed to update table status on order update:', tErr);
+        }
+      }
 
       // Fetch updated order to return daily_id so callers can display correct KOT number
       try {
@@ -2301,7 +2367,7 @@ export const api = {
         // Fetch order details and items first before deleting them
         const { data: order } = await supabase
           .from('orders')
-          .select('status')
+          .select('status, table_id')
           .eq('id', id)
           .maybeSingle();
 
@@ -2331,6 +2397,15 @@ export const api = {
         ]);
 
         if (orderError) throw orderError;
+
+        // Release table if order was assigned to a table
+        if (order?.table_id) {
+          try {
+            await api.tables.updateStatus(order.table_id, 'available');
+          } catch (tErr) {
+            console.warn('[Table Status] Failed to release table on order delete:', tErr);
+          }
+        }
 
         // If the order was completed, restore/increment stock!
         if (order && order.status === 'completed' && orderItems && orderItems.length > 0) {

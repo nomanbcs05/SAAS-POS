@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { api } from '@/services/api';
 import { useCartStore } from '@/stores/cartStore';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Users, X, UserCircle2, TreePine, Home, Plus, Trash2, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -103,6 +104,24 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     queryFn: api.orders.getOngoing,
     enabled: isOpen,
   });
+
+  // Supabase Realtime subscription on restaurant_tables
+  useEffect(() => {
+    const channel = supabase
+      .channel('tables')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'restaurant_tables' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['tables'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const displayTables = useMemo(() => {
     let list = [...dbTables];
@@ -589,11 +608,7 @@ interface TableGridProps {
 const TableGrid = ({ tables, ongoingOrders, getStatusColor, onSelect, onClear, onDelete, onAddTable }: TableGridProps) => (
   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 pb-2">
     {tables.map((table: any) => {
-      const tableIdVal = table.id || table.table_id || table.table_number;
-      const isOccupied = ongoingOrders.some(
-        (o: any) => o.table_id === tableIdVal || o.table_id === table.table_number
-      );
-      const status: TableStatus = isOccupied ? 'occupied' : table.status;
+      const status: TableStatus = (table.status as TableStatus) || 'available';
       const sec = (table.section || 'indoor').toLowerCase();
 
       return (

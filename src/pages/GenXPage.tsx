@@ -3,6 +3,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
+import { supabase } from '@/integrations/supabase/client';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 import { toast } from 'sonner';
 import { useReactToPrint } from 'react-to-print';
@@ -153,6 +154,24 @@ const GenXPage: React.FC = () => {
     queryKey: ['daily-order-count'],
     queryFn: () => api.orders.getDailyCount(),
   });
+
+  // Realtime subscription on restaurant_tables
+  useEffect(() => {
+    const channel = supabase
+      .channel('tables_genx')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'restaurant_tables' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['tables'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Effective products array: combines DB products + Default Rajput Products so master list is NEVER empty
   const products = useMemo(() => {
