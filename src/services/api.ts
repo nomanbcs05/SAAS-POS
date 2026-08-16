@@ -12,7 +12,7 @@ declare global {
       getUnsyncedOrders: () => Promise<any[]>;
       markAsSynced: (id: string) => Promise<any>;
       updateStatus: (id: string, status: string) => Promise<any>;
-      updateItems: (id: string, items: any[], total: number) => Promise<any>;
+      updateItems: (id: string, items: any[], total: number, serverName?: string | null) => Promise<any>;
       getAllOrders: () => Promise<any[]>;
       getOrderById: (id: string) => Promise<any>;
       deleteOrder: (id: string) => Promise<any>;
@@ -906,6 +906,59 @@ export const api = {
     }
   },
   staff: {
+    getWaiters: async () => {
+      const isWaiterRole = (role?: string | null) => {
+        const r = String(role || '').toLowerCase();
+        return r === 'waiter' || r === 'server';
+      };
+      const toEntry = (s: any) => {
+        const name = String(s?.name || s?.full_name || '').trim();
+        if (!name || !isWaiterRole(s?.role)) return null;
+        return { id: s.id || name, name, role: 'waiter' as const };
+      };
+      const merged = new Map<string, { id: string; name: string; role: 'waiter' }>();
+      const addAll = (rows: any[]) => {
+        for (const s of rows || []) {
+          const entry = toEntry(s);
+          if (!entry) continue;
+          const key = entry.name.toLowerCase();
+          if (!merged.has(key)) merged.set(key, entry);
+        }
+      };
+
+      addAll(JSON.parse(localStorage.getItem('pos_local_users') || '[]'));
+
+      try {
+        const { staffManagementApi } = await import('./staffManagementApi');
+        addAll(await staffManagementApi.staff.getAll());
+      } catch { /* ignore */ }
+
+      try {
+        if (!isDesktop() && offline.isOnline()) {
+          const { data } = await supabase.from('staff').select('*').order('name');
+          addAll(data || []);
+        }
+      } catch { /* ignore */ }
+
+      // One-time migrate dine-in names that were only stored in localStorage
+      try {
+        const legacy: string[] = JSON.parse(localStorage.getItem('pos_server_names') || '[]');
+        for (const raw of legacy) {
+          const name = String(raw || '').trim();
+          if (!name) continue;
+          const key = name.toLowerCase();
+          if (merged.has(key)) continue;
+          try {
+            const created = await api.staff.create({ name, role: 'waiter' });
+            merged.set(key, { id: created?.id || name, name, role: 'waiter' });
+          } catch {
+            merged.set(key, { id: name, name, role: 'waiter' });
+          }
+        }
+      } catch { /* ignore */ }
+
+      return Array.from(merged.values());
+    },
     getAll: async () => {
       if (isDesktop() || !offline.isOnline()) {
         const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
@@ -1882,11 +1935,11 @@ export const api = {
 
       return allOrders;
     },
-    updateItems: async (orderId: string, items: any[]) => {
+    updateItems: async (orderId: string, items: any[], serverName?: string | null) => {
       // Force SQLite for desktop
       if (isDesktop() && window.electronAPI) {
         const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        await window.electronAPI.updateItems(orderId, items, total);
+        await window.electronAPI.updateItems(orderId, items, total, serverName);
         return true;
       }
 
@@ -1894,7 +1947,9 @@ export const api = {
 
       // If offline, update the local queue
       if (!offline.isOnline()) {
-        const success = offline.queueUpdate(orderId, { items, total_amount: total });
+        const payload: any = { items, total_amount: total };
+        if (serverName != null) payload.server_name = serverName;
+        const success = offline.queueUpdate(orderId, payload);
         return success;
       }
 
@@ -1935,11 +1990,14 @@ export const api = {
 
         if (insertError) throw insertError;
 
-        // Update order total
+        // Update order total and server_name if specified
+        const updatePayload: any = { total_amount: total };
+        if (serverName != null) updatePayload.server_name = serverName;
+
         const { error: updateError } = await Promise.race([
           supabase
             .from('orders')
-            .update({ total_amount: total })
+            .update(updatePayload)
             .eq('id', orderId),
           new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
         ]);
@@ -1948,7 +2006,9 @@ export const api = {
         return true;
       } catch (err) {
         console.warn('Timeout or error during updateItems, attempting offline update');
-        return offline.queueUpdate(orderId, { items, total_amount: total });
+        const payload: any = { items, total_amount: total };
+        if (serverName != null) payload.server_name = serverName;
+        return offline.queueUpdate(orderId, payload);
       }
     },
     updateStatus: async (id: string, status: string) => {

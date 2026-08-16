@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getUnsyncedOrders: () => ipcRenderer.invoke('db:get-unsynced-orders'),
   markAsSynced: (id) => ipcRenderer.invoke('db:mark-synced', id),
   updateStatus: (id, status) => ipcRenderer.invoke('db:update-status', id, status),
-  updateItems: (id, items, total) => ipcRenderer.invoke('db:update-items', id, items, total),
+  updateItems: (id, items, total, serverName) => ipcRenderer.invoke('db:update-items', id, items, total, serverName),
   getAllOrders: () => ipcRenderer.invoke('db:get-all-orders'),
   getOrderById: (id) => ipcRenderer.invoke('db:get-order-by-id', id),
   deleteOrder: (id) => ipcRenderer.invoke('db:delete-order', id),

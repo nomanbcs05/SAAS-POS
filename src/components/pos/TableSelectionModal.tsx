@@ -41,39 +41,56 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
   const [newServerName, setNewServerName] = useState('');
   const [isAddingServer, setIsAddingServer] = useState(false);
 
+  const { data: dbWaiters = [] } = useQuery({
+    queryKey: ['waiters'],
+    queryFn: api.staff.getWaiters,
+    enabled: isOpen,
+  });
+
+  const displayServers = useMemo(() => {
+    return dbWaiters.map((w: any) => (w.name || '').toUpperCase()).filter(Boolean);
+  }, [dbWaiters]);
+
   useEffect(() => {
     if (isOpen) {
       setStep('server');
       setActiveFilter('all');
     }
-    const savedServers = localStorage.getItem('pos_server_names');
-    if (savedServers) {
-      try { setServerList(JSON.parse(savedServers)); } catch { /* ignore */ }
-    } else {
-      setServerList([]);
-    }
   }, [isOpen]);
 
-  const handleAddServer = () => {
+  const handleAddServer = async () => {
     const trimmed = newServerName.trim();
     if (!trimmed) return;
-    if (serverList.includes(trimmed)) {
+    if (displayServers.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
       toast.error('Server already exists');
       return;
     }
-    const updated = [...serverList, trimmed];
-    setServerList(updated);
-    localStorage.setItem('pos_server_names', JSON.stringify(updated));
-    setNewServerName('');
-    setIsAddingServer(false);
-    toast.success(`${trimmed} added as server`);
+    try {
+      await api.staff.create({ name: trimmed, role: 'waiter' });
+      queryClient.invalidateQueries({ queryKey: ['waiters'] });
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-db'] });
+      setNewServerName('');
+      setIsAddingServer(false);
+      toast.success(`${trimmed} added as server`);
+    } catch {
+      toast.error('Failed to add server');
+    }
   };
 
-  const handleRemoveServer = (name: string) => {
-    const updated = serverList.filter(s => s !== name);
-    setServerList(updated);
-    localStorage.setItem('pos_server_names', JSON.stringify(updated));
-    toast.success(`${name} removed`);
+  const handleRemoveServer = async (name: string) => {
+    const matched = dbWaiters.find((w: any) => (w.name || '').toLowerCase() === name.toLowerCase());
+    if (matched && matched.id) {
+      try {
+        await api.staff.delete(matched.id);
+        queryClient.invalidateQueries({ queryKey: ['waiters'] });
+        queryClient.invalidateQueries({ queryKey: ['staff'] });
+        queryClient.invalidateQueries({ queryKey: ['staff-db'] });
+        toast.success(`${name} removed`);
+      } catch {
+        toast.error(`Failed to remove ${name}`);
+      }
+    }
   };
 
   const { data: dbTables = [], isLoading } = useQuery({
@@ -81,8 +98,6 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     queryFn: api.tables.getAll,
     enabled: isOpen,
   });
-
-  const displayServers = serverList;
 
   const { data: ongoingOrders = [] } = useQuery({
     queryKey: ['ongoing-orders'],

@@ -138,9 +138,9 @@ const GenXPage: React.FC = () => {
     queryFn: api.tables.getAll,
   });
 
-  const { data: staffList = [] } = useQuery({
-    queryKey: ['staff'],
-    queryFn: api.staff.getAll,
+  const { data: dbWaiters = [] } = useQuery({
+    queryKey: ['waiters'],
+    queryFn: api.staff.getWaiters,
   });
 
   const { data: ongoingOrders = [] } = useQuery({
@@ -195,12 +195,12 @@ const GenXPage: React.FC = () => {
     }
   };
 
-  // Waiter Options
+  // Waiter Options - strictly loads staff saved in Settings / Staff Management
   const waiterOptions = useMemo(() => {
-    const defaultWaiters = ['CASH / PARSAL', 'FAISAL BASHIR', 'WAITER 1', 'WAITER 2', 'ALI HYDER'];
-    const staffNames = staffList.map((s: any) => (s.name || s.full_name || '').toUpperCase()).filter(Boolean);
-    return Array.from(new Set([...defaultWaiters, ...staffNames]));
-  }, [staffList]);
+    const dbNames = dbWaiters.map((s: any) => (s.name || '').toUpperCase()).filter(Boolean);
+    const options = Array.from(new Set(['CASH / PARSAL', ...dbNames]));
+    return options;
+  }, [dbWaiters]);
 
   // Running orders filtered by selected waiter
   const waiterRunningOrders = useMemo(() => {
@@ -538,34 +538,12 @@ const GenXPage: React.FC = () => {
 
       let orderDailyId = (dailyCount || 0) + 1;
 
-      const orderInsert = {
-        customer_id: null,
-        total_amount: totalAmount,
-        status: 'pending', // KOT orders are ongoing/pending
-        payment_method: 'cash',
-        order_type: 'dine_in',
-        table_id: tableIdVal,
-        server_name: selectedWaiter,
-        customer_address: null,
-        register_id: null,
-        daily_id: orderDailyId,
-        tenant_id: tenant?.id,
-      };
-
-      const orderItemsInsert = billItems.map((item) => ({
-        product_id: item.id,
-        product_name: item.name,
-        product_category: item.product?.category || 'General',
-        quantity: item.quantity,
-        price: item.price,
-      }));
-
       let savedOrder: any;
       let revCount = 1;
       const existingOrder = ongoingOrders.find((o: any) => o.id === activeOrderId);
 
       if (activeOrderId) {
-        await api.orders.updateItems(activeOrderId, orderItemsInsert);
+        await api.orders.updateItems(activeOrderId, orderItemsInsert, selectedWaiter);
         savedOrder = { id: activeOrderId, daily_id: existingOrder?.daily_id || orderDailyId };
         revCount = Number(localStorage.getItem(`kot_revision_${activeOrderId}`) || 1) + 1;
         localStorage.setItem(`kot_revision_${activeOrderId}`, String(revCount));
@@ -649,11 +627,11 @@ const GenXPage: React.FC = () => {
       }));
 
       const existingOrder = ongoingOrders.find((o: any) => o.id === activeOrderId);
-      const effectiveServerName = existingOrder?.server_name || selectedWaiter;
+      const effectiveServerName = selectedWaiter || existingOrder?.server_name || '';
 
       let savedOrder: any;
       if (activeOrderId) {
-        await api.orders.updateItems(activeOrderId, orderItemsInsert);
+        await api.orders.updateItems(activeOrderId, orderItemsInsert, effectiveServerName);
         await api.orders.updateStatus(activeOrderId, 'completed');
         savedOrder = { id: activeOrderId, daily_id: existingOrder?.daily_id || orderDailyId };
       } else {

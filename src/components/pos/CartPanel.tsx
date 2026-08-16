@@ -377,7 +377,7 @@ const CartPanel = () => {
           dailyId = cachedOrder.daily_id;
           dailyIdStr = cachedOrder.daily_id.toString().padStart(2, '0');
         }
-        if (cachedOrder.server_name) {
+        if (!serverName && cachedOrder.server_name) {
           effectiveServerName = cachedOrder.server_name;
         }
       }

@@ -185,7 +185,7 @@ export const markOrderSynced = (id: string) => {
   }
 };
 
-export const queueUpdate = (id: string, update: { status?: string; items?: any[]; total_amount?: number }) => {
+export const queueUpdate = (id: string, update: { status?: string; items?: any[]; total_amount?: number; server_name?: string | null }) => {
   try {
     // 1. Check if it's an offline order
     let pending = JSON.parse(localStorage.getItem(CACHE_KEYS.PENDING_ORDERS) || '[]');
@@ -197,6 +197,7 @@ export const queueUpdate = (id: string, update: { status?: string; items?: any[]
           const newOrder = { ...o.order };
           if (update.status) newOrder.status = update.status;
           if (update.total_amount !== undefined) newOrder.total_amount = update.total_amount;
+          if (update.server_name !== undefined) newOrder.server_name = update.server_name;
           
           return {
             ...o,

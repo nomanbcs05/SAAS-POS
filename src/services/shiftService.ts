@@ -75,15 +75,11 @@ const syncActiveShiftsFromCloud = async (): Promise<ShiftSession[]> => {
   if (!isOnline()) return getActiveShifts();
 
   try {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
     const { data, error } = await Promise.race([
       supabase
         .from('daily_registers')
         .select('*')
         .eq('status', 'open')
-        .gte('opened_at', todayStart.toISOString())
         .order('opened_at', { ascending: false }),
       new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
     ]);

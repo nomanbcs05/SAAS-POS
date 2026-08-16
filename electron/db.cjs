@@ -61,7 +61,11 @@ const dbManager = {
     return stmt.run(status, id);
   },
 
-  updateOrderItems: (id, items, total) => {
+  updateOrderItems: (id, items, total, serverName) => {
+    if (serverName) {
+      const stmt = db.prepare('UPDATE orders SET items = ?, data = json_set(data, "$.total_amount", ?, "$.server_name", ?) WHERE id = ?');
+      return stmt.run(JSON.stringify(items), total, serverName, id);
+    }
     const stmt = db.prepare('UPDATE orders SET items = ?, data = json_set(data, "$.total_amount", ?) WHERE id = ?');
     return stmt.run(JSON.stringify(items), total, id);
   },

@@ -296,6 +296,7 @@ export const useCartStore = create<CartState>()(
         items: [],
         customer: null,
         tableId: null, // Clear tableId
+        serverName: null, // Clear serverName
         rider: null, // Clear rider
         customerAddress: null, // Clear customerAddress
         discount: 0,
@@ -342,6 +343,7 @@ export const useCartStore = create<CartState>()(
           items,
           customer,
           tableId: order.table_id,
+          serverName: order.server_name || null,
           orderType: order.order_type as any,
           editingOrderId: order.id,
           discount: 0, // Assuming no discount for now or we could load it if it's in DB
