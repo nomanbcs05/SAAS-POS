@@ -85,13 +85,7 @@ const syncActiveShiftsFromCloud = async (): Promise<ShiftSession[]> => {
     ]);
 
     if (!error && Array.isArray(data)) {
-      const now = Date.now();
-      const MAX_SHIFT_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-      const cloudShifts: ShiftSession[] = [];
-      const staleShiftIds: string[] = [];
-
-      data.forEach((r: any) => {
+      const cloudShifts: ShiftSession[] = data.map((r: any) => {
         let cName = (r.cashier_name || '').trim();
         if (!cName && r.notes) {
           const match = r.notes.match(/Cashier:\s*(.*)/i);
@@ -101,39 +95,18 @@ const syncActiveShiftsFromCloud = async (): Promise<ShiftSession[]> => {
         }
         if (!cName) cName = 'CASHIER';
 
-        const openTime = new Date(r.opened_at).getTime();
-        const isStale = isNaN(openTime) || (now - openTime) > MAX_SHIFT_AGE_MS;
-
-        if (isStale) {
-          staleShiftIds.push(r.id);
-        } else {
-          cloudShifts.push({
-            id: r.id,
-            cashier_name: cName,
-            cashier_id: r.cashier_id || undefined,
-            opened_at: r.opened_at,
-            closed_at: r.closed_at || null,
-            starting_amount: Number(r.starting_amount) || 0,
-            ending_amount: r.ending_amount != null ? Number(r.ending_amount) : null,
-            status: (r.status as 'open' | 'closed') || 'open',
-            notes: r.notes || null,
-          });
-        }
+        return {
+          id: r.id,
+          cashier_name: cName,
+          cashier_id: r.cashier_id || undefined,
+          opened_at: r.opened_at,
+          closed_at: r.closed_at || null,
+          starting_amount: Number(r.starting_amount) || 0,
+          ending_amount: r.ending_amount != null ? Number(r.ending_amount) : null,
+          status: (r.status as 'open' | 'closed') || 'open',
+          notes: r.notes || null,
+        };
       });
-
-      // Background auto-close stale shifts in Supabase
-      if (staleShiftIds.length > 0) {
-        supabase
-          .from('daily_registers')
-          .update({
-            status: 'closed',
-            closed_at: new Date().toISOString(),
-            notes: 'Auto-closed expired shift (>24h)',
-          } as any)
-          .in('id', staleShiftIds)
-          .then(() => {})
-          .catch(() => {});
-      }
 
       const stored = getStoredShifts();
       const nonOpenStored = stored.filter(s => s.status !== 'open');
