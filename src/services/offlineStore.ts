@@ -126,6 +126,27 @@ export const getCachedDrivers = async () => {
   }
 };
 
+// Waiters / Servers
+export const cacheWaiters = async (waiters: any[]) => {
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.setItem === 'function') {
+    await window.electronAPI.setItem('pos_offline_waiters', JSON.stringify(waiters));
+  } else {
+    localStorage.setItem('pos_offline_waiters', JSON.stringify(waiters));
+  }
+};
+
+export const getCachedWaiters = async () => {
+  try {
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.getItem === 'function') {
+      const val = await window.electronAPI.getItem('pos_offline_waiters');
+      return JSON.parse(val || '[]');
+    }
+    return JSON.parse(localStorage.getItem('pos_offline_waiters') || '[]');
+  } catch {
+    return [];
+  }
+};
+
 // Orders Queue
 export interface PendingOrder {
   id: string;

@@ -906,115 +906,225 @@ export const api = {
     }
   },
   staff: {
-    getWaiters: async () => {
+    getWaiters: async (tenantId?: string | null) => {
       const isWaiterRole = (role?: string | null) => {
         const r = String(role || '').toLowerCase().trim();
         return r === 'waiter' || r === 'server';
       };
 
-      if (!isDesktop() && offline.isOnline()) {
+      // Resolve effective tenant ID if not passed
+      let effectiveTenantId = tenantId;
+      if (!effectiveTenantId) {
         try {
-          const { data, error } = await supabase
-            .from('staff')
-            .select('*')
-            .order('name');
-          
-          if (!error && Array.isArray(data)) {
-            const list: Array<{ id: string; name: string; role: 'waiter' }> = [];
-            const seen = new Set<string>();
-
-            for (const s of data) {
-              if (!isWaiterRole(s.role)) continue;
-              const name = String(s.name || s.full_name || '').trim();
-              if (!name) continue;
-              const key = name.toLowerCase();
-              if (!seen.has(key)) {
-                seen.add(key);
-                list.push({ id: s.id || name, name, role: 'waiter' });
-              }
-            }
-            return list;
-          }
+          const cachedTenant = offline.getCachedTenant();
+          if (cachedTenant?.id) effectiveTenantId = cachedTenant.id;
         } catch { /* ignore */ }
       }
 
-      // Desktop / Offline fallback
-      const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
       const list: Array<{ id: string; name: string; role: 'waiter' }> = [];
       const seen = new Set<string>();
 
-      for (const u of localUsers) {
-        if (!isWaiterRole(u.role)) continue;
-        const name = String(u.full_name || u.name || '').trim();
-        if (!name) continue;
+      const addWaiter = (id: string | undefined, nameRaw: string | undefined) => {
+        const name = String(nameRaw || '').trim();
+        if (!name) return;
         const key = name.toLowerCase();
         if (!seen.has(key)) {
           seen.add(key);
-          list.push({ id: u.id || name, name, role: 'waiter' });
+          list.push({ id: id || name, name, role: 'waiter' });
+        }
+      };
+
+      // 1. Try Supabase staff table if online
+      if (!isDesktop() && offline.isOnline()) {
+        try {
+          let q = supabase
+            .from('staff')
+            .select('*')
+            .order('name');
+
+          if (effectiveTenantId) {
+            q = q.or(`tenant_id.eq.${effectiveTenantId},tenant_id.is.null`);
+          }
+
+          const { data, error } = await q;
+
+          if (!error && Array.isArray(data) && data.length > 0) {
+            for (const s of data) {
+              if (!isWaiterRole(s.role)) continue;
+              if (s.is_active === false) continue;
+              addWaiter(s.id, s.name || s.full_name);
+            }
+          } else if (error || !data || data.length === 0) {
+            // Fallback query without tenant filter in case RLS or schema differs
+            const { data: fallbackData } = await supabase
+              .from('staff')
+              .select('*')
+              .order('name');
+            if (Array.isArray(fallbackData)) {
+              for (const s of fallbackData) {
+                if (!isWaiterRole(s.role)) continue;
+                if (s.is_active === false) continue;
+                addWaiter(s.id, s.name || s.full_name);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[Staff] Supabase getWaiters catch error:', err);
         }
       }
 
+      // 2. Offline / cached waiters in offlineStore
       try {
-        const legacy: string[] = JSON.parse(localStorage.getItem('pos_server_names') || '[]');
-        for (const raw of legacy) {
-          const name = String(raw || '').trim();
-          if (!name) continue;
-          const key = name.toLowerCase();
-          if (!seen.has(key)) {
-            seen.add(key);
-            list.push({ id: name, name, role: 'waiter' });
+        const cached = await offline.getCachedWaiters();
+        if (Array.isArray(cached)) {
+          for (const w of cached) {
+            addWaiter(w.id, w.name || w.full_name);
           }
         }
       } catch { /* ignore */ }
 
+      // 3. Local users in pos_local_users
+      try {
+        const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
+        if (Array.isArray(localUsers)) {
+          for (const u of localUsers) {
+            if (!isWaiterRole(u.role)) continue;
+            if (u.is_active === false) continue;
+            addWaiter(u.id, u.full_name || u.name);
+          }
+        }
+      } catch { /* ignore */ }
+
+      // 4. Legacy pos_server_names
+      try {
+        const legacy: string[] = JSON.parse(localStorage.getItem('pos_server_names') || '[]');
+        if (Array.isArray(legacy)) {
+          for (const raw of legacy) {
+            addWaiter(raw, raw);
+          }
+        }
+      } catch { /* ignore */ }
+
+      // Sync combined list to offlineStore & localStorage so all profiles immediately have access
+      if (list.length > 0) {
+        try {
+          await offline.cacheWaiters(list);
+          localStorage.setItem('pos_server_names', JSON.stringify(list.map(w => w.name)));
+        } catch { /* ignore */ }
+      }
+
       return list;
     },
-    getAll: async () => {
+    getAll: async (tenantId?: string | null) => {
       if (isDesktop() || !offline.isOnline()) {
         const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
         return localUsers.map((u: any) => ({
           id: u.id,
-          name: u.full_name,
+          name: u.full_name || u.name,
           role: u.role || 'cashier'
         }));
       }
 
-      const { data, error } = await supabase
-        .from('staff')
-        .select('*')
-        .order('name');
-      if (error) throw error;
-      return data;
+      try {
+        let q = supabase.from('staff').select('*').order('name');
+        if (tenantId) {
+          q = q.or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
+        }
+        const { data, error } = await q;
+        if (error) {
+          const { data: fallbackData } = await supabase.from('staff').select('*').order('name');
+          return fallbackData || [];
+        }
+        return data || [];
+      } catch {
+        const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
+        return localUsers.map((u: any) => ({
+          id: u.id,
+          name: u.full_name || u.name,
+          role: u.role || 'cashier'
+        }));
+      }
     },
-    create: async (staff: { name: string; role?: string }) => {
+    create: async (staff: { name: string; role?: string; tenant_id?: string | null }) => {
       const cleanName = staff.name.trim();
       const role = staff.role || 'waiter';
 
-      if (isDesktop() || !offline.isOnline()) {
-        const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
-        const newUser = {
-          id: crypto.randomUUID(),
-          email: `${cleanName.toLowerCase().replace(/\s+/g, '')}@offline.pos`,
-          password: 'password123',
-          full_name: cleanName,
-          role: role
-        };
-        localUsers.push(newUser);
-        localStorage.setItem('pos_local_users', JSON.stringify(localUsers));
-        return {
-          id: newUser.id,
-          name: newUser.full_name,
-          role: newUser.role
-        };
+      let tenantId = staff.tenant_id;
+      if (!tenantId) {
+        try {
+          const cached = offline.getCachedTenant();
+          if (cached?.id) tenantId = cached.id;
+        } catch { /* ignore */ }
       }
 
-      const { data, error } = await supabase
-        .from('staff')
-        .insert({ name: cleanName, role: role })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      const newId = crypto.randomUUID();
+      const newStaffItem = {
+        id: newId,
+        name: cleanName,
+        full_name: cleanName,
+        role: role,
+        tenant_id: tenantId || null,
+        is_active: true
+      };
+
+      // Always save locally so Cashier profile sees it instantly
+      try {
+        const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
+        const exists = localUsers.some((u: any) => (u.full_name || u.name || '').toLowerCase() === cleanName.toLowerCase());
+        if (!exists) {
+          localUsers.push({
+            id: newId,
+            email: `${cleanName.toLowerCase().replace(/\s+/g, '')}@offline.pos`,
+            password: 'password123',
+            full_name: cleanName,
+            name: cleanName,
+            role: role,
+            tenant_id: tenantId || null,
+            is_active: true
+          });
+          localStorage.setItem('pos_local_users', JSON.stringify(localUsers));
+        }
+
+        const legacy: string[] = JSON.parse(localStorage.getItem('pos_server_names') || '[]');
+        if (!legacy.some(n => n.toLowerCase() === cleanName.toLowerCase())) {
+          legacy.push(cleanName);
+          localStorage.setItem('pos_server_names', JSON.stringify(legacy));
+        }
+
+        const currentCached = await offline.getCachedWaiters();
+        if (!currentCached.some((w: any) => (w.name || '').toLowerCase() === cleanName.toLowerCase())) {
+          await offline.cacheWaiters([...currentCached, { id: newId, name: cleanName, role: 'waiter' }]);
+        }
+      } catch { /* ignore */ }
+
+      if (isDesktop() || !offline.isOnline()) {
+        return newStaffItem;
+      }
+
+      try {
+        const insertPayload: any = { name: cleanName, role: role, is_active: true };
+        if (tenantId) insertPayload.tenant_id = tenantId;
+
+        const { data, error } = await supabase
+          .from('staff')
+          .insert(insertPayload)
+          .select()
+          .single();
+
+        if (error) {
+          const { data: retryData, error: retryError } = await supabase
+            .from('staff')
+            .insert({ name: cleanName, role: role, is_active: true })
+            .select()
+            .single();
+          if (!retryError && retryData) return retryData;
+          return newStaffItem;
+        }
+        return data || newStaffItem;
+      } catch (err) {
+        console.warn('[Staff] Supabase insert error, returning local item:', err);
+        return newStaffItem;
+      }
     },
     delete: async (idOrName: string) => {
       const targetStr = String(idOrName || '').trim();
@@ -1033,28 +1143,40 @@ export const api = {
         const legacy: string[] = JSON.parse(localStorage.getItem('pos_server_names') || '[]');
         const filteredLegacy = legacy.filter(n => n.toLowerCase() !== targetStr.toLowerCase());
         localStorage.setItem('pos_server_names', JSON.stringify(filteredLegacy));
+
+        const currentCached = await offline.getCachedWaiters();
+        const filteredWaiters = currentCached.filter((w: any) => 
+          w.id !== targetStr && 
+          (w.name || '').toLowerCase() !== targetStr.toLowerCase()
+        );
+        await offline.cacheWaiters(filteredWaiters);
       } catch { /* ignore */ }
 
       if (isDesktop() || !offline.isOnline()) {
         return;
       }
 
-      // Try deleting by ID first, then fallback to name
-      const { error: idError } = await supabase
-        .from('staff')
-        .delete()
-        .eq('id', targetStr);
-
-      if (idError) {
-        await supabase
+      try {
+        // Try deleting by ID first, then fallback to name
+        const { error: idError } = await supabase
           .from('staff')
           .delete()
-          .ilike('name', targetStr);
+          .eq('id', targetStr);
+
+        if (idError) {
+          await supabase
+            .from('staff')
+            .delete()
+            .ilike('name', targetStr);
+        }
+      } catch (err) {
+        console.warn('[Staff] Supabase delete error:', err);
       }
     },
     deleteAllWaiters: async () => {
       try {
         localStorage.removeItem('pos_server_names');
+        await offline.cacheWaiters([]);
         const localUsers = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
         const filteredUsers = localUsers.filter((u: any) => {
           const r = String(u.role || '').toLowerCase();

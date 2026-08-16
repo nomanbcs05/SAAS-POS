@@ -395,8 +395,8 @@ const SettingsPage = () => {
 
   // Database-backed staff and riders
   const { data: serversDb = [], refetch: refetchStaff } = useQuery({
-    queryKey: ['waiters'],
-    queryFn: () => api.staff.getWaiters(),
+    queryKey: ['waiters', tenant?.id],
+    queryFn: () => api.staff.getWaiters(tenant?.id),
   });
 
   const { data: ridersDb = [], refetch: refetchRiders } = useQuery({
@@ -408,7 +408,7 @@ const SettingsPage = () => {
   const handleAddServerDb = async () => {
     if (!newServerName.trim()) return;
     try {
-      await api.staff.create({ name: newServerName.trim(), role: 'waiter' });
+      await api.staff.create({ name: newServerName.trim(), role: 'waiter', tenant_id: tenant?.id });
       setNewServerName('');
       queryClient.invalidateQueries({ queryKey: ['waiters'] });
       queryClient.invalidateQueries({ queryKey: ['staff'] });

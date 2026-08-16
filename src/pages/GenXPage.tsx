@@ -139,8 +139,8 @@ const GenXPage: React.FC = () => {
   });
 
   const { data: dbWaiters = [] } = useQuery({
-    queryKey: ['waiters'],
-    queryFn: api.staff.getWaiters,
+    queryKey: ['waiters', tenant?.id],
+    queryFn: () => api.staff.getWaiters(tenant?.id),
   });
 
   const { data: ongoingOrders = [] } = useQuery({

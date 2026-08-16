@@ -125,6 +125,20 @@ const OngoingOrdersPage = () => {
     refetchInterval: 10000, // Refresh every 10 seconds
   });
 
+  const { data: dbWaiters = [] } = useQuery({
+    queryKey: ['waiters', tenant?.id],
+    queryFn: () => api.staff.getWaiters(tenant?.id),
+  });
+
+  const availableServers = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const w of dbWaiters) {
+      const name = String(w.name || '').trim();
+      if (name) map.set(name.toLowerCase(), name.toUpperCase());
+    }
+    return Array.from(map.values()).sort();
+  }, [dbWaiters]);
+
   const { data: products = [] } = useQuery({
     queryKey: ['products'],
     queryFn: api.products.getAll,
@@ -248,13 +262,14 @@ const OngoingOrdersPage = () => {
     }
   });
 
-  // Delete order mutation
+  // Delete order mutation (mark as cancelled)
   const deleteOrderMutation = useMutation({
-    mutationFn: (id: string) => api.orders.delete(id),
+    mutationFn: (id: string) => api.orders.updateStatus(id, 'cancelled'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast.success('Order cancelled and deleted');
+      toast.success('Order cancelled');
       setSelectedOrderId(null);
     },
     onError: (error: any) => {
@@ -320,9 +335,15 @@ const OngoingOrdersPage = () => {
     if (!Array.isArray(orders)) return [];
     let result = orders;
 
-    // Filter by type tab
-    if (activeTab !== 'all') {
-      result = result.filter(order => order.order_type === activeTab);
+    // Filter by type tab or status tab
+    if (activeTab === 'refunded') {
+      result = result.filter(order => order.status === 'refunded');
+    } else if (activeTab === 'cancelled' || activeTab === 'canceled') {
+      result = result.filter(order => order.status === 'cancelled' || order.status === 'canceled');
+    } else if (activeTab !== 'all') {
+      result = result.filter(order => order.order_type === activeTab && order.status !== 'refunded' && order.status !== 'cancelled' && order.status !== 'canceled' && order.status !== 'completed');
+    } else {
+      result = result.filter(order => order.status !== 'completed' && order.status !== 'refunded' && order.status !== 'cancelled' && order.status !== 'canceled');
     }
 
     // Filter by Table search query
@@ -344,9 +365,6 @@ const OngoingOrdersPage = () => {
         order.customers?.phone?.toLowerCase().includes(oQuery)
       );
     }
-
-    // Filter out completed orders to "move" them to history
-    result = result.filter(order => order.status !== 'completed');
 
     // Cashier isolation: cashiers only see their current same-day active shift orders
     if (!isAdmin) {
@@ -427,12 +445,12 @@ const OngoingOrdersPage = () => {
                         👤 {adminCashierFilter === 'all' ? 'All Cashiers' : adminCashierFilter}
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuContent align="end" className="w-52 max-h-60 overflow-y-auto">
                       <DropdownMenuItem onClick={() => setAdminCashierFilter('all')} className={adminCashierFilter === 'all' ? 'bg-accent font-bold' : ''}>
                         All Cashiers
                       </DropdownMenuItem>
                       <Separator className="my-1" />
-                      {Array.from(new Set(orders.map((o: any) => ((o.server_name || '').replace(/^\[.*?\]\s*/, '') || '').trim()).filter(Boolean))).map((name: any) => (
+                      {availableServers.map((name: string) => (
                         <DropdownMenuItem key={name} onClick={() => setAdminCashierFilter(name)} className={adminCashierFilter === name ? 'bg-accent font-bold' : ''}>
                           {name}
                         </DropdownMenuItem>
@@ -505,11 +523,13 @@ const OngoingOrdersPage = () => {
 
             {/* Filter Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="bg-slate-100/80 p-1 h-11 rounded-xl w-full max-w-md">
-                <TabsTrigger value="all" className="flex-1 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">All</TabsTrigger>
-                <TabsTrigger value="dine_in" className="flex-1 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">Dine in</TabsTrigger>
-                <TabsTrigger value="take_away" className="flex-1 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">To go</TabsTrigger>
-                <TabsTrigger value="delivery" className="flex-1 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">Delivery</TabsTrigger>
+              <TabsList className="bg-slate-100/80 p-1 h-11 rounded-xl w-full max-w-xl overflow-x-auto flex">
+                <TabsTrigger value="all" className="flex-1 rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">All</TabsTrigger>
+                <TabsTrigger value="dine_in" className="flex-1 rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">Dine in</TabsTrigger>
+                <TabsTrigger value="take_away" className="flex-1 rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">To go</TabsTrigger>
+                <TabsTrigger value="delivery" className="flex-1 rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">Delivery</TabsTrigger>
+                <TabsTrigger value="refunded" className="flex-1 rounded-lg text-xs font-bold text-red-600 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">Refund</TabsTrigger>
+                <TabsTrigger value="cancelled" className="flex-1 rounded-lg text-xs font-bold text-rose-600 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">Canceled</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>

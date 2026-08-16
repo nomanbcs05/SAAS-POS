@@ -1,7 +1,4 @@
-node_modules
-build
-dist
-.git
-.trae
-.log
-.figma
+release/
+dist/
+node_modules/
+.git/

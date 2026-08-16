@@ -93,7 +93,7 @@ const getDailyOrderNumber = (order: any, allOrders?: any[]) => {
 };
 
 const OrdersPage = () => {
-  const { cashierName, isAdmin, isCashierLogin, profile } = useMultiTenant();
+  const { cashierName, isAdmin, isCashierLogin, profile, tenant } = useMultiTenant();
   const [searchQuery, setSearchQuery] = useState('');
   const [orderTypeFilter, setOrderTypeFilter] = useState('all');
   const [adminCashierFilter, setAdminCashierFilter] = useState<string>('all');
@@ -132,13 +132,19 @@ const OrdersPage = () => {
     queryFn: api.orders.getAll,
   });
 
+  const { data: dbWaiters = [] } = useQuery({
+    queryKey: ['waiters', tenant?.id],
+    queryFn: () => api.staff.getWaiters(tenant?.id),
+  });
+
   // --- Refund Mutation ---
   const refundMutation = useMutation({
-    mutationFn: (orderId: string) => api.orders.delete(orderId),
+    mutationFn: (orderId: string) => api.orders.updateStatus(orderId, 'refunded'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast.success('Order refunded and deleted successfully');
+      toast.success('Order marked as refunded');
     },
     onError: (error) => {
       toast.error(`Failed to refund order: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -387,13 +393,31 @@ const OrdersPage = () => {
       .filter(Boolean);
   }, [orders]);
 
+  const availableServers = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const w of dbWaiters) {
+      const name = String(w.name || '').trim();
+      if (name) map.set(name.toLowerCase(), name.toUpperCase());
+    }
+    return Array.from(map.values()).sort();
+  }, [dbWaiters]);
+
   const filteredOrders = ordersWithDailyId.filter((order: any) => {
     const customerName = order.customers?.name || 'Walk-in Customer';
     const orderDate = new Date(order.created_at);
     const query = searchQuery.toLowerCase();
 
-    // Filter by order type if not 'all'
-    const matchesOrderType = orderTypeFilter === 'all' || order.order_type === orderTypeFilter;
+    // Filter by order type or status filter if not 'all'
+    let matchesOrderType = true;
+    if (orderTypeFilter === 'all') {
+      matchesOrderType = true;
+    } else if (orderTypeFilter === 'refunded') {
+      matchesOrderType = order.status === 'refunded';
+    } else if (orderTypeFilter === 'cancelled' || orderTypeFilter === 'canceled') {
+      matchesOrderType = order.status === 'cancelled' || order.status === 'canceled';
+    } else {
+      matchesOrderType = order.order_type === orderTypeFilter;
+    }
 
     // Cashier isolation: non-admins only see their own orders from their current active shift
     const isAdminUser = isAdmin || (!isCashierLogin && profile?.role !== 'cashier' && !localStorage.getItem('active_role'));
@@ -644,6 +668,13 @@ const OrdersPage = () => {
                   <DropdownMenuItem onClick={() => setOrderTypeFilter('delivery')} className={orderTypeFilter === 'delivery' ? "bg-accent" : ""}>
                     Delivery
                   </DropdownMenuItem>
+                  <Separator className="my-1" />
+                  <DropdownMenuItem onClick={() => setOrderTypeFilter('refunded')} className={orderTypeFilter === 'refunded' ? "bg-accent font-bold text-red-600" : ""}>
+                    Refund Orders
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setOrderTypeFilter('cancelled')} className={orderTypeFilter === 'cancelled' ? "bg-accent font-bold text-rose-600" : ""}>
+                    Canceled Orders
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
               {isAdmin && (
@@ -653,12 +684,12 @@ const OrdersPage = () => {
                       👤 {adminCashierFilter === 'all' ? 'All Cashiers' : adminCashierFilter}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuContent align="end" className="w-52 max-h-60 overflow-y-auto">
                     <DropdownMenuItem onClick={() => setAdminCashierFilter('all')} className={adminCashierFilter === 'all' ? 'bg-accent font-bold' : ''}>
                       All Cashiers
                     </DropdownMenuItem>
                     <Separator className="my-1" />
-                    {Array.from(new Set(orders.map((o: any) => ((o.server_name || '').replace(/^\[.*?\]\s*/, '') || '').trim()).filter(Boolean))).map((name: any) => (
+                    {availableServers.map((name: string) => (
                       <DropdownMenuItem key={name} onClick={() => setAdminCashierFilter(name)} className={adminCashierFilter === name ? 'bg-accent font-bold' : ''}>
                         {name}
                       </DropdownMenuItem>

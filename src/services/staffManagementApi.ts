@@ -366,13 +366,28 @@ export const staffManagementApi = {
 
       try {
         let q = supabase.from('staff').select('*');
-        if (tenantId) q = q.eq('tenant_id', tenantId);
+        if (tenantId) q = q.or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
         const { data, error } = await q.order('name');
         if (error) {
           if (isSchemaMissing(error)) { markTableMissing('staff'); return getLocal(); }
           throw error;
         }
-        return (data ?? []) as unknown as Staff[];
+        const results = (data ?? []) as unknown as Staff[];
+        
+        // Background sync waiters to local cache
+        try {
+          const waiters = results
+            .filter(s => s.is_active !== false && (s.role === 'waiter' || (s.role as any) === 'server'))
+            .map(s => ({ id: s.id, name: s.name, role: 'waiter' }));
+          if (waiters.length > 0) {
+            offline.cacheWaiters(waiters);
+            const legacy: string[] = JSON.parse(localStorage.getItem('pos_server_names') || '[]');
+            const merged = Array.from(new Set([...legacy, ...waiters.map(w => w.name)]));
+            localStorage.setItem('pos_server_names', JSON.stringify(merged));
+          }
+        } catch { /* ignore */ }
+
+        return results;
       } catch (err: any) {
         if (isSchemaMissing(err)) { markTableMissing('staff'); return getLocal(); }
         throw err;
@@ -394,6 +409,17 @@ export const staffManagementApi = {
         };
         users.push(entry);
         localStorage.setItem('pos_local_users', JSON.stringify(users));
+
+        if (staffData.role === 'waiter' || (staffData.role as any) === 'server') {
+          try {
+            const legacy: string[] = JSON.parse(localStorage.getItem('pos_server_names') || '[]');
+            if (!legacy.includes(staffData.name)) {
+              legacy.push(staffData.name);
+              localStorage.setItem('pos_server_names', JSON.stringify(legacy));
+            }
+          } catch { /* ignore */ }
+        }
+
         return { id, ...staffData, is_active: true };
       };
 
@@ -405,6 +431,9 @@ export const staffManagementApi = {
           if (isSchemaMissing(error)) { markTableMissing('staff'); return saveLocal(); }
           throw error;
         }
+        
+        // Also save to local user/server list for offline & cashier profile sync
+        saveLocal();
         return data as unknown as Staff;
       } catch (err: any) {
         if (isSchemaMissing(err)) { markTableMissing('staff'); return saveLocal(); }
@@ -433,6 +462,7 @@ export const staffManagementApi = {
           if (isSchemaMissing(error)) { markTableMissing('staff'); return updateLocal(); }
           throw error;
         }
+        updateLocal();
         return data as unknown as Staff;
       } catch (err: any) {
         if (isSchemaMissing(err)) { markTableMissing('staff'); return updateLocal(); }
@@ -454,6 +484,7 @@ export const staffManagementApi = {
           if (isSchemaMissing(error)) { markTableMissing('staff'); return deleteLocal(); }
           throw error;
         }
+        deleteLocal();
       } catch (err: any) {
         if (isSchemaMissing(err)) { markTableMissing('staff'); return deleteLocal(); }
         throw err;
