@@ -27,6 +27,39 @@ const SECTION_CONFIG: Record<TableSection, { count: number; capacity: number; la
   vip:     { count: 4,  capacity: 10, label: 'VIP'    },
 };
 
+export const isTableOccupiedByRunningOrders = (table: any, ordersList: any[]): boolean => {
+  if (!table || !Array.isArray(ordersList) || ordersList.length === 0) return false;
+  const tId = String(table.id || '').toLowerCase().trim();
+  const tNum = String(table.table_number || '').toLowerCase().trim();
+  const tNumOnly = tNum.replace(/\D/g, ''); // "table 17" -> "17"
+
+  return ordersList.some((order: any) => {
+    // Only active running orders (pending, preparing, ready, cooking) occupy a table
+    const orderStatus = String(order.status || '').toLowerCase().trim();
+    const isRunning = ['pending', 'preparing', 'ready', 'cooking'].includes(orderStatus);
+    if (!isRunning) return false;
+
+    // Check order.table_id
+    const oTableId = String(order.table_id || '').toLowerCase().trim();
+    const oTableIdNum = oTableId.replace(/\D/g, '');
+
+    // Check order.restaurant_tables?.table_number
+    const oRelNum = String(order.restaurant_tables?.table_number || '').toLowerCase().trim();
+    const oRelNumOnly = oRelNum.replace(/\D/g, '');
+
+    // Matches UUID
+    if (tId && oTableId === tId) return true;
+
+    // Matches table string exactly (e.g. "17", "Table 17", "T17")
+    if (tNum && (oTableId === tNum || oRelNum === tNum || oTableId === `table ${tNum}` || oTableId === `t${tNum}`)) return true;
+
+    // Matches numeric part if digits exist (e.g. Table "17" matches order with table_id "Table 17" or "17")
+    if (tNumOnly && (oTableIdNum === tNumOnly || oRelNumOnly === tNumOnly)) return true;
+
+    return false;
+  });
+};
+
 const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
   const { tenant, isAdmin } = useMultiTenant();
   const [step, setStep] = useState<'server' | 'table'>('server');
@@ -212,13 +245,13 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     }
 
     const tableIdVal = tableToSelect.id || tableToSelect.table_id || tableToSelect.table_number;
-    const isOccupied = ongoingOrders.some((o: any) => o.table_id === tableIdVal || o.table_id === tableToSelect.table_number);
+    const isOccupied = isTableOccupiedByRunningOrders(tableToSelect, ongoingOrders) || tableToSelect.status === 'occupied';
 
     if (isOccupied) {
       setTableId(tableIdVal);
       setOrderType('dine_in');
       onClose();
-      toast.success(`Table ${tableToSelect.table_number} loaded`);
+      toast.success(`Table ${tableToSelect.table_number} loaded (Running Order Active)`);
       return;
     }
 
@@ -235,10 +268,13 @@ const TableSelectionModal = ({ isOpen, onClose }: TableSelectionModalProps) => {
     toast.success('Proceeding with Dine-In (No Table)');
   };
 
-  const handleClearTable = (e: React.MouseEvent, table: any) => {
+  const handleClearTable = async (e: React.MouseEvent, table: any) => {
     e.stopPropagation();
     if (table.isVirtual) return;
-    updateStatusMutation.mutate({ id: table.id || table.table_id, status: 'available' });
+    const tableIdVal = table.id || table.table_id || table.table_number;
+    await updateStatusMutation.mutateAsync({ id: tableIdVal, status: 'available' });
+    queryClient.invalidateQueries({ queryKey: ['tables'] });
+    queryClient.invalidateQueries({ queryKey: ['ongoing-orders'] });
     toast.success(`Table ${table.table_number} is now available`);
   };
 
@@ -608,7 +644,9 @@ interface TableGridProps {
 const TableGrid = ({ tables, ongoingOrders, getStatusColor, onSelect, onClear, onDelete, onAddTable }: TableGridProps) => (
   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 pb-2">
     {tables.map((table: any) => {
-      const status: TableStatus = (table.status as TableStatus) || 'available';
+      const hasRunningOrder = isTableOccupiedByRunningOrders(table, ongoingOrders);
+      const isOccupied = hasRunningOrder || table.status === 'occupied';
+      const status: TableStatus = isOccupied ? 'occupied' : ((table.status as TableStatus) || 'available');
       const sec = (table.section || 'indoor').toLowerCase();
 
       return (
