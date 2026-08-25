@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { businessInfo } from '@/data/mockData';
 import { CartItem, Customer } from '@/stores/cartStore';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
+import { calculateBill } from '@/utils/calculateBill';
 
 interface Order {
   orderNumber: string;
@@ -46,15 +47,31 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
     tenant?.bill_footer ||
     '!!!!FOR THE LOVE OF FOOD !!!!';
 
-  // GST rate: 8% hardcoded for bill print
-  const gstRate = 8;
-  // Items Total = pure sum of item amounts (never includes GST)
-  const itemsTotal = order.items.reduce((sum, item) => sum + ((item.lineTotal ?? (Number(item.product?.price || 0) * item.quantity)) || 0), 0);
-  const gstAmount = itemsTotal * (gstRate / 100);
-  const discountAmount = Number(order.discountAmount) || 0;
+  // Tax Settings directly from Settings > Tax & Payment (tenant)
+  const taxRateSetting = tenant?.tax_rate !== undefined && tenant?.tax_rate !== null 
+    ? Number(tenant.tax_rate) 
+    : (order.taxRate !== undefined && order.taxRate !== null ? Number(order.taxRate) : 0);
+  const taxNameSetting = tenant?.tax_name || 'GST';
+
+  const cartItems = (order.items || []).map(item => ({
+    rate: Number(item.product?.price || 0),
+    qty: Number(item.quantity || 1),
+    lineTotal: item.lineTotal !== undefined ? Number(item.lineTotal) : undefined,
+  }));
+
+  const itemsSum = cartItems.reduce((sum, item) => sum + (item.lineTotal ?? (item.rate * item.qty)), 0);
+  const discountPercent = (order as any).discount !== undefined && (order as any).discount !== null
+    ? Number((order as any).discount)
+    : (itemsSum > 0 && order.discountAmount ? (Number(order.discountAmount) / itemsSum) * 100 : 0);
+
+  const bill = calculateBill(cartItems, discountPercent, {
+    taxRate: taxRateSetting,
+    taxName: taxNameSetting,
+  });
+
   const serviceChargesAmount = Number(order.serviceChargesAmount) || 0;
   const deliveryFee = Number(order.deliveryFee) || 0;
-  const grandTotal = itemsTotal + gstAmount - discountAmount + serviceChargesAmount + deliveryFee;
+  const finalOrderTotal = bill.grandTotal + serviceChargesAmount + deliveryFee;
 
   // Determine if this is a pre-payment bill (unpaid/running) or paid bill
   const isPrePayment = order.isPrePayment === true || 
@@ -208,37 +225,50 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
 
       {/* Totals */}
       <div className="border-x border-b border-black p-1 text-[12px] leading-snug">
-        {/* Items Total – pure sum of item amounts, no GST */}
+        {/* Items Total */}
         <div className="flex justify-between">
           <span>Items Total :</span>
-          <span>{itemsTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span>{bill.itemsTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
-        {/* GST @ 8% */}
-        <div className="flex justify-between">
-          <span>GST @ {gstRate}% :</span>
-          <span>{gstAmount.toFixed(2)}</span>
-        </div>
-        {/* Grand Total = Items Total + GST */}
-        <div className="flex justify-between font-bold border-t border-dotted border-black pt-0.5 mt-0.5">
-          <span>Grand Total :</span>
-          <span>{grandTotal.toFixed(2)}</span>
-        </div>
-        {discountAmount > 0 && (
+
+        {/* Discount X% (only if discountAmount > 0) */}
+        {bill.discountAmount > 0 && (
           <div className="flex justify-between">
-            <span>Discount :</span>
-            <span>-{discountAmount.toLocaleString()}</span>
+            <span>Discount {bill.discountPercent > 0 ? `${bill.discountPercent % 1 === 0 ? bill.discountPercent : bill.discountPercent.toFixed(1)}%` : ''} :</span>
+            <span>-{bill.discountAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         )}
+
+        {/* Subtotal */}
+        <div className="flex justify-between">
+          <span>Subtotal :</span>
+          <span>{bill.afterDiscount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+
+        {/* Tax (Only if taxRate > 0) */}
+        {bill.taxRate > 0 && (
+          <div className="flex justify-between">
+            <span>{bill.taxName} @ {bill.taxRate}% :</span>
+            <span>{bill.taxAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+        )}
+
+        {/* Grand Total */}
+        <div className="flex justify-between font-bold border-t border-dotted border-black pt-0.5 mt-0.5">
+          <span>Grand Total :</span>
+          <span>{bill.grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+
         {serviceChargesAmount > 0 && (
           <div className="flex justify-between">
             <span>Service Charges :</span>
-            <span>+{serviceChargesAmount.toLocaleString()}</span>
+            <span>+{serviceChargesAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         )}
         {deliveryFee > 0 && (
           <div className="flex justify-between">
             <span>Delivery Charges :</span>
-            <span>{deliveryFee.toLocaleString()}</span>
+            <span>{deliveryFee.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         )}
         {(() => {
@@ -253,12 +283,12 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
               )}
               <div className="flex justify-between font-bold text-base mt-0.5 bg-gray-100 p-1">
                 <span>Current Order Total:</span>
-                <span>Rs {grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span>Rs {finalOrderTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               {prevBalance > 0 && (
                 <div className="flex justify-between font-black text-sm mt-1 p-1 border-t-2 border-black bg-gray-200">
                   <span>TOTAL COMBINED BALANCE:</span>
-                  <span>Rs {(grandTotal + prevBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span>Rs {(finalOrderTotal + prevBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               )}
             </>
@@ -272,7 +302,7 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
             </div>
             <div className="flex justify-between font-bold">
               <span>Change Returned:</span>
-              <span>Rs {Math.max(0, Number(order.receivedCash) - grandTotal).toFixed(2)}</span>
+              <span>Rs {Math.max(0, Number(order.receivedCash) - finalOrderTotal).toFixed(2)}</span>
             </div>
           </>
         )}

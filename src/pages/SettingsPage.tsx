@@ -107,7 +107,7 @@ const SettingsPage = () => {
   const [logoUrl, setLogoUrl] = useState(tenant?.logo_url || '');
   const [receiptFooter, setReceiptFooter] = useState(tenant?.receipt_footer || 'Thank you for your visit! Come back soon!');
   const [billFooter, setBillFooter] = useState(tenant?.bill_footer || '!!!!FOR THE LOVE OF FOOD !!!!');
-  const [taxRate, setTaxRate] = useState(tenant?.tax_rate ?? 8);
+  const [taxRate, setTaxRate] = useState(tenant?.tax_rate !== undefined && tenant?.tax_rate !== null ? Number(tenant.tax_rate) : 0);
   const [taxName, setTaxName] = useState(tenant?.tax_name || 'GST');
   const [defaultCashierName, setDefaultCashierName] = useState(tenant?.default_cashier_name || 'Ali Hyder');
   const [enabledPaymentMethods, setEnabledPaymentMethods] = useState<string[]>(tenant?.enabled_payment_methods || ['cash', 'card', 'wallet']);
@@ -131,7 +131,7 @@ const SettingsPage = () => {
       setLogoUrl(tenant.logo_url || '');
       setReceiptFooter(tenant.receipt_footer || 'Thank you for your visit! Come back soon!');
       setBillFooter(tenant.bill_footer || '!!!!FOR THE LOVE OF FOOD !!!!');
-      setTaxRate(tenant.tax_rate ?? 8);
+      setTaxRate(tenant.tax_rate !== undefined && tenant.tax_rate !== null ? Number(tenant.tax_rate) : 0);
       setTaxName(tenant.tax_name || 'GST');
       setDefaultCashierName(tenant.default_cashier_name || 'Ali Hyder');
       setEnabledPaymentMethods(tenant.enabled_payment_methods || ['cash', 'card', 'wallet']);
@@ -293,7 +293,7 @@ const SettingsPage = () => {
     },
     onSuccess: () => {
       toast.success('Settings saved successfully');
-      useCartStore.getState().setTaxRate(Number(taxRate) || 8);
+      useCartStore.getState().setTaxRate(taxRate !== undefined && taxRate !== null ? Number(taxRate) : 0);
       queryClient.invalidateQueries({ queryKey: ['tenant'] });
       queryClient.invalidateQueries({ queryKey: ['profile'] });
     },

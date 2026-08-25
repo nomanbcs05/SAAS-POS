@@ -395,7 +395,7 @@ const CartPanel = () => {
       orderType,
       subtotal,
       taxAmount,
-      taxRate: taxRate || 8,
+      taxRate: taxRate !== undefined && taxRate !== null ? taxRate : (tenant?.tax_rate !== undefined && tenant?.tax_rate !== null ? Number(tenant.tax_rate) : 0),
       discountAmount,
       serviceChargesAmount,
       deliveryFee,
@@ -1019,10 +1019,10 @@ const CartPanel = () => {
             </span>
           </div>
 
-          {(taxAmount > 0 || taxRate > 0) && (
+          {(taxRate > 0 || taxAmount > 0) && (
             <div className="flex justify-between items-center text-slate-500 font-bold font-heading uppercase tracking-wider text-[10px]">
-              <span>GST ({taxRate || 8}%)</span>
-              <span className="font-bold text-slate-700">+Rs {Math.round(taxAmount || (subtotal - discountAmount + serviceChargesAmount) * ((taxRate || 8) / 100)).toLocaleString()}</span>
+              <span>{tenant?.tax_name || 'GST'} ({taxRate}%)</span>
+              <span className="font-bold text-slate-700">+Rs {Math.round(taxAmount || (subtotal - discountAmount + serviceChargesAmount) * (taxRate / 100)).toLocaleString()}</span>
             </div>
           )}
 
