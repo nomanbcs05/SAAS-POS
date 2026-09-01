@@ -33,6 +33,9 @@ export interface Tenant {
   plan_type?: string;
   billing_status?: string;
   default_cashier_name?: string;
+  tax_rate?: number;
+  tax_name?: string;
+  multi_printer_kot_enabled?: boolean;
 }
 
 export const useMultiTenant = () => {

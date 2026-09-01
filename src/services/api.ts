@@ -4,6 +4,7 @@ import { Database } from '@/integrations/supabase/types';
 import * as offline from './offlineStore';
 import { isDesktop } from '@/lib/env';
 import { shiftService } from './shiftService';
+import { TenantPrinter, PrinterCategoryRoute, CreatePrinterInput, UpdatePrinterInput, CreatePrinterRouteInput } from '@/types/printer';
 
 declare global {
   interface Window {
@@ -2888,6 +2889,334 @@ export const api = {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       return true;
+    }
+  },
+  printers: {
+    getAll: async (tenantId?: string): Promise<TenantPrinter[]> => {
+      const effectiveTenantId = tenantId || offline.getCachedTenant()?.id;
+      
+      try {
+        if (offline.isOnline()) {
+          let query = (supabase as any)
+            .from('tenant_printers')
+            .select('*')
+            .order('is_default', { ascending: false })
+            .order('created_at', { ascending: true });
+
+          if (effectiveTenantId) {
+            query = query.eq('tenant_id', effectiveTenantId);
+          }
+
+          const { data, error } = await query;
+          if (error) {
+            console.warn('[Printers API] Failed to fetch online printers:', error.message);
+            return (await offline.getCachedPrinters()) as TenantPrinter[];
+          }
+          await offline.cachePrinters(data || []);
+          return (data || []) as TenantPrinter[];
+        }
+      } catch (err) {
+        console.warn('[Printers API] Network error, falling back to cache:', err);
+      }
+
+      return (await offline.getCachedPrinters()) as TenantPrinter[];
+    },
+    getById: async (id: string): Promise<TenantPrinter | null> => {
+      try {
+        const { data, error } = await (supabase as any)
+          .from('tenant_printers')
+          .select('*')
+          .eq('id', id)
+          .single();
+        if (error) throw error;
+        return data as TenantPrinter;
+      } catch (err) {
+        console.warn('[Printers API] Failed to fetch printer by id:', err);
+        const cached = (await offline.getCachedPrinters()) as TenantPrinter[];
+        return cached.find(p => p.id === id) || null;
+      }
+    },
+    create: async (printer: CreatePrinterInput): Promise<TenantPrinter> => {
+      const effectiveTenantId = printer.tenant_id || offline.getCachedTenant()?.id;
+      if (!effectiveTenantId) {
+        throw new Error('Tenant ID is required to create a printer');
+      }
+
+      // If setting as default, reset other default printers for this tenant first
+      if (printer.is_default) {
+        try {
+          await (supabase as any)
+            .from('tenant_printers')
+            .update({ is_default: false })
+            .eq('tenant_id', effectiveTenantId);
+        } catch (resetErr) {
+          console.warn('[Printers API] Warning resetting default printers:', resetErr);
+        }
+      }
+
+      const payload = {
+        ...printer,
+        tenant_id: effectiveTenantId,
+        is_default: printer.is_default ?? false,
+        is_active: printer.is_active ?? true,
+      };
+
+      const { data, error } = await (supabase as any)
+        .from('tenant_printers')
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update local cache
+      const cached = (await offline.getCachedPrinters()) as TenantPrinter[];
+      let updatedCache = [...cached, data as TenantPrinter];
+      if (data.is_default) {
+        updatedCache = updatedCache.map(p => p.id === data.id ? data : { ...p, is_default: false });
+      }
+      await offline.cachePrinters(updatedCache);
+
+      return data as TenantPrinter;
+    },
+    update: async (id: string, updates: UpdatePrinterInput, tenantId?: string): Promise<TenantPrinter> => {
+      const effectiveTenantId = tenantId || offline.getCachedTenant()?.id;
+
+      // If updating to default, reset others first
+      if (updates.is_default && effectiveTenantId) {
+        try {
+          await (supabase as any)
+            .from('tenant_printers')
+            .update({ is_default: false })
+            .eq('tenant_id', effectiveTenantId)
+            .neq('id', id);
+        } catch (resetErr) {
+          console.warn('[Printers API] Warning resetting default printers on update:', resetErr);
+        }
+      }
+
+      const { data, error } = await (supabase as any)
+        .from('tenant_printers')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update local cache
+      const cached = (await offline.getCachedPrinters()) as TenantPrinter[];
+      const updatedCache = cached.map(p => {
+        if (p.id === id) return data as TenantPrinter;
+        if (updates.is_default) return { ...p, is_default: false };
+        return p;
+      });
+      await offline.cachePrinters(updatedCache);
+
+      return data as TenantPrinter;
+    },
+    setDefault: async (id: string, tenantId: string): Promise<boolean> => {
+      if (!tenantId) throw new Error('Tenant ID is required');
+
+      // 1. Reset all to false for tenant
+      const { error: resetError } = await (supabase as any)
+        .from('tenant_printers')
+        .update({ is_default: false })
+        .eq('tenant_id', tenantId);
+
+      if (resetError) throw resetError;
+
+      // 2. Set chosen printer to true
+      const { error: setErr } = await (supabase as any)
+        .from('tenant_printers')
+        .update({ is_default: true, is_active: true })
+        .eq('id', id)
+        .eq('tenant_id', tenantId);
+
+      if (setErr) throw setErr;
+
+      // Update local cache
+      const cached = (await offline.getCachedPrinters()) as TenantPrinter[];
+      const updatedCache = cached.map(p => ({
+        ...p,
+        is_default: p.id === id,
+        ...(p.id === id ? { is_active: true } : {})
+      }));
+      await offline.cachePrinters(updatedCache);
+
+      return true;
+    },
+    deactivate: async (id: string): Promise<TenantPrinter> => {
+      const { data, error } = await (supabase as any)
+        .from('tenant_printers')
+        .update({ is_active: false, is_default: false })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update local cache
+      const cached = (await offline.getCachedPrinters()) as TenantPrinter[];
+      const updatedCache = cached.map(p => p.id === id ? (data as TenantPrinter) : p);
+      await offline.cachePrinters(updatedCache);
+
+      return data as TenantPrinter;
+    },
+    delete: async (id: string): Promise<void> => {
+      const { error } = await (supabase as any)
+        .from('tenant_printers')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Update local cache
+      const cached = (await offline.getCachedPrinters()) as TenantPrinter[];
+      await offline.cachePrinters(cached.filter(p => p.id !== id));
+    }
+  },
+  printerRoutes: {
+    getAll: async (tenantId?: string): Promise<PrinterCategoryRoute[]> => {
+      const effectiveTenantId = tenantId || offline.getCachedTenant()?.id;
+
+      try {
+        if (offline.isOnline()) {
+          let query = (supabase as any)
+            .from('printer_category_routes')
+            .select('*, printer:tenant_printers(*)');
+
+          if (effectiveTenantId) {
+            query = query.eq('tenant_id', effectiveTenantId);
+          }
+
+          const { data, error } = await query;
+          if (error) {
+            console.warn('[PrinterRoutes API] Failed to fetch online routes:', error.message);
+            return (await offline.getCachedPrinterRoutes()) as PrinterCategoryRoute[];
+          }
+          await offline.cachePrinterRoutes(data || []);
+          return (data || []) as PrinterCategoryRoute[];
+        }
+      } catch (err) {
+        console.warn('[PrinterRoutes API] Network error, falling back to cache:', err);
+      }
+
+      return (await offline.getCachedPrinterRoutes()) as PrinterCategoryRoute[];
+    },
+    getByCategory: async (categoryName: string, tenantId?: string): Promise<PrinterCategoryRoute[]> => {
+      const effectiveTenantId = tenantId || offline.getCachedTenant()?.id;
+      const normalizedCat = categoryName.trim().toLowerCase();
+      
+      try {
+        let query = (supabase as any)
+          .from('printer_category_routes')
+          .select('*, printer:tenant_printers(*)')
+          .eq('category_name', normalizedCat);
+
+        if (effectiveTenantId) {
+          query = query.eq('tenant_id', effectiveTenantId);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return (data || []) as PrinterCategoryRoute[];
+      } catch (err) {
+        console.warn('[PrinterRoutes API] Error getting routes for category:', err);
+        const cached = (await offline.getCachedPrinterRoutes()) as PrinterCategoryRoute[];
+        return cached.filter(r => r.category_name.toLowerCase() === normalizedCat && (!effectiveTenantId || r.tenant_id === effectiveTenantId));
+      }
+    },
+    create: async (route: CreatePrinterRouteInput): Promise<PrinterCategoryRoute> => {
+      const effectiveTenantId = route.tenant_id || offline.getCachedTenant()?.id;
+      if (!effectiveTenantId) throw new Error('Tenant ID is required for printer route');
+      const normalizedCat = route.category_name.trim().toLowerCase();
+
+      const { data, error } = await (supabase as any)
+        .from('printer_category_routes')
+        .insert({
+          tenant_id: effectiveTenantId,
+          category_name: normalizedCat,
+          printer_id: route.printer_id
+        })
+        .select('*, printer:tenant_printers(*)')
+        .single();
+
+      if (error) throw error;
+
+      // Update local cache
+      const cached = (await offline.getCachedPrinterRoutes()) as PrinterCategoryRoute[];
+      await offline.cachePrinterRoutes([...cached, data as PrinterCategoryRoute]);
+
+      return data as PrinterCategoryRoute;
+    },
+    delete: async (id: string): Promise<void> => {
+      const { error } = await (supabase as any)
+        .from('printer_category_routes')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      const cached = (await offline.getCachedPrinterRoutes()) as PrinterCategoryRoute[];
+      await offline.cachePrinterRoutes(cached.filter(r => r.id !== id));
+    },
+    deleteByRoute: async (tenantId: string, categoryName: string, printerId: string): Promise<void> => {
+      const normalizedCat = categoryName.trim().toLowerCase();
+      const { error } = await (supabase as any)
+        .from('printer_category_routes')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .eq('category_name', normalizedCat)
+        .eq('printer_id', printerId);
+
+      if (error) throw error;
+
+      const cached = (await offline.getCachedPrinterRoutes()) as PrinterCategoryRoute[];
+      await offline.cachePrinterRoutes(
+        cached.filter(r => !(r.tenant_id === tenantId && r.category_name.toLowerCase() === normalizedCat && r.printer_id === printerId))
+      );
+    },
+    saveCategoryPrinters: async (tenantId: string, categoryName: string, printerIds: string[]): Promise<PrinterCategoryRoute[]> => {
+      if (!tenantId) throw new Error('Tenant ID is required');
+      const normalizedCat = categoryName.trim().toLowerCase();
+
+      // 1. Delete all existing routes for this category
+      const { error: delError } = await (supabase as any)
+        .from('printer_category_routes')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .eq('category_name', normalizedCat);
+
+      if (delError) throw delError;
+
+      if (printerIds.length === 0) {
+        // Update local cache
+        const cached = (await offline.getCachedPrinterRoutes()) as PrinterCategoryRoute[];
+        await offline.cachePrinterRoutes(cached.filter(r => !(r.tenant_id === tenantId && r.category_name.toLowerCase() === normalizedCat)));
+        return [];
+      }
+
+      // 2. Insert new routes for each printerId
+      const newRows = printerIds.map(pId => ({
+        tenant_id: tenantId,
+        category_name: normalizedCat,
+        printer_id: pId
+      }));
+
+      const { data, error: insertError } = await (supabase as any)
+        .from('printer_category_routes')
+        .insert(newRows)
+        .select('*, printer:tenant_printers(*)');
+
+      if (insertError) throw insertError;
+
+      // Update local cache
+      const cached = (await offline.getCachedPrinterRoutes()) as PrinterCategoryRoute[];
+      const filtered = cached.filter(r => !(r.tenant_id === tenantId && r.category_name.toLowerCase() === normalizedCat));
+      await offline.cachePrinterRoutes([...filtered, ...(data || [])]);
+
+      return (data || []) as PrinterCategoryRoute[];
     }
   }
 };

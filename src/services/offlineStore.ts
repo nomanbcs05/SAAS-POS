@@ -9,7 +9,9 @@ const CACHE_KEYS = {
   TENANT: 'pos_offline_tenant',
   DAILY_COUNTER: 'pos_daily_counter',
   PENDING_UPDATES: 'pos_offline_updates',
-  PENDING_DELETIONS: 'pos_offline_deletions'
+  PENDING_DELETIONS: 'pos_offline_deletions',
+  PRINTERS: 'pos_offline_printers',
+  PRINTER_ROUTES: 'pos_offline_printer_routes'
 };
 
 export const isOnline = () => {
@@ -425,5 +427,47 @@ export const incrementDailyCounter = () => {
 export const setDailyCounter = (val: number) => {
   localStorage.setItem(CACHE_KEYS.DAILY_COUNTER, val.toString());
   return val;
+};
+
+// Printers Cache
+export const cachePrinters = async (printers: any[]) => {
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.setItem === 'function') {
+    await window.electronAPI.setItem(CACHE_KEYS.PRINTERS, JSON.stringify(printers));
+  } else {
+    localStorage.setItem(CACHE_KEYS.PRINTERS, JSON.stringify(printers));
+  }
+};
+
+export const getCachedPrinters = async () => {
+  try {
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.getItem === 'function') {
+      const val = await window.electronAPI.getItem(CACHE_KEYS.PRINTERS);
+      return JSON.parse(val || '[]');
+    }
+    return JSON.parse(localStorage.getItem(CACHE_KEYS.PRINTERS) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+// Printer Category Routes Cache
+export const cachePrinterRoutes = async (routes: any[]) => {
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.setItem === 'function') {
+    await window.electronAPI.setItem(CACHE_KEYS.PRINTER_ROUTES, JSON.stringify(routes));
+  } else {
+    localStorage.setItem(CACHE_KEYS.PRINTER_ROUTES, JSON.stringify(routes));
+  }
+};
+
+export const getCachedPrinterRoutes = async () => {
+  try {
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.getItem === 'function') {
+      const val = await window.electronAPI.getItem(CACHE_KEYS.PRINTER_ROUTES);
+      return JSON.parse(val || '[]');
+    }
+    return JSON.parse(localStorage.getItem(CACHE_KEYS.PRINTER_ROUTES) || '[]');
+  } catch {
+    return [];
+  }
 };
 

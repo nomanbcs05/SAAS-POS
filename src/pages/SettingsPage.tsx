@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import CashierManager from '@/components/settings/CashierManager';
 import { useCartStore } from '@/stores/cartStore';
+import PrinterSettingsTab from '@/components/settings/PrinterSettingsTab';
 
 const SettingsPage = () => {
   const { profile, tenant, isAdmin, isCashierLogin, canAccess } = useMultiTenant();
@@ -511,10 +512,13 @@ const SettingsPage = () => {
           </div>
 
           <Tabs defaultValue="business" className="space-y-6">
-            <TabsList className={`grid w-full ${canManageStaff ? 'grid-cols-4' : 'grid-cols-3'}`}>
+            <TabsList className={`grid w-full ${canManageStaff ? 'grid-cols-5' : 'grid-cols-4'}`}>
               <TabsTrigger value="business">Business & Receipt</TabsTrigger>
               <TabsTrigger value="tax">Tax & Payment</TabsTrigger>
               {canManageStaff && <TabsTrigger value="staff">Staff & Servers</TabsTrigger>}
+              <TabsTrigger value="printing" className="flex items-center gap-1">
+                <span>Printing</span>
+              </TabsTrigger>
               <TabsTrigger value="security">Security</TabsTrigger>
             </TabsList>
 
@@ -1195,6 +1199,11 @@ const SettingsPage = () => {
                   </>
                 )}
               </div>
+            </TabsContent>
+
+            {/* ─── PRINTING & PRINTERS TAB ───────────────────────────────── */}
+            <TabsContent value="printing">
+              <PrinterSettingsTab />
             </TabsContent>
           </Tabs>
         </div>
