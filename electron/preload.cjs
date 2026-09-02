@@ -21,6 +21,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeItem: (key) => ipcRenderer.invoke('db:remove-item', key),
   clearAllToday: () => ipcRenderer.invoke('db:clear-all-today'),
 
+  // Printers & Hardware IPC
+  getPrinters: () => ipcRenderer.invoke('printer:get-list'),
+  printTargeted: (request) => ipcRenderer.invoke('printer:print-targeted', request),
+
   // Environment info
   isDesktop: true,
   appVersion: process.env.npm_package_version

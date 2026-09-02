@@ -6,6 +6,8 @@ import { isDesktop } from '@/lib/env';
 import { shiftService } from './shiftService';
 import { TenantPrinter, PrinterCategoryRoute, CreatePrinterInput, UpdatePrinterInput, CreatePrinterRouteInput } from '@/types/printer';
 
+import { DiscoveredPrinter, TargetedPrintRequest, TargetedPrintResult } from '@/types/electronPrinting';
+
 declare global {
   interface Window {
     electronAPI?: {
@@ -19,7 +21,13 @@ declare global {
       deleteOrder: (id: string) => Promise<any>;
       cacheProducts: (products: any[]) => Promise<any>;
       getCachedProducts: () => Promise<any[]>;
+      getItem?: (key: string) => Promise<string | null>;
+      setItem?: (key: string, value: string) => Promise<void>;
+      removeItem?: (key: string) => Promise<void>;
+      getPrinters?: () => Promise<DiscoveredPrinter[]>;
+      printTargeted?: (request: TargetedPrintRequest) => Promise<TargetedPrintResult>;
       isDesktop: boolean;
+      appVersion?: string;
     };
   }
 }
