@@ -3,3 +3,4 @@ export * from './categoryResolver';
 export * from './kotRoutingService';
 export * from './renderKOTHtml';
 export * from './kotPrintDispatcher';
+export * from './kotCartIntegration';

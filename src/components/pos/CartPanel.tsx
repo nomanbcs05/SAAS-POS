@@ -25,6 +25,7 @@ import { api } from '@/services/api';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
+import { shouldUseMultiPrinterKOT, executeMultiPrinterKOTFlow } from '@/services/printing';
 
 import TableSelectionModal from './TableSelectionModal';
 import BillSettlementCalculatorModal from './BillSettlementCalculatorModal';
@@ -88,6 +89,22 @@ const CartPanel = () => {
   const billRef = useRef<HTMLDivElement>(null);
 
   const queryClient = useQueryClient();
+  const isMultiPrinterEnabled = tenant?.multi_printer_kot_enabled === true;
+
+  // Cached printer and routing configuration for multi-printer KOT (only loaded if enabled)
+  const { data: printers = [] } = useQuery({
+    queryKey: ['printers', tenant?.id],
+    queryFn: () => api.printers.getAll(tenant?.id),
+    enabled: !!tenant?.id && isMultiPrinterEnabled,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const { data: printerRoutes = [] } = useQuery({
+    queryKey: ['printer-routes', tenant?.id],
+    queryFn: () => api.printerRoutes.getAll(tenant?.id),
+    enabled: !!tenant?.id && isMultiPrinterEnabled,
+    staleTime: 1000 * 60 * 5,
+  });
 
   useEffect(() => {
     if (hookCashierName) {
@@ -483,10 +500,53 @@ const CartPanel = () => {
       setLastOrder(orderData);
 
       if (newKotItems.length > 0) {
-        // Print KOT immediately
-        setTimeout(() => {
-          handlePrintKOT();
-        }, 50);
+        const canUseMultiPrinter = shouldUseMultiPrinterKOT({
+          tenant,
+          printers,
+          routes: printerRoutes,
+        });
+
+        if (canUseMultiPrinter) {
+          executeMultiPrinterKOTFlow({
+            orderData,
+            newKotItems,
+            printers,
+            routes: printerRoutes,
+            tenantId: tenant!.id,
+            onLegacyFallback: () => {
+              // Safe legacy fallback if 0 jobs printed or pipeline unavailable
+              setTimeout(() => {
+                handlePrintKOT();
+              }, 50);
+            },
+            onComplete: (successfullyPrintedItems) => {
+              // Save printed quantities for successfully printed items
+              if (orderData.id) {
+                const printedMap = JSON.parse(
+                  localStorage.getItem(`kot_printed_${orderData.id}`) || '{}'
+                );
+                successfullyPrintedItems.forEach((item) => {
+                  const prodId = item.product?.id || item.product_id || item.id;
+                  if (prodId) {
+                    printedMap[prodId] = (printedMap[prodId] || 0) + item.quantity;
+                  }
+                });
+                localStorage.setItem(
+                  `kot_printed_${orderData.id}`,
+                  JSON.stringify(printedMap)
+                );
+              }
+
+              clearCart();
+              navigate('/ongoing-orders');
+            },
+          });
+        } else {
+          // EXISTING LEGACY PATH: Windows Default Printer via handlePrintKOT()
+          setTimeout(() => {
+            handlePrintKOT();
+          }, 50);
+        }
       } else {
         toast.info('No new items to print on KOT', { duration: 1000 });
         clearCart();
