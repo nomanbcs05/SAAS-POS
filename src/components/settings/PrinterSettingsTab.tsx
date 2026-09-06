@@ -62,6 +62,8 @@ import {
   CreatePrinterInput, 
   UpdatePrinterInput 
 } from '@/types/printer';
+import { DiscoveredPrinter } from '@/types/electronPrinting';
+import { isDesktop } from '@/lib/env';
 
 // IPv4 validation regex
 const IPV4_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
@@ -134,6 +136,25 @@ export default function PrinterSettingsTab() {
     queryKey: ['products'],
     queryFn: api.products.getAll,
     staleTime: 1000 * 60 * 10,
+  });
+
+  // Discovered Windows Printers (Electron Desktop only)
+  const isDesktopEnv = isDesktop();
+  const { 
+    data: discoveredPrinters = [], 
+    isLoading: isLoadingDiscovered,
+    refetch: refetchDiscovered,
+  } = useQuery<DiscoveredPrinter[]>({
+    queryKey: ['discovered-printers'],
+    queryFn: async () => {
+      if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.getPrinters === 'function') {
+        const list = await window.electronAPI.getPrinters();
+        return Array.isArray(list) ? list : [];
+      }
+      return [];
+    },
+    enabled: isDesktopEnv,
+    staleTime: 1000 * 30, // 30 seconds
   });
 
   // ─── UNIQUE CATEGORIES RESOLUTION ─────────────────────────────────────────
@@ -833,20 +854,95 @@ export default function PrinterSettingsTab() {
 
             {/* Dynamic Fields: System / USB */}
             {(formData.printer_type === 'system' || formData.printer_type === 'usb') && (
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold uppercase">Windows / OS Device Queue Name</Label>
-                <Input
-                  placeholder="e.g., EPSON TM-T88VI, POS-80C, XP-80C"
-                  value={formData.device_name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, device_name: e.target.value }))}
-                  className={cn("h-9 text-xs font-mono", formErrors.device_name && "border-red-500")}
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Exact name of the installed printer in Windows Settings &gt; Printers &amp; Scanners.
-                </p>
-                {formErrors.device_name && (
-                  <p className="text-[11px] text-red-500 font-medium">{formErrors.device_name}</p>
+              <div className="space-y-3 pt-1 border-t">
+                {isDesktopEnv ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold uppercase flex items-center gap-1.5">
+                        <Monitor className="h-3.5 w-3.5 text-primary" />
+                        Discovered Windows Printers
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
+                        disabled={isLoadingDiscovered}
+                        onClick={() => {
+                          refetchDiscovered();
+                          toast.info('Scanning Windows printer spooler...');
+                        }}
+                      >
+                        <RefreshCw className={cn("h-3 w-3", isLoadingDiscovered && "animate-spin")} />
+                        Refresh
+                      </Button>
+                    </div>
+
+                    {discoveredPrinters.length > 0 ? (
+                      <Select
+                        value={formData.device_name || undefined}
+                        onValueChange={(val) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            device_name: val,
+                            name: prev.name.trim() ? prev.name : val,
+                          }));
+                          if (formErrors.device_name) {
+                            setFormErrors(prev => ({ ...prev, device_name: '' }));
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-9 text-xs font-mono">
+                          <SelectValue placeholder="Select an installed OS printer..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {discoveredPrinters.map((dp) => (
+                            <SelectItem key={dp.name} value={dp.name} className="text-xs font-mono">
+                              <div className="flex items-center justify-between w-full gap-2">
+                                <span>{dp.displayName || dp.name}</span>
+                                {dp.isDefault && (
+                                  <Badge variant="outline" className="text-[9px] h-4 px-1 bg-primary/10 text-primary border-primary/20">
+                                    Default
+                                  </Badge>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="text-[11px] text-muted-foreground bg-muted/40 p-2 rounded border flex items-center gap-1.5">
+                        <Info className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          {isLoadingDiscovered
+                            ? 'Scanning for installed printers...'
+                            : 'No printers detected in Windows spooler. You can enter the queue name manually below.'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/40 p-2 rounded border">
+                    <Info className="h-3.5 w-3.5 shrink-0" />
+                    <span>In desktop mode, installed Windows printers are auto-detected. In browser mode, type the printer name below.</span>
+                  </div>
                 )}
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold uppercase">Windows / OS Device Queue Name</Label>
+                  <Input
+                    placeholder="e.g., EPSON TM-T88VI, POS-80C, XP-80C"
+                    value={formData.device_name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, device_name: e.target.value }))}
+                    className={cn("h-9 text-xs font-mono", formErrors.device_name && "border-red-500")}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Exact name of the installed printer in Windows Settings &gt; Printers &amp; Scanners.
+                  </p>
+                  {formErrors.device_name && (
+                    <p className="text-[11px] text-red-500 font-medium">{formErrors.device_name}</p>
+                  )}
+                </div>
               </div>
             )}
 
