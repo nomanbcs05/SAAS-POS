@@ -41,14 +41,14 @@ ipcMain.handle('db:remove-item', async (event, key) => db.removeItem(key));
 ipcMain.handle('db:clear-all-today', async () => db.clearAllOrders());
 
 // ─── PRINTER DISCOVERY & TARGETED PRINTING IPC ─────────────────────────────
-ipcMain.handle('printer:get-list', async () => {
+ipcMain.handle('printer:get-list', async (event) => {
   try {
-    const wins = BrowserWindow.getAllWindows();
-    const targetWin = wins[0];
-    if (!targetWin || !targetWin.webContents) {
+    const targetWin = (event && event.sender) ? BrowserWindow.fromWebContents(event.sender) : BrowserWindow.getAllWindows()[0];
+    const targetContents = targetWin ? targetWin.webContents : (event ? event.sender : null);
+    if (!targetContents) {
       return [];
     }
-    const printers = await targetWin.webContents.getPrintersAsync();
+    const printers = await targetContents.getPrintersAsync();
     return (printers || []).map(p => ({
       name: p.name,
       displayName: p.displayName || p.name,
@@ -112,12 +112,12 @@ ipcMain.handle('printer:print-targeted', async (event, request) => {
   }
 
   // 2. Validate device exists in installed Windows printers
-  const wins = BrowserWindow.getAllWindows();
-  const mainWin = wins[0];
+  const targetWin = (event && event.sender) ? BrowserWindow.fromWebContents(event.sender) : BrowserWindow.getAllWindows()[0];
+  const targetContents = targetWin ? targetWin.webContents : (event ? event.sender : null);
   let installedPrinters = [];
-  if (mainWin && mainWin.webContents) {
+  if (targetContents) {
     try {
-      installedPrinters = await mainWin.webContents.getPrintersAsync();
+      installedPrinters = await targetContents.getPrintersAsync();
     } catch (err) {
       console.warn(`[Print IPC] Could not query printers async:`, err && err.message ? err.message : err);
     }

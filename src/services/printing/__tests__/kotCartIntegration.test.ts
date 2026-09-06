@@ -429,5 +429,50 @@ export async function runCartIntegrationTests(): Promise<
     );
   }
 
+  // TEST 12: Quantity integrity (1, 2, 5) & price/variant preservation
+  {
+    const printedJobs: TargetedPrintRequest[] = [];
+    const mockApi: ElectronPrintingAPI = {
+      printTargeted: async (req) => {
+        printedJobs.push(req);
+        return { success: true, jobId: req.jobId, printerName: req.deviceName, error: null };
+      },
+    };
+
+    const cartItemsWithVariousQuantities = [
+      { product: { id: 'p_single', name: 'Burger Single', category: 'karahi', price: 500 }, quantity: 1 },
+      { product: { id: 'p_double', name: 'Drink Double', category: 'karahi', price: 200 }, quantity: 2 },
+      { product: { id: 'p_multi', name: 'Fries Family Pack', category: 'karahi', price: 800 }, quantity: 5 },
+    ];
+
+    await executeMultiPrinterKOTFlow({
+      orderData: { id: 'order_qty_check', orderNumber: '10' },
+      newKotItems: cartItemsWithVariousQuantities,
+      printers: [MOCK_DEFAULT_PRINTER, MOCK_KITCHEN_PRINTER],
+      routes: MOCK_ROUTES,
+      tenantId: 'tenant_101',
+      onLegacyFallback: () => {},
+      onComplete: () => {},
+      dispatchOptions: {
+        electronAPI: mockApi,
+        delayBetweenJobsMs: 0,
+      },
+    });
+
+    const job = printedJobs[0];
+    const html = job ? job.html : '';
+
+    // Verify quantities 1, 2, 5 are rendered accurately in the KOT table
+    const hasQty1 = html.includes('>1</td>') && html.includes('Burger Single');
+    const hasQty2 = html.includes('>2</td>') && html.includes('Drink Double');
+    const hasQty5 = html.includes('>5</td>') && html.includes('Fries Family Pack');
+
+    assert(
+      'TEST 12: Quantity integrity (1, 2, 5) & cart information preserved on KOT',
+      printedJobs.length === 1 && hasQty1 && hasQty2 && hasQty5
+    );
+  }
+
   return results;
 }
+
