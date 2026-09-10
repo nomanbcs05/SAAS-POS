@@ -31,6 +31,7 @@ import { LicenseGate } from "./components/LicenseGate";
 import { useMultiTenant } from "./hooks/useMultiTenant";
 import { useOfflineSync } from "./hooks/useOfflineSync";
 import { useSyncEngine } from "./hooks/useSyncEngine";
+import { TenantProvider } from "./contexts/TenantContext";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -155,9 +156,11 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AppContent />
+        <TenantProvider>
+          <Toaster />
+          <Sonner />
+          <AppContent />
+        </TenantProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

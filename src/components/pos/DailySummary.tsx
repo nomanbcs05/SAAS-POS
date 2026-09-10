@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import { format } from 'date-fns';
-import { businessInfo } from '@/data/mockData';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
+import { useTenantContext } from '@/contexts/TenantContext';
 
 interface Order {
   id: string;
@@ -21,7 +21,10 @@ interface DailySummaryProps {
 
 const DailySummary = forwardRef<HTMLDivElement, DailySummaryProps>(({ orders = [], date, dateRange }, ref) => {
   const { tenant } = useMultiTenant();
-  const name = tenant?.restaurant_name || businessInfo.name;
+  const { activeTenant } = useTenantContext();
+  // CRITICAL P0: Use in-memory TenantContext, never fall back to another tenant's branding
+  const activeTenantData = activeTenant || tenant;
+  const name = activeTenantData?.restaurant_name || '';
 
   const completedOrders = Array.isArray(orders) ? orders.filter(o => o.status === 'completed') : [];
   const totalSales = completedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);

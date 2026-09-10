@@ -376,21 +376,19 @@ export const getCachedProfile = () => {
   }
 };
 
-// Tenant
-export const cacheTenant = (tenant: any) => {
-  if (tenant) {
-    localStorage.setItem(CACHE_KEYS.TENANT, JSON.stringify(tenant));
-  } else {
+// Tenant - CRITICAL P0 FIX: Do NOT store restaurant_name, logo_url, address in localStorage/sessionStorage
+export const cacheTenant = (_tenant: any) => {
+  try {
     localStorage.removeItem(CACHE_KEYS.TENANT);
+    sessionStorage.removeItem(CACHE_KEYS.TENANT);
+  } catch {
+    // ignore
   }
 };
 
 export const getCachedTenant = () => {
-  try {
-    return JSON.parse(localStorage.getItem(CACHE_KEYS.TENANT) || 'null');
-  } catch {
-    return null;
-  }
+  // Tenant branding must come strictly from in-memory React Context or fresh API, never localStorage
+  return null;
 };
 
 // Daily Counter

@@ -25,6 +25,7 @@ import { api } from '@/services/api';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
+import { useTenantContext } from '@/contexts/TenantContext';
 import { shouldUseMultiPrinterKOT, executeMultiPrinterKOTFlow } from '@/services/printing';
 
 import TableSelectionModal from './TableSelectionModal';
@@ -33,6 +34,7 @@ import BillSettlementCalculatorModal from './BillSettlementCalculatorModal';
 const CartPanel = () => {
   const navigate = useNavigate();
   const { tenant, cashierName: hookCashierName, isCashierLogin, profile, isAdmin } = useMultiTenant();
+  const { fetchFreshTenantSettings } = useTenantContext();
   const isCashier = isCashierLogin || profile?.role === 'cashier' || localStorage.getItem('active_role') === 'cashier';
   const {
     items,
@@ -221,8 +223,9 @@ const CartPanel = () => {
         }).catch(err => console.warn('Failed to clear table on complete:', err));
       }
 
-      // Print immediately
-      setTimeout(() => {
+      // Print immediately — fetch fresh tenant settings first to prevent cross-tenant branding
+      setTimeout(async () => {
+        await fetchFreshTenantSettings(tenant?.id);
         handlePrint();
         toast.success(editingOrderId ? 'Order updated!' : 'Order completed!');
       }, 50);
@@ -543,7 +546,8 @@ const CartPanel = () => {
           });
         } else {
           // EXISTING LEGACY PATH: Windows Default Printer via handlePrintKOT()
-          setTimeout(() => {
+          setTimeout(async () => {
+            await fetchFreshTenantSettings(tenant?.id);
             handlePrintKOT();
           }, 50);
         }
@@ -1235,9 +1239,10 @@ const CartPanel = () => {
             </Button>
             <Button
               className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider shadow-md"
-              onClick={() => {
+              onClick={async () => {
                 setLastOrder(billPreviewOrder);
                 setShowBillPreviewModal(false);
+                await fetchFreshTenantSettings(tenant?.id);
                 setTimeout(() => handlePrintBill(), 150);
               }}
             >
@@ -1251,7 +1256,8 @@ const CartPanel = () => {
       <PrintPreviewModal 
         isOpen={previewActive !== 'none' && !!lastOrder} 
         onClose={() => setPreviewActive('none')}
-        onPrint={() => {
+        onPrint={async () => {
+          await fetchFreshTenantSettings(tenant?.id);
           if (previewActive === 'receipt') handlePrint();
           if (previewActive === 'kot') handlePrintKOT();
           if (previewActive === 'bill') handlePrintBill();

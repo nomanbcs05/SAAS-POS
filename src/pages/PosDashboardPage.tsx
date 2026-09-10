@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isDesktop } from "@/lib/env";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { useTenantContext } from "@/contexts/TenantContext";
 import {
   Zap,
   Banknote,
@@ -193,6 +194,7 @@ const EndShiftModal = ({
 const PosDashboardPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { forceLogout } = useTenantContext();
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showEndShiftModal, setShowEndShiftModal] = useState(false);
@@ -322,21 +324,9 @@ const PosDashboardPage = () => {
           `Closing count: Rs.${closingCash}`
         );
       }
-      localStorage.removeItem("pos_local_user");
-      localStorage.removeItem("pos_hide_management");
-      localStorage.removeItem("pos_daily_counter");
-      localStorage.removeItem("pos_session_id");
-      localStorage.removeItem("pos_offline_session");
-      localStorage.removeItem("pos_offline_profile");
-      localStorage.removeItem("active_staff_name");
-      cashierApi.auth.clearSession();
-      if (!isDesktop()) {
-        await supabase.auth.signOut();
-      }
       window.dispatchEvent(new Event('shift_changed'));
-      queryClient.clear();
       toast.success("Shift ended & signed out");
-      navigate("/auth");
+      await forceLogout();
     } catch {
       toast.error("Error ending shift. Please try again.");
       setIsEndingShift(false);

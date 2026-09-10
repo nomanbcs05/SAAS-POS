@@ -34,6 +34,7 @@ import { useMultiTenant } from '@/hooks/useMultiTenant';
 import { isDesktop } from '@/lib/env';
 import { Globe, WifiOff } from 'lucide-react';
 import { cashierApi } from '@/services/cashierApi';
+import { useTenantContext } from '@/contexts/TenantContext';
 
 interface AppSidebarProps {
   isCollapsed: boolean;
@@ -44,6 +45,7 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, tenant, isAdmin, isCashierLogin, canAccess } = useMultiTenant();
+  const { forceLogout } = useTenantContext();
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBtn, setShowInstallBtn] = useState(false);
@@ -152,21 +154,11 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
 
   const handleLogout = async () => {
     try {
-      localStorage.removeItem("pos_local_user");
-      localStorage.removeItem("pos_hide_management");
-      localStorage.removeItem("pos_daily_counter");
-      localStorage.removeItem("pos_session_id");
-      localStorage.removeItem("pos_offline_session");
-      localStorage.removeItem("pos_offline_profile");
-      cashierApi.auth.clearSession();
-      if (!isDesktop()) {
-        await supabase.auth.signOut();
-      }
-      queryClient.clear();
       toast.success("Logged out successfully");
-      navigate("/auth");
+      await forceLogout();
     } catch (error) {
       toast.error("Error logging out");
+      window.location.reload();
     }
   };
 

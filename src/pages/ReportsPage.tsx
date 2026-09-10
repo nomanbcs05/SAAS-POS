@@ -55,8 +55,10 @@ import {
   differenceInCalendarDays
 } from 'date-fns';
 import { toast } from 'sonner';
+import { useTenantContext } from '@/contexts/TenantContext';
 
 const ReportsPage = () => {
+    const { forceLogout } = useTenantContext();
     // --- Clear Orders Mutations ---
     const deleteTodayMutation = useMutation({
       mutationFn: api.orders.deleteTodayOrders,
@@ -132,15 +134,7 @@ const ReportsPage = () => {
       api.registers.close(id, amount, 'Shift ended by cashier'),
     onSuccess: async () => {
       toast.success('Shift ended successfully');
-      localStorage.removeItem("pos_local_user");
-      localStorage.removeItem("pos_daily_counter");
-      localStorage.removeItem("pos_session_id");
-      localStorage.removeItem("pos_offline_session");
-      localStorage.removeItem("pos_offline_profile");
-      if (!isDesktop()) {
-        await supabase.auth.signOut();
-      }
-      navigate("/auth");
+      await forceLogout();
     },
     onError: (err: any) => {
       toast.error('Failed to end shift: ' + err.message);

@@ -33,8 +33,18 @@ import {
   Briefcase,
   AlertCircle,
   Database,
-  ExternalLink
+  ExternalLink,
+  Sparkles
 } from 'lucide-react';
+
+// ─── Staff Management V2 PRO — Feature-flagged new tabs ───────────────────────
+// All V2 imports are purely additive. Old code still runs when the flag is OFF.
+import { isStaffV2Enabled } from '@/services/staffV2Api';
+import { StaffDirectoryTab } from '@/components/staff-v2/StaffDirectoryTab';
+import { AttendanceTab } from '@/components/staff-v2/AttendanceTab';
+import { PayrollSheetTab } from '@/components/staff-v2/PayrollSheetTab';
+import { SalaryVouchersTab } from '@/components/staff-v2/SalaryVouchersTab';
+// ─────────────────────────────────────────────────────────────────────────────
 
 const MIGRATION_SQL_STRING = [
   "-- =============================================\n",
@@ -158,6 +168,16 @@ const MIGRATION_SQL_STRING = [
 function StaffManagementPage() {
   const { tenant, isAdmin } = useMultiTenant();
   const queryClient = useQueryClient();
+
+  // ─── PART D: Feature Flag Check ───────────────────────────────────────────
+  // If staff_management_v2 is true → V2 PRO UI. If false → old V1 UI runs.
+  const v2Enabled = isStaffV2Enabled(tenant);
+  useEffect(() => {
+    if (v2Enabled) {
+      console.log('Staff v2 loaded');
+    }
+  }, [v2Enabled]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   // Navigation states
   const [activeTab, setActiveTab] = useState('staff-list');
@@ -575,6 +595,73 @@ function StaffManagementPage() {
     s.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.phone?.includes(searchQuery)
   );
+
+  // ─── STAFF V2 PRO RENDER ──────────────────────────────────────────────────
+  // When feature flag is ON → render the full V2 PRO UI and return early.
+  // This DOES NOT remove or touch any of the V1 code that follows.
+  if (v2Enabled) {
+    return (
+      <MainLayout>
+        <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
+          <header className="bg-white border-b px-6 py-4 flex items-center justify-between shrink-0">
+            <div>
+              <h1 className="text-2xl font-black uppercase tracking-tight flex items-center gap-2">
+                <Users className="h-6 w-6 text-primary" />
+                Staff Management
+                <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-indigo-600 to-purple-600 text-white tracking-wider uppercase">
+                  <Sparkles className="h-3 w-3" /> PRO V2
+                </span>
+              </h1>
+              <p className="text-sm text-muted-foreground font-medium">
+                {tenant?.restaurant_name || 'GenX Cloud POS'} · CNIC tracking · Advances · PDF Vouchers · Per-Day Formula
+              </p>
+            </div>
+          </header>
+
+          <main className="flex-1 overflow-auto p-6">
+            <Tabs defaultValue="staff-list" className="space-y-6">
+              <TabsList className="bg-white border shadow-sm grid grid-cols-4 max-w-2xl h-11 p-1">
+                <TabsTrigger value="staff-list" className="font-bold flex gap-2 text-xs">
+                  <Users className="h-4 w-4" /> Staff Directory
+                </TabsTrigger>
+                <TabsTrigger value="attendance" className="font-bold flex gap-2 text-xs">
+                  <Calendar className="h-4 w-4" /> Attendance
+                </TabsTrigger>
+                <TabsTrigger value="payroll" className="font-bold flex gap-2 text-xs">
+                  <Wallet className="h-4 w-4" /> Payroll Sheet
+                </TabsTrigger>
+                <TabsTrigger value="vouchers" className="font-bold flex gap-2 text-xs">
+                  <FileText className="h-4 w-4" /> Salary Vouchers
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Part C.1: Staff Directory Tab (V2) */}
+              <TabsContent value="staff-list" className="m-0">
+                <StaffDirectoryTab tenantId={tenant?.id} />
+              </TabsContent>
+
+              {/* Part C.2: Attendance Tab (V2) — calls API B.1 & B.2 */}
+              <TabsContent value="attendance" className="m-0">
+                <AttendanceTab tenantId={tenant?.id} />
+              </TabsContent>
+
+              {/* Part C.3: Payroll Sheet Tab (V2) — calls API B.3, B.4, B.5 */}
+              <TabsContent value="payroll" className="m-0">
+                <PayrollSheetTab tenantId={tenant?.id} restaurantName={tenant?.restaurant_name} />
+              </TabsContent>
+
+              {/* Part C.4: Salary Vouchers Tab (V2) — calls API B.6 */}
+              <TabsContent value="vouchers" className="m-0">
+                <SalaryVouchersTab tenantId={tenant?.id} />
+              </TabsContent>
+            </Tabs>
+          </main>
+        </div>
+      </MainLayout>
+    );
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+  // ↓ V1 original code below — untouched, runs when v2Enabled is false ↓
 
   return (
     <MainLayout>

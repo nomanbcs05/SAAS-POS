@@ -11,11 +11,13 @@ import { toast } from "sonner";
 import { isDesktop } from '@/lib/env';
 import * as offline from '@/services/offlineStore';
 import { cashierApi } from '@/services/cashierApi';
+import { useTenantContext } from "@/contexts/TenantContext";
 
 type Role = "admin" | "cashier" | "cashier2";
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const { fetchTenantFromMe } = useTenantContext();
   const location = useLocation();
   const role = (location.state?.role as Role) || "cashier";
   const cashierLoginMode = role === 'cashier2' || !!location.state?.cashierLoginMode;
@@ -237,6 +239,8 @@ const LoginPage = () => {
         localStorage.setItem("active_staff_name", staffDisplayName);
 
         const { data: { user } } = await supabase.auth.getUser();
+        // CRITICAL: Fetch tenant data from API /api/me and store in React Context with key tenant_${tenant_id}
+        await fetchTenantFromMe();
         if (user) {
           const { data: profile } = await supabase
             .from('profiles')

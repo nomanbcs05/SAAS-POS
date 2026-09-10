@@ -77,11 +77,15 @@ export const customers: Customer[] = Array.from({ length: 220 }, (_, i) => {
   };
 });
 
+// CRITICAL P0 FIX: Do NOT store any tenant-specific branding here.
+// Restaurant name, logo, and address must come strictly from the
+// authenticated tenant's Supabase record (via TenantContext / /api/me).
+// Hardcoded fallback branding caused cross-tenant data leakage on 2026-09-10.
 export const businessInfo = {
-  name: 'THE pizza&burger HOUSE',
-  address: 'Near Lasani Chicken Broast, Gol Wala Complex',
-  city: 'Nawabshah',
-  phone: '+92 332 2822654',
+  name: '',
+  address: '',
+  city: '',
+  phone: '',
   taxId: '',
   website: '',
   email: '',

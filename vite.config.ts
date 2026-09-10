@@ -65,7 +65,40 @@ export default defineConfig(({ mode }) => ({
           },
         ],
       }
-    })
+    }),
+    {
+      name: 'api-server-middleware',
+      configureServer(server) {
+        server.middlewares.use(async (req, res, next) => {
+          if (req.url && req.url.startsWith('/api/')) {
+            try {
+              if (req.url.startsWith('/api/me')) {
+                const { handleMe } = await import('./api/me');
+                const result = await handleMe(req);
+                res.statusCode = result.status;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(result.body));
+                return;
+              }
+              if (req.url.startsWith('/api/restaurant/settings')) {
+                const { handleGetSettings } = await import('./api/restaurant/settings');
+                const result = await handleGetSettings(req);
+                res.statusCode = result.status;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(result.body));
+                return;
+              }
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: err.message }));
+              return;
+            }
+          }
+          next();
+        });
+      }
+    }
   ].filter(Boolean),
   resolve: {
     alias: {

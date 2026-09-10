@@ -22,9 +22,11 @@ import { cn } from '@/lib/utils';
 import CashierManager from '@/components/settings/CashierManager';
 import { useCartStore } from '@/stores/cartStore';
 import PrinterSettingsTab from '@/components/settings/PrinterSettingsTab';
+import { useTenantContext } from '@/contexts/TenantContext';
 
 const SettingsPage = () => {
   const { profile, tenant, isAdmin, isCashierLogin, canAccess } = useMultiTenant();
+  const { setTenantData } = useTenantContext();
   const canManageStaff = isAdmin || (isCashierLogin && canAccess('staff-management'));
   const canManageSecurity = isAdmin || (isCashierLogin && canAccess('settings'));
   const queryClient = useQueryClient();
@@ -212,28 +214,8 @@ const SettingsPage = () => {
 
   const updateRestaurantMutation = useMutation({
     mutationFn: async (payload: Record<string, any>) => {
-      // Offline/Desktop: update local cached tenant
-      if (isDesktop()) {
-        const cached = offline.getCachedTenant();
-        const updated = { ...cached, ...({} as any) };
-        if (payload.name !== undefined) updated.restaurant_name = payload.name;
-        if (payload.logo_url !== undefined) updated.logo_url = payload.logo_url;
-        if (payload.address !== undefined) updated.address = payload.address;
-        if (payload.city !== undefined) updated.city = payload.city;
-        if (payload.phone !== undefined) updated.phone = payload.phone;
-        if (payload.receipt_footer !== undefined) updated.receipt_footer = payload.receipt_footer;
-        if (payload.bill_footer !== undefined) updated.bill_footer = payload.bill_footer;
-        if (payload.tax_id !== undefined) updated.tax_id = payload.tax_id;
-        if (payload.website !== undefined) updated.website = payload.website;
-        if (payload.tax_rate !== undefined) updated.tax_rate = payload.tax_rate;
-        if (payload.tax_name !== undefined) updated.tax_name = payload.tax_name;
-        if (payload.default_cashier_name !== undefined) updated.default_cashier_name = payload.default_cashier_name;
-        if (payload.enabled_payment_methods !== undefined) updated.enabled_payment_methods = payload.enabled_payment_methods;
-        offline.cacheTenant(updated);
-        return;
-      }
-
-      if (!tenant?.id) throw new Error('No restaurant selected');
+      const targetTenantId = tenant?.id || profile?.tenant_id;
+      if (!targetTenantId) throw new Error('No restaurant selected');
       
       console.log('Updating settings for tenant ID:', tenant.id, 'Payload:', payload);
 
@@ -295,6 +277,24 @@ const SettingsPage = () => {
     onSuccess: () => {
       toast.success('Settings saved successfully');
       useCartStore.getState().setTaxRate(taxRate !== undefined && taxRate !== null ? Number(taxRate) : 0);
+      if (tenant?.id) {
+        setTenantData({
+          ...tenant,
+          restaurant_name: businessName,
+          phone,
+          address,
+          city,
+          tax_id: taxId,
+          website,
+          logo_url: logoUrl,
+          receipt_footer: receiptFooter,
+          bill_footer: billFooter,
+          tax_rate: taxRate,
+          tax_name: taxName,
+          default_cashier_name: defaultCashierName,
+          enabled_payment_methods: enabledPaymentMethods,
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['tenant'] });
       queryClient.invalidateQueries({ queryKey: ['profile'] });
     },

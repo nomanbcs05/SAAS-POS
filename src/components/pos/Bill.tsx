@@ -1,8 +1,8 @@
 import { forwardRef, useState } from 'react';
 import { format } from 'date-fns';
-import { businessInfo } from '@/data/mockData';
 import { CartItem, Customer } from '@/stores/cartStore';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
+import { useTenantContext } from '@/contexts/TenantContext';
 import { calculateBill } from '@/utils/calculateBill';
 
 interface Order {
@@ -26,6 +26,10 @@ interface Order {
   customerAddress?: string | null;
   receivedCash?: number;
   remainingCash?: number;
+  tenant_id?: string | null;
+  isPrePayment?: boolean;
+  status?: string;
+  discount?: number;
 }
 
 interface BillProps {
@@ -34,24 +38,36 @@ interface BillProps {
 
 const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
   const [logoError, setLogoError] = useState(false);
-  const { tenant } = useMultiTenant();
+  const { tenant, profile } = useMultiTenant();
+  const { activeTenant } = useTenantContext();
 
-  const logoSrc = tenant?.logo_url || '/pbh-logo.png';
-  const name = tenant?.restaurant_name || businessInfo.name;
-  const address = tenant?.address || businessInfo.address;
-  const city = tenant?.city || businessInfo.city;
-  const phone = tenant?.phone || businessInfo.phone;
-  const taxId = (tenant as any)?.tax_id || businessInfo.taxId;
-  const website = (tenant as any)?.website || businessInfo.website;
-  const billFooter =
-    tenant?.bill_footer ||
-    '!!!!FOR THE LOVE OF FOOD !!!!';
+  // Use in-memory TenantContext first, then fall back to hook
+  const activeTenantData = activeTenant || tenant;
 
-  // Tax Settings directly from Settings > Tax & Payment (tenant)
-  const taxRateSetting = tenant?.tax_rate !== undefined && tenant?.tax_rate !== null 
-    ? Number(tenant.tax_rate) 
+  // CRITICAL P0: Tenant Mismatch Check — Abort print if tenant IDs differ
+  const orderTenantId = (order as any).tenant_id;
+  const currentTenantId = activeTenantData?.id || profile?.tenant_id;
+  if (orderTenantId && currentTenantId && orderTenantId !== currentTenantId) {
+    const errMsg = `CRITICAL: Tenant Mismatch. Order tenant (${orderTenantId}) does not match current session tenant (${currentTenantId}). Aborting Print.`;
+    console.error('[Bill]', errMsg);
+    throw new Error(errMsg);
+  }
+
+  // CRITICAL P0: Never fall back to another tenant's branding
+  const logoSrc = activeTenantData?.logo_url || null;
+  const name = activeTenantData?.restaurant_name || '';
+  const address = activeTenantData?.address || '';
+  const city = activeTenantData?.city || '';
+  const phone = activeTenantData?.phone || '';
+  const taxId = (activeTenantData as any)?.tax_id || '';
+  const website = (activeTenantData as any)?.website || '';
+  const billFooter = activeTenantData?.bill_footer || '';
+
+  // Tax Settings from tenant
+  const taxRateSetting = activeTenantData?.tax_rate !== undefined && activeTenantData?.tax_rate !== null
+    ? Number(activeTenantData.tax_rate)
     : (order.taxRate !== undefined && order.taxRate !== null ? Number(order.taxRate) : 0);
-  const taxNameSetting = tenant?.tax_name || 'GST';
+  const taxNameSetting = activeTenantData?.tax_name || 'GST';
 
   const cartItems = (order.items || []).map(item => ({
     rate: Number(item.product?.price || 0),
@@ -92,18 +108,19 @@ const Bill = forwardRef<HTMLDivElement, BillProps>(({ order }, ref) => {
     >
       {/* Header */}
       <div className="text-center mb-1">
-        {!logoError ? (
+        {logoSrc && !logoError ? (
           <img
             src={logoSrc}
             alt="Logo"
             className="mx-auto mb-2 object-contain h-44 max-w-[300px] w-auto"
             onError={() => setLogoError(true)}
           />
-        ) : (
+        ) : null}
+        {(!logoSrc || logoError) && name ? (
           <div className="border-2 border-dashed border-gray-400 rounded-xl p-2 mx-auto flex items-center justify-center mb-2">
             <h1 className="text-base font-bold uppercase">{name}</h1>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Address Box */}

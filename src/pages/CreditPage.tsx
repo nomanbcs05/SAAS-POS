@@ -13,8 +13,8 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useReactToPrint } from 'react-to-print';
 import { format } from 'date-fns';
-import { businessInfo } from '@/data/mockData';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
+import { useTenantContext } from '@/contexts/TenantContext';
 
 export default function CreditPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -342,7 +342,10 @@ export default function CreditPage() {
 // Internal component for printing
 const PaymentReceipt = React.forwardRef<HTMLDivElement, { data: any }>(({ data }, ref) => {
   const { tenant } = useMultiTenant();
-  const name = tenant?.restaurant_name || businessInfo.name;
+  const { activeTenant } = useTenantContext();
+  // CRITICAL P0: Use in-memory TenantContext, never fall back to another tenant's branding
+  const activeTenantData = activeTenant || tenant;
+  const name = activeTenantData?.restaurant_name || '';
   
   return (
     <div ref={ref} className="receipt-print bg-white text-black p-2 font-mono text-[11px] leading-tight mx-auto" style={{ width: '80mm' }}>

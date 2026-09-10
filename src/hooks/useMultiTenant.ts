@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import * as offline from '@/services/offlineStore';
 import { isDesktop } from '@/lib/env';
 import { cashierApi, ModuleKey } from '@/services/cashierApi';
+import { useTenantContext } from '@/contexts/TenantContext';
 
 const isAbortError = (error: any) => {
   return error?.name === 'AbortError' ||
@@ -195,15 +196,23 @@ export const useMultiTenant = () => {
     },
   });
 
+  let tenantContext: any = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    tenantContext = useTenantContext();
+  } catch {
+    // safe if used outside TenantProvider
+  }
+
   const { data: tenant, isLoading: tenantLoading } = useQuery({
     queryKey: ['tenant', profile?.tenant_id, ownedTenants, isCashierLogin],
     queryFn: async () => {
-      if (isCashierLogin) {
-        return offline.getCachedTenant() as Tenant | null;
+      // 1. Check in-memory TenantContext keyed strictly by tenant_${profile.tenant_id}
+      if (profile?.tenant_id && tenantContext?.tenants?.[`tenant_${profile.tenant_id}`]) {
+        return tenantContext.tenants[`tenant_${profile.tenant_id}`] as Tenant;
       }
-
-      if (isDesktop()) {
-        return offline.getCachedTenant() as Tenant | null;
+      if (tenantContext?.activeTenant && (!profile?.tenant_id || tenantContext.activeTenant.id === profile.tenant_id)) {
+        return tenantContext.activeTenant as Tenant;
       }
 
       try {
@@ -215,7 +224,7 @@ export const useMultiTenant = () => {
             .single();
 
           if (!error && data) {
-            offline.cacheTenant(data);
+            tenantContext?.setTenantData?.(data);
             return data as Tenant;
           }
         }
@@ -236,19 +245,15 @@ export const useMultiTenant = () => {
             }
           }
 
-          offline.cacheTenant(firstTenant);
+          tenantContext?.setTenantData?.(firstTenant);
           return firstTenant as Tenant;
         }
 
         return null;
       } catch (err) {
         if (isAbortError(err)) {
-          console.warn('[Query] Aborted, returning cached tenant');
-          return offline.getCachedTenant() as Tenant | null;
-        }
-        if (!offline.isOnline()) {
-          console.warn('[Offline] Using cached tenant');
-          return offline.getCachedTenant() as Tenant | null;
+          console.warn('[Query] Aborted, returning null');
+          return null;
         }
         throw err;
       }
