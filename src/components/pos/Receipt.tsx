@@ -120,7 +120,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
           <div className="border-2 border-dashed border-gray-400 rounded-xl p-2 mx-auto flex items-center justify-center mb-1">
             <h1 className="text-sm font-bold uppercase">{name}</h1>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Address Box */}
