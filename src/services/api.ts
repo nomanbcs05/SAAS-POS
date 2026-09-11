@@ -32,9 +32,20 @@ declare global {
   }
 }
 
-type Product = Database['public']['Tables']['products']['Row'];
-type ProductInsert = Database['public']['Tables']['products']['Insert'];
-type ProductUpdate = Database['public']['Tables']['products']['Update'];
+import { inventoryConversionService } from './inventoryConversionService';
+
+type Product = Database['public']['Tables']['products']['Row'] & {
+  linked_ingredient_id?: string | null;
+  deduction_qty?: number | null;
+};
+type ProductInsert = Database['public']['Tables']['products']['Insert'] & {
+  linked_ingredient_id?: string | null;
+  deduction_qty?: number | null;
+};
+type ProductUpdate = Database['public']['Tables']['products']['Update'] & {
+  linked_ingredient_id?: string | null;
+  deduction_qty?: number | null;
+};
 
 type Customer = Database['public']['Tables']['customers']['Row'];
 type CustomerInsert = Database['public']['Tables']['customers']['Insert'];
@@ -398,14 +409,30 @@ export const api = {
         return newProduct;
       }
 
-      const { data, error } = await supabase
-        .from('products')
-        .insert(product)
-        .select()
-        .single();
-      if (error) throw error;
-      await recacheProducts();
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .insert(product as any)
+          .select()
+          .single();
+        if (error) throw error;
+        await recacheProducts();
+        return data;
+      } catch (err: any) {
+        if (err?.message?.includes('linked_ingredient_id') || err?.message?.includes('deduction_qty') || err?.code === 'PGRST204') {
+          console.warn('[Products] Remote column missing, creating without new conversion fields:', err.message);
+          const { linked_ingredient_id, deduction_qty, ...fallbackProduct } = product;
+          const { data, error } = await supabase
+            .from('products')
+            .insert(fallbackProduct as any)
+            .select()
+            .single();
+          if (error) throw error;
+          await recacheProducts();
+          return { ...data, linked_ingredient_id, deduction_qty };
+        }
+        throw err;
+      }
     },
     update: async (id: string, product: ProductUpdate) => {
       if (isDesktop() || !offline.isOnline()) {
@@ -419,15 +446,32 @@ export const api = {
         throw new Error("Product not found locally");
       }
 
-      const { data, error } = await supabase
-        .from('products')
-        .update(product)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      await recacheProducts();
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .update(product as any)
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw error;
+        await recacheProducts();
+        return data;
+      } catch (err: any) {
+        if (err?.message?.includes('linked_ingredient_id') || err?.message?.includes('deduction_qty') || err?.code === 'PGRST204') {
+          console.warn('[Products] Remote column missing, updating without new conversion fields:', err.message);
+          const { linked_ingredient_id, deduction_qty, ...fallbackProduct } = product;
+          const { data, error } = await supabase
+            .from('products')
+            .update(fallbackProduct as any)
+            .eq('id', id)
+            .select()
+            .single();
+          if (error) throw error;
+          await recacheProducts();
+          return { ...data, linked_ingredient_id, deduction_qty };
+        }
+        throw err;
+      }
     },
     decrementStock: async (orderItems: Array<{ product_id: string | null | undefined; name?: string; quantity: number }>) => {
       try {
@@ -1756,10 +1800,31 @@ export const api = {
         }
       }
 
+      // Ingredient auto-deduction by conversion rate (linked_ingredient_id + deduction_qty)
+      let ingredientBreakdown: any[] = [];
+      if (safeOrder.status === 'completed' && (newOrder?.id || safeOrder.id)) {
+        try {
+          const saleId = newOrder?.id || safeOrder.id;
+          ingredientBreakdown = await inventoryConversionService.processSaleDeduction(
+            saleId,
+            items.map((i) => ({
+              product_id: (i as any).product_id,
+              quantity: i.quantity,
+              product: (i as any).product,
+              product_name: (i as any).product_name || (i as any).name
+            })),
+            safeOrder.tenant_id
+          );
+        } catch (err) {
+          console.warn('[Ingredient Deduction] Failed on order create (non-blocking):', err);
+        }
+      }
+
       return {
         ...newOrder,
         daily_id: newOrder.daily_id || safeOrder.daily_id,
-        orderNumber: (newOrder.daily_id || safeOrder.daily_id)?.toString().padStart(2, '0')
+        orderNumber: (newOrder.daily_id || safeOrder.daily_id)?.toString().padStart(2, '0'),
+        ingredientBreakdown: ingredientBreakdown.length > 0 ? ingredientBreakdown : undefined,
       };
     },
     update: async (orderId: string, order: any, items: OrderItemInsert[]) => {
@@ -1981,6 +2046,29 @@ export const api = {
           }
         } catch (tErr) {
           console.warn('[Table Status] Failed to update table status on order update:', tErr);
+        }
+      }
+
+      // Decrement stock and deduct ingredients if status became completed
+      if (safeOrder.status === 'completed' && (!prevOrder || prevOrder.status !== 'completed')) {
+        try {
+          await api.products.decrementStock(items);
+        } catch (err) {
+          console.error('[Stock] Failed to decrement stock on order update:', err);
+        }
+        try {
+          await inventoryConversionService.processSaleDeduction(
+            orderId,
+            items.map((i) => ({
+              product_id: (i as any).product_id,
+              quantity: i.quantity,
+              product: (i as any).product,
+              product_name: (i as any).product_name || (i as any).name
+            })),
+            safeOrder.tenant_id || prevOrder?.tenant_id
+          );
+        } catch (err) {
+          console.warn('[Ingredient Deduction] Failed on order update (non-blocking):', err);
         }
       }
 
@@ -2348,6 +2436,19 @@ export const api = {
 
             if (orderItems && orderItems.length > 0) {
               await api.products.decrementStock(orderItems);
+              try {
+                await inventoryConversionService.processSaleDeduction(
+                  id,
+                  orderItems.map((i: any) => ({
+                    product_id: i.product_id,
+                    quantity: i.quantity,
+                    product_name: i.product_name
+                  })),
+                  data?.tenant_id || (existingOrder as any)?.tenant_id
+                );
+              } catch (convErr) {
+                console.warn('[Ingredient Deduction] Failed in updateStatus:', convErr);
+              }
             }
           } catch (err) {
             console.error('[Stock] Failed to decrement stock during status update:', err);

@@ -1,11 +1,13 @@
-import { forwardRef, useState } from 'react';
+import { forwardRef, useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { CartItem, Customer } from '@/stores/cartStore';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
 import { useTenantContext } from '@/contexts/TenantContext';
 import { calculateBill } from '@/utils/calculateBill';
+import { inventoryConversionService } from '@/services/inventoryConversionService';
 
 interface Order {
+  id?: string;
   orderNumber: string;
   items: CartItem[];
   customer: Customer | null;
@@ -30,6 +32,11 @@ interface Order {
   isPrePayment?: boolean;
   status?: string;
   discount?: number;
+  ingredientBreakdown?: Array<{
+    ingredient_name: string;
+    qty_deducted: number;
+    unit?: string;
+  }>;
 }
 
 interface ReceiptProps {
@@ -38,6 +45,26 @@ interface ReceiptProps {
 
 const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
   const [logoError, setLogoError] = useState(false);
+  const [breakdown, setBreakdown] = useState<Array<{
+    ingredient_name: string;
+    qty_deducted: number;
+    unit?: string;
+  }>>(order.ingredientBreakdown || []);
+
+  useEffect(() => {
+    if (order.ingredientBreakdown && order.ingredientBreakdown.length > 0) {
+      setBreakdown(order.ingredientBreakdown);
+      return;
+    }
+    const orderId = order.id || (order as any).sale_id;
+    if (orderId) {
+      inventoryConversionService.getBreakdownForSale(orderId).then((res) => {
+        if (res && res.length > 0) {
+          setBreakdown(res);
+        }
+      }).catch(err => console.warn('[Receipt] Could not load ingredient breakdown:', err));
+    }
+  }, [order]);
   const { tenant, profile } = useMultiTenant();
   const { activeTenant } = useTenantContext();
 
@@ -360,6 +387,23 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ order }, ref) => {
       <div className="border border-black border-t-0 p-1 text-[10px] text-center bg-gray-50">
         <span className="font-bold">Payment Method:</span> <span className="uppercase">{paymentMethodLabel[order.paymentMethod] || order.paymentMethod}</span>
       </div>
+
+      {/* Ingredients Used in this Order */}
+      {breakdown && breakdown.filter(i => Number(i.qty_deducted) > 0).length > 0 && (
+        <div className="border border-black border-t-0 p-1.5 text-[10px] bg-gray-50/50">
+          <div className="font-bold text-center border-b border-black/20 pb-0.5 mb-1 uppercase tracking-wide">
+            INGREDIENTS USED IN THIS ORDER
+          </div>
+          <div className="space-y-0.5">
+            {breakdown.filter(i => Number(i.qty_deducted) > 0).map((ing, idx) => (
+              <div key={idx} className="flex justify-between font-mono">
+                <span className="font-semibold">{ing.ingredient_name}:</span>
+                <span>{Number(ing.qty_deducted).toFixed(2)} {ing.unit || 'kg'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="text-center mt-2 space-y-1">

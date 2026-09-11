@@ -10,35 +10,32 @@ import { supabase } from '@/integrations/supabase/client';
 import { isDesktop } from '@/lib/env';
 import { toast } from 'sonner';
 
+import { sessionService } from '@/services/sessionService';
+
 export const OpenShiftModal: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [openingCash, setOpeningCash] = useState<string>('1');
+  const [openingCash, setOpeningCash] = useState<string>('0');
   const [loginPin, setLoginPin] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [isOpen, setIsOpen] = useState<boolean>(false);
 
   const checkShiftStatus = async () => {
     // Only check shift status on protected routes (not auth/login pages)
-    const unauthenticatedPaths = ['/auth', '/login', '/license-manager', '/saas-admin'];
+    const unauthenticatedPaths = ['/auth', '/login', '/license-manager', '/saas-admin', '/pos', '/'];
     if (unauthenticatedPaths.includes(location.pathname)) {
+      // Allow POS screen to show the in-page "Start Shift" button without modal blocking the UI
       setIsOpen(false);
       return;
     }
 
-    // First check local
-    let currentShift = shiftService.getCurrentCashierOpenShift();
+    let currentShift = shiftService.getCurrentDeviceShift();
     if (!currentShift) {
-      // Sync from Supabase cloud (e.g. if shift was started on another PC/browser)
       await shiftService.syncActiveShiftsFromCloud();
-      currentShift = shiftService.getCurrentCashierOpenShift();
+      currentShift = shiftService.getCurrentDeviceShift();
     }
 
-    if (!currentShift) {
-      setIsOpen(true);
-    } else {
-      setIsOpen(false);
-    }
+    setIsOpen(false);
   };
 
   useEffect(() => {
@@ -66,7 +63,6 @@ export const OpenShiftModal: React.FC = () => {
 
     setLoading(true);
     try {
-      // Validate PIN if staff has a PIN configured and user is asked
       if (loginPin.trim()) {
         const staffList = await staffManagementApi.staff.getAll().catch(() => []);
         const staff = staffList.find(
@@ -94,16 +90,8 @@ export const OpenShiftModal: React.FC = () => {
   const handleLogout = async () => {
     setLoading(true);
     try {
-      localStorage.removeItem('pos_local_user');
-      localStorage.removeItem('pos_daily_counter');
-      localStorage.removeItem('pos_session_id');
-      localStorage.removeItem('pos_offline_session');
-      localStorage.removeItem('pos_offline_profile');
-      localStorage.removeItem('active_staff_name');
-      if (!isDesktop()) {
-        await supabase.auth.signOut();
-      }
-      toast.info('Logged out successfully');
+      await sessionService.logoutCurrentSession();
+      toast.info('Logged out successfully from this device');
       setIsOpen(false);
       navigate('/auth');
     } catch (err: any) {
@@ -120,16 +108,16 @@ export const OpenShiftModal: React.FC = () => {
       <div className="relative w-full max-w-md bg-slate-50 dark:bg-slate-900 rounded-3xl p-8 shadow-2xl border border-slate-200/50 dark:border-slate-800 text-slate-900 dark:text-slate-100 flex flex-col items-center text-center">
         
         {/* Sun Icon Header */}
-        <div className="mb-4 p-4 rounded-full bg-amber-100/80 dark:bg-amber-950/40 text-amber-500 flex items-center justify-center animate-bounce duration-1000">
-          <Sun className="h-12 w-12 text-amber-500 fill-amber-400" />
+        <div className="mb-4 p-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+          <Sun className="h-10 w-10 text-emerald-600 fill-emerald-400" />
         </div>
 
         {/* Title & Description */}
         <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-1 text-slate-900 dark:text-white">
-          Start Business Day
+          Start Shift
         </h2>
         <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-6">
-          Enter initial cash & 4-digit PIN to open shift for <strong className="text-slate-800 dark:text-slate-200">{getCurrentCashierName()}</strong>
+          Open terminal shift for <strong className="text-slate-800 dark:text-slate-200">{getCurrentCashierName()}</strong>. Admin start day is not required.
         </p>
 
         {/* Opening Cash Input Form */}

@@ -118,9 +118,11 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
     };
   }, [profile]);
 
+  const isCashier = isCashierLogin || profile?.role === 'cashier' || localStorage.getItem('active_role') === 'cashier';
+
   const navigation = [
-    { name: 'POS', href: '/', icon: LayoutGrid, moduleKey: 'dashboard' },
-    { name: 'POS Dashboard', href: '/pos-dashboard', icon: Zap, moduleKey: 'dashboard' },
+    { name: 'POS', href: '/pos', icon: LayoutGrid, moduleKey: 'dashboard' },
+    { name: 'POS Dashboard', href: '/pos-dashboard', icon: Zap, adminOnly: true, moduleKey: 'dashboard' },
     { name: 'SaaS Admin', href: '/saas-admin', icon: ShieldCheck, superAdminOnly: true, moduleKey: null as any },
     { name: 'Running Orders', href: '/ongoing-orders', icon: Clock, moduleKey: 'ongoing-orders' },
     { name: 'Orders', href: '/orders', icon: ClipboardList, moduleKey: 'orders' },
@@ -135,13 +137,18 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
   ].filter(item => {
     if (item.superAdminOnly) return profile?.role === 'super-admin';
 
-    if (isCashierLogin) {
-      if (!item.moduleKey) return false;
-      return canAccess(item.moduleKey);
-    }
-
-    if (profile?.role === 'cashier' && ['Reports', 'Settings', 'Credit Ledger', 'Staff Management'].includes(item.name)) {
-      return false;
+    // CASHIER CANNOT: Settings, Users (Staff Management), Reports, Admin Dashboard (SaaS Admin & POS Dashboard)
+    if (isCashier) {
+      if (['Settings', 'Staff Management', 'Reports', 'POS Dashboard', 'SaaS Admin'].includes(item.name)) {
+        return false;
+      }
+      if (item.adminOnly) {
+        return false;
+      }
+      if (item.moduleKey && !canAccess(item.moduleKey)) {
+        return false;
+      }
+      return true;
     }
 
     if (item.adminOnly) {

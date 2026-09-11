@@ -29,25 +29,27 @@ const ProtectedRoute = ({
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  if (isCashierLogin) {
+  const isCashier = isCashierLogin || profile?.role === 'cashier';
+
+  if (isCashier) {
     if (superAdminOnly) {
-      return <Navigate to="/" replace />;
+      return <Navigate to="/pos" replace />;
     }
+
+    // CASHIER CANNOT: Settings, Users (Staff Management), Reports, Admin Dashboard
+    const blockedForCashier = ['/settings', '/staff-management', '/reports', '/saas-admin', '/pos-dashboard'];
+    const isBlocked = blockedForCashier.some(path => location.pathname === path || location.pathname.startsWith(path + '/'));
+    if (isBlocked || adminOnly) {
+      return <Navigate to="/pos" replace />;
+    }
+
     const mod = ALL_MODULES.find(
-      m => m.route === location.pathname || (location.pathname !== '/' && location.pathname.startsWith(m.route + '/'))
+      m => m.route === location.pathname || (location.pathname !== '/' && location.pathname !== '/pos' && location.pathname.startsWith(m.route + '/'))
     );
     if (mod && !canAccess(mod.key)) {
-      return <Navigate to="/" replace />;
+      return <Navigate to="/pos" replace />;
     }
-    if (adminOnly && !mod) {
-      return <Navigate to="/" replace />;
-    }
-    if (!tenant) {
-      const cached = localStorage.getItem('pos_offline_tenant');
-      if (!cached) {
-        return <Navigate to="/auth" replace />;
-      }
-    }
+
     return <>{children}</>;
   }
 

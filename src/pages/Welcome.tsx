@@ -58,8 +58,10 @@ const Welcome = () => {
     if (isEditing) return;
 
     const selectedName = customStaffName || cashierName;
-    if (role === 'cashier') {
+    if (role === 'cashier' || role === 'cashier2') {
       localStorage.setItem('active_staff_name', selectedName);
+      navigate("/login", { state: { role: 'cashier', cashierLoginMode: true, cashierName: selectedName } });
+      return;
     }
 
     navigate("/login", { state: { role } });
@@ -67,7 +69,7 @@ const Welcome = () => {
 
   const handleSecureCashierLogin = (cashier: CashierWithPermissions) => {
     localStorage.setItem('pending_cashier_id', cashier.id);
-    navigate("/login", { state: { role: 'cashier2', cashierName: cashier.name } });
+    navigate("/login", { state: { role: 'cashier', cashierLoginMode: true, cashierName: cashier.name } });
   };
 
   const handleSaveName = (e: React.MouseEvent) => {
@@ -109,7 +111,7 @@ const Welcome = () => {
     });
 
     toast.success("Starting in Offline Mode");
-    navigate("/");
+    navigate("/pos");
   };
 
   return (

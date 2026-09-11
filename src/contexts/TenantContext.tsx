@@ -190,28 +190,51 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setTenants({});
       setActiveTenantId(null);
 
-      // 2. Sign out of Supabase
-      try {
-        await supabase.auth.signOut();
-      } catch {
-        // Continue even if network error
+      // 2. Kill ONLY current device session_id (keeping other devices logged in!)
+      const currentSessionId = typeof window !== 'undefined' ? localStorage.getItem('pos_session_id') : null;
+      if (currentSessionId) {
+        try {
+          await fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: currentSessionId })
+          });
+        } catch {
+          // ignore offline
+        }
       }
 
-      // 3. Clear all storage
+      // 3. Clear only current device session keys, PRESERVING pos_device_id and pos_offline_tenant
       if (typeof window !== 'undefined') {
         try {
-          localStorage.clear();
+          const deviceId = localStorage.getItem('pos_device_id');
+          const cachedTenant = localStorage.getItem('pos_offline_tenant');
+
+          localStorage.removeItem('pos_session_id');
+          localStorage.removeItem('pos_cashier_session');
+          localStorage.removeItem('pos_cashier_profile');
+          localStorage.removeItem('pos_cashier_permissions');
+          localStorage.removeItem('pos_offline_session');
+          localStorage.removeItem('pos_offline_profile');
+          localStorage.removeItem('pos_local_user');
+          localStorage.removeItem('active_staff_name');
+          localStorage.removeItem('active_role');
+          localStorage.removeItem('pos_current_shift_id');
+          localStorage.removeItem('pos_current_device_shift_id');
           sessionStorage.clear();
-          if (window.caches) {
-            const cacheNames = await window.caches.keys();
-            await Promise.all(cacheNames.map(name => window.caches.delete(name)));
+
+          if (deviceId) {
+            localStorage.setItem('pos_device_id', deviceId);
+          }
+          if (cachedTenant) {
+            localStorage.setItem('pos_offline_tenant', cachedTenant);
           }
         } catch {
           // ignore
         }
 
-        // 4. Force reload page
-        window.location.href = '/auth';
+        // 4. Navigate to auth screen
+        window.location.href = '#/auth';
         window.location.reload();
       }
     } catch (err) {

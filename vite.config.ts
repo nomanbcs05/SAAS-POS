@@ -72,6 +72,36 @@ export default defineConfig(({ mode }) => ({
         server.middlewares.use(async (req, res, next) => {
           if (req.url && req.url.startsWith('/api/')) {
             try {
+              if (req.url.startsWith('/api/auth/login')) {
+                const chunks: any[] = [];
+                for await (const chunk of req) chunks.push(chunk);
+                const rawBody = Buffer.concat(chunks).toString();
+                let parsedBody = {};
+                try { parsedBody = JSON.parse(rawBody); } catch {}
+                req.body = parsedBody;
+
+                const { handleLogin } = await import('./api/auth/login');
+                const result = await handleLogin(req);
+                res.statusCode = result.status;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(result.body));
+                return;
+              }
+              if (req.url.startsWith('/api/auth/logout')) {
+                const chunks: any[] = [];
+                for await (const chunk of req) chunks.push(chunk);
+                const rawBody = Buffer.concat(chunks).toString();
+                let parsedBody = {};
+                try { parsedBody = JSON.parse(rawBody); } catch {}
+                req.body = parsedBody;
+
+                const { handleLogout } = await import('./api/auth/logout');
+                const result = await handleLogout(req);
+                res.statusCode = result.status;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(result.body));
+                return;
+              }
               if (req.url.startsWith('/api/me')) {
                 const { handleMe } = await import('./api/me');
                 const result = await handleMe(req);

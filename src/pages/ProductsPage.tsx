@@ -38,6 +38,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { api, Category } from '@/services/api';
+import { inventoryApi } from '@/modules/inventory/inventoryApi';
 import { DEFAULT_INDUS_DATA } from '@/components/pos/IndusMenuModal';
 import { DEFAULT_FRESHBASKET_DATA } from '@/components/pos/FreshBasketMenuModal';
 import { useMultiTenant } from '@/hooks/useMultiTenant';
@@ -92,6 +93,8 @@ const ProductsPage = () => {
     stock: '',
     category: '',
     image: '☕',
+    linked_ingredient_id: '',
+    deduction_qty: '',
   });
   const [newCategory, setNewCategory] = useState({
     name: '',
@@ -277,6 +280,12 @@ const ProductsPage = () => {
     queryFn: api.categories.getAll,
   });
 
+  const { data: ingredients = [] } = useQuery({
+    queryKey: ['inventory-items', tenant?.id],
+    queryFn: () => inventoryApi.items.getAll(tenant?.id),
+    staleTime: 1000 * 60 * 5,
+  });
+
   if (isError) {
     return (
       <MainLayout>
@@ -443,6 +452,8 @@ const ProductsPage = () => {
       stock: '',
       category: '',
       image: '☕',
+      linked_ingredient_id: '',
+      deduction_qty: '',
     });
     setEditingProduct(null);
   };
@@ -464,6 +475,8 @@ const ProductsPage = () => {
       stock: product.stock.toString(),
       category: categoryName,
       image: product.image,
+      linked_ingredient_id: product.linked_ingredient_id || '',
+      deduction_qty: product.deduction_qty != null ? product.deduction_qty.toString() : '',
     });
     setIsProductDialogOpen(true);
   };
@@ -518,7 +531,7 @@ const ProductsPage = () => {
       return;
     }
 
-    const productData = {
+    const productData: any = {
       name: newProduct.name,
       sku: newProduct.sku || `VIRTUAL-${newProduct.category.substring(0, 3).toUpperCase()}`,
       price: parseFloat(newProduct.price) || 0,
@@ -526,6 +539,8 @@ const ProductsPage = () => {
       stock: parseInt(newProduct.stock) || 0,
       category: newProduct.category,
       image: newProduct.image,
+      linked_ingredient_id: newProduct.linked_ingredient_id || null,
+      deduction_qty: newProduct.deduction_qty ? parseFloat(newProduct.deduction_qty) : null,
     };
 
     if (editingProduct) {
@@ -1108,6 +1123,42 @@ const ProductsPage = () => {
                           value={newProduct.cost}
                           onChange={(e) => setNewProduct({ ...newProduct, cost: e.target.value })}
                         />
+                      </div>
+                    </div>
+                    {/* Optional Inventory Link */}
+                    <div className="rounded-lg border p-3 bg-muted/20 space-y-3">
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Optional Inventory Link
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="linked_ingredient">Link to Ingredient</Label>
+                          <select
+                            id="linked_ingredient"
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            value={newProduct.linked_ingredient_id || ''}
+                            onChange={(e) => setNewProduct({ ...newProduct, linked_ingredient_id: e.target.value })}
+                          >
+                            <option value="">None (No link)</option>
+                            {ingredients.map((ing: any) => (
+                              <option key={ing.id} value={ing.id}>
+                                {ing.name} ({ing.unit || 'kg'})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="deduction_qty">Qty to Deduct per Sale (kg)</Label>
+                          <Input
+                            id="deduction_qty"
+                            type="number"
+                            step="0.001"
+                            min="0"
+                            placeholder="e.g. 0.8"
+                            value={newProduct.deduction_qty || ''}
+                            onChange={(e) => setNewProduct({ ...newProduct, deduction_qty: e.target.value })}
+                          />
+                        </div>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">

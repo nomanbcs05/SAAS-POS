@@ -206,13 +206,15 @@ const CartPanel = () => {
         setLastOrder((prev: any) => ({ 
           ...prev, 
           id: editingOrderId,
-          orderNumber: newOrder?.orderNumber || prev?.orderNumber
+          orderNumber: newOrder?.orderNumber || prev?.orderNumber,
+          ingredientBreakdown: newOrder?.ingredientBreakdown || prev?.ingredientBreakdown
         }));
       } else if (newOrder && typeof newOrder === 'object') {
         setLastOrder((prev: any) => ({ 
           ...prev, 
           id: newOrder.id,
-          orderNumber: newOrder.orderNumber || prev?.orderNumber
+          orderNumber: newOrder.orderNumber || prev?.orderNumber,
+          ingredientBreakdown: newOrder.ingredientBreakdown || prev?.ingredientBreakdown
         }));
       }
 

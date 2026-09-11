@@ -1,19 +1,29 @@
 import { supabase } from '@/integrations/supabase/client';
-import { resetDailyCounter, isOnline } from './offlineStore';
+import { isOnline } from './offlineStore';
+import { getDeviceId } from '@/lib/deviceId';
 
 export interface ShiftSession {
   id: string;
-  cashier_name: string;
-  cashier_id?: string;
-  opened_at: string;
-  closed_at: string | null;
-  starting_amount: number;
-  ending_amount: number | null;
+  shift_id: string;
+  user_id: string;
+  tenant_id?: string | null;
+  device_id: string;
+  start_time: string;
+  end_time: string | null;
+  opening_balance: number;
+  closing_balance: number | null;
   status: 'open' | 'closed';
+  cashier_name: string;
   notes?: string | null;
+  // Legacy aliases for backward compatibility
+  opened_at?: string;
+  closed_at?: string | null;
+  starting_amount?: number;
+  ending_amount?: number | null;
 }
 
-const STORAGE_KEY = 'pos_active_shifts';
+const STORAGE_KEY = 'pos_active_shifts_v2';
+const CURRENT_DEVICE_SHIFT_KEY = 'pos_current_device_shift_id';
 
 export const getCurrentCashierName = (): string => {
   if (typeof window === 'undefined') return 'CASHIER';
@@ -46,10 +56,28 @@ export const getCurrentCashierName = (): string => {
   return 'ADMIN';
 };
 
-// ---------------------------------------------------------------------------
-// Standalone helpers (declared before const shiftService) to avoid TDZ
-// when object-literal methods reference sibling namespaces on shiftService.
-// ---------------------------------------------------------------------------
+export const getCurrentUserId = (): string => {
+  if (typeof window === 'undefined') return 'anonymous_user';
+
+  const cpRaw = localStorage.getItem('pos_cashier_profile');
+  if (cpRaw) {
+    try {
+      const cp = JSON.parse(cpRaw);
+      if (cp.id) return cp.id;
+    } catch {}
+  }
+
+  const sessRaw = localStorage.getItem('pos_offline_session');
+  if (sessRaw) {
+    try {
+      const s = JSON.parse(sessRaw);
+      if (s.user?.id) return s.user.id;
+    } catch {}
+  }
+
+  return 'user_' + getCurrentCashierName().toLowerCase().replace(/\s+/g, '_');
+};
+
 const getStoredShifts = (): ShiftSession[] => {
   if (typeof window === 'undefined') return [];
   try {
@@ -66,171 +94,199 @@ const saveShifts = (shifts: ShiftSession[]) => {
   window.dispatchEvent(new Event('shift_changed'));
 };
 
-const getActiveShifts = (): ShiftSession[] => {
-  const shifts = getStoredShifts();
-  return shifts.filter((s) => s.status === 'open');
-};
+export const shiftService = {
+  getStoredShifts,
+  saveShifts,
+  getDeviceId,
 
-const syncActiveShiftsFromCloud = async (): Promise<ShiftSession[]> => {
-  if (!isOnline()) return getActiveShifts();
+  /**
+   * Get all currently open shifts across devices.
+   */
+  getActiveShifts: (): ShiftSession[] => {
+    return getStoredShifts().filter(s => s.status === 'open');
+  },
 
-  try {
-    const { data, error } = await Promise.race([
-      supabase
+  /**
+   * Get the open shift specifically for the CURRENT device.
+   * Ensures shifts are isolated by device_id.
+   */
+  getCurrentDeviceShift: (): ShiftSession | null => {
+    const currentDeviceId = getDeviceId();
+    const stored = getStoredShifts();
+    const openShift = stored.find(s => s.device_id === currentDeviceId && s.status === 'open');
+    return openShift || null;
+  },
+
+  /**
+   * Legacy alias: returns current device shift
+   */
+  getCurrentCashierOpenShift: (): ShiftSession | null => {
+    return shiftService.getCurrentDeviceShift();
+  },
+
+  /**
+   * Sync active shifts from Supabase (shifts table + daily_registers)
+   */
+  syncActiveShiftsFromCloud: async (): Promise<ShiftSession[]> => {
+    if (!isOnline()) return shiftService.getActiveShifts();
+
+    const deviceId = getDeviceId();
+
+    try {
+      // 1. Try querying the shifts table
+      const { data: shiftData, error: shiftError } = await supabase
+        .from('shifts' as any)
+        .select('*')
+        .eq('status', 'open')
+        .order('start_time', { ascending: false });
+
+      if (!shiftError && Array.isArray(shiftData) && shiftData.length > 0) {
+        const mapped: ShiftSession[] = shiftData.map((r: any) => ({
+          id: r.id,
+          shift_id: r.shift_id || r.id,
+          user_id: r.user_id,
+          tenant_id: r.tenant_id,
+          device_id: r.device_id,
+          start_time: r.start_time,
+          end_time: r.end_time || null,
+          opening_balance: Number(r.opening_balance) || 0,
+          closing_balance: r.closing_balance != null ? Number(r.closing_balance) : null,
+          status: (r.status as 'open' | 'closed') || 'open',
+          cashier_name: r.cashier_name || 'CASHIER',
+          notes: r.notes || null,
+          // Compat
+          opened_at: r.start_time,
+          closed_at: r.end_time || null,
+          starting_amount: Number(r.opening_balance) || 0,
+          ending_amount: r.closing_balance != null ? Number(r.closing_balance) : null,
+        }));
+
+        saveShifts(mapped);
+        return mapped;
+      }
+
+      // 2. Fallback check for daily_registers
+      const { data: regData } = await supabase
         .from('daily_registers')
         .select('*')
         .eq('status', 'open')
-        .order('opened_at', { ascending: false }),
-      new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
-    ]);
+        .order('opened_at', { ascending: false });
 
-    if (!error && Array.isArray(data)) {
-      const cloudShifts: ShiftSession[] = data.map((r: any) => {
-        let cName = (r.cashier_name || '').trim();
-        if (!cName && r.notes) {
-          const match = r.notes.match(/Cashier:\s*(.*)/i);
-          if (match && match[1]) {
-            cName = match[1].trim();
-          }
-        }
-        if (!cName) cName = 'CASHIER';
-
-        return {
+      if (Array.isArray(regData) && regData.length > 0) {
+        const stored = getStoredShifts();
+        const nonOpen = stored.filter(s => s.status !== 'open');
+        const regMapped: ShiftSession[] = regData.map((r: any) => ({
           id: r.id,
-          cashier_name: cName,
-          cashier_id: r.cashier_id || undefined,
+          shift_id: r.id,
+          user_id: r.cashier_id || getCurrentUserId(),
+          device_id: deviceId,
+          start_time: r.opened_at,
+          end_time: r.closed_at || null,
+          opening_balance: Number(r.starting_amount) || 0,
+          closing_balance: r.ending_amount != null ? Number(r.ending_amount) : null,
+          status: (r.status as 'open' | 'closed') || 'open',
+          cashier_name: (r.cashier_name || 'CASHIER').trim(),
+          notes: r.notes || null,
           opened_at: r.opened_at,
           closed_at: r.closed_at || null,
           starting_amount: Number(r.starting_amount) || 0,
           ending_amount: r.ending_amount != null ? Number(r.ending_amount) : null,
-          status: (r.status as 'open' | 'closed') || 'open',
-          notes: r.notes || null,
-        };
-      });
+        }));
 
-      const stored = getStoredShifts();
-      const nonOpenStored = stored.filter(s => s.status !== 'open');
-      const mergedMap = new Map<string, ShiftSession>();
-      
-      nonOpenStored.forEach(s => mergedMap.set(s.id, s));
-      cloudShifts.forEach(s => mergedMap.set(s.id, s));
-
-      const merged = Array.from(mergedMap.values());
-      saveShifts(merged);
-      return cloudShifts;
+        const merged = [...nonOpen, ...regMapped];
+        saveShifts(merged);
+        return regMapped;
+      }
+    } catch (err) {
+      console.warn('[shiftService] Failed to sync shifts from cloud:', err);
     }
-  } catch (err) {
-    console.warn('Failed to sync active shifts from Supabase:', err);
-  }
 
-  return getActiveShifts();
-};
+    return shiftService.getActiveShifts();
+  },
 
-const getAllShiftsFromCloud = async (): Promise<ShiftSession[]> => {
-  if (!isOnline()) return getStoredShifts();
-
-  try {
-    const { data, error } = await supabase
-      .from('daily_registers')
-      .select('*')
-      .order('opened_at', { ascending: false });
-
-    if (!error && Array.isArray(data)) {
-      const cloudShifts: ShiftSession[] = data.map((r: any) => {
-        let cName = (r.cashier_name || '').trim();
-        if (!cName && r.notes) {
-          const match = r.notes.match(/Cashier:\s*(.*)/i);
-          if (match && match[1]) {
-            cName = match[1].trim();
-          }
-        }
-        if (!cName) cName = 'CASHIER';
-
-        return {
-          id: r.id,
-          cashier_name: cName,
-          cashier_id: r.cashier_id || undefined,
-          opened_at: r.opened_at,
-          closed_at: r.closed_at || null,
-          starting_amount: Number(r.starting_amount) || 0,
-          ending_amount: r.ending_amount != null ? Number(r.ending_amount) : null,
-          status: (r.status as 'open' | 'closed') || 'open',
-          notes: r.notes || null,
-        };
-      });
-
-      saveShifts(cloudShifts);
-      return cloudShifts;
-    }
-  } catch (err) {
-    console.warn('Failed to fetch historical shifts from Supabase:', err);
-  }
-
-  return getStoredShifts();
-};
-
-// Initial background sync
-if (typeof window !== 'undefined') {
-  setTimeout(() => {
-    syncActiveShiftsFromCloud();
-  }, 500);
-}
-
-const getCurrentCashierOpenShift = (): ShiftSession | null => {
-  const active = getActiveShifts();
-  if (active.length === 0) return null;
-
-  const currentName = getCurrentCashierName().toLowerCase();
-  const found = active.find(
-    (s) => s.cashier_name.toLowerCase() === currentName
-  );
-  if (found) return found;
-
-  return null;
-};
-
-export const shiftService = {
-  getStoredShifts,
-
-  saveShifts,
-
-  getActiveShifts,
-
-  syncActiveShiftsFromCloud,
-
-  getAllShiftsFromCloud,
-
-  getCurrentCashierOpenShift,
-
-  openShift: async (startingAmount: number, cashierName?: string): Promise<ShiftSession> => {
+  /**
+   * Start Shift: Independent of Admin shift!
+   * Creates new row in `shifts` table:
+   * shift_id, user_id, device_id, start_time, opening_balance
+   */
+  openShift: async (
+    openingBalance: number,
+    cashierName?: string,
+    userId?: string,
+    tenantId?: string
+  ): Promise<ShiftSession> => {
     const name = cashierName || getCurrentCashierName();
+    const uid = userId || getCurrentUserId();
+    const deviceId = getDeviceId();
+    const now = new Date().toISOString();
+    const shiftUuid = crypto.randomUUID ? crypto.randomUUID() : 'sh_' + Date.now();
+
     const newShift: ShiftSession = {
-      id: crypto.randomUUID(),
-      cashier_name: name,
-      opened_at: new Date().toISOString(),
-      closed_at: null,
-      starting_amount: Number(startingAmount) || 0,
-      ending_amount: null,
+      id: shiftUuid,
+      shift_id: shiftUuid,
+      user_id: uid,
+      tenant_id: tenantId || null,
+      device_id: deviceId,
+      start_time: now,
+      end_time: null,
+      opening_balance: Number(openingBalance) || 0,
+      closing_balance: null,
       status: 'open',
-      notes: `Cashier: ${name}`,
+      cashier_name: name,
+      notes: `Device: ${deviceId} | Cashier: ${name}`,
+      opened_at: now,
+      closed_at: null,
+      starting_amount: Number(openingBalance) || 0,
+      ending_amount: null,
     };
 
-    const shifts = getStoredShifts();
+    // Close any previous open shift on THIS device in local storage
+    const shifts = getStoredShifts().map(s => {
+      if (s.device_id === deviceId && s.status === 'open') {
+        return { ...s, status: 'closed' as const, end_time: now, closed_at: now };
+      }
+      return s;
+    });
+
     shifts.push(newShift);
     saveShifts(shifts);
-    localStorage.setItem('pos_current_shift_id', newShift.id);
+    localStorage.setItem(CURRENT_DEVICE_SHIFT_KEY, newShift.shift_id);
+    localStorage.setItem('pos_current_shift_id', newShift.shift_id);
 
+    // Sync to Supabase cloud
     if (isOnline()) {
       try {
+        // Close any prior open shift for this device
+        await supabase
+          .from('shifts' as any)
+          .update({ status: 'closed', end_time: now, updated_at: now })
+          .eq('device_id', deviceId)
+          .eq('status', 'open');
+
+        // Insert new row into `shifts` table
+        await supabase.from('shifts' as any).insert({
+          id: newShift.id,
+          shift_id: newShift.shift_id,
+          user_id: newShift.user_id,
+          tenant_id: newShift.tenant_id,
+          device_id: newShift.device_id,
+          start_time: newShift.start_time,
+          opening_balance: newShift.opening_balance,
+          status: 'open',
+          cashier_name: newShift.cashier_name,
+          notes: newShift.notes,
+        });
+
+        // Also insert into daily_registers for legacy order reporting compatibility
         await supabase.from('daily_registers').insert({
           id: newShift.id,
-          opened_at: newShift.opened_at,
-          starting_amount: newShift.starting_amount,
+          opened_at: newShift.start_time,
+          starting_amount: newShift.opening_balance,
           status: 'open',
-          notes: `Cashier: ${name}`,
+          notes: `Device: ${deviceId} | Cashier: ${name}`,
         } as any);
       } catch (err) {
-        console.warn('Failed to sync open shift to Supabase:', err);
+        console.warn('[shiftService] Failed to sync new shift to Supabase:', err);
       }
     }
 
@@ -238,84 +294,98 @@ export const shiftService = {
     return newShift;
   },
 
-  closeShift: async (id: string, endingAmount?: number, notes?: string): Promise<ShiftSession | null> => {
+  /**
+   * End Shift: ONLY closes that specific device's shift!
+   * Other devices remain open.
+   */
+  closeShift: async (
+    targetShiftId?: string,
+    closingBalance?: number,
+    notes?: string
+  ): Promise<ShiftSession | null> => {
+    const deviceId = getDeviceId();
     const shifts = getStoredShifts();
-    const targetShift = shifts.find((s) => s.id === id);
-    const cashierName = targetShift?.cashier_name || getCurrentCashierName();
+    const now = new Date().toISOString();
 
-    const updatedShifts = shifts.map((s) => {
-      if (s.id === id || s.cashier_name.toLowerCase() === cashierName.toLowerCase()) {
+    // Find shift for this device
+    const target = shifts.find(
+      s => (targetShiftId ? s.id === targetShiftId || s.shift_id === targetShiftId : s.device_id === deviceId && s.status === 'open')
+    );
+
+    const shiftIdToClose = target?.id || targetShiftId;
+
+    // Update ONLY the shift on this device
+    const updatedShifts = shifts.map(s => {
+      if (s.id === shiftIdToClose || (s.device_id === deviceId && s.status === 'open')) {
         return {
           ...s,
           status: 'closed' as const,
-          closed_at: new Date().toISOString(),
-          ending_amount: endingAmount ?? s.starting_amount,
-          notes: notes || s.notes || 'Shift closed',
+          end_time: now,
+          closed_at: now,
+          closing_balance: closingBalance ?? s.opening_balance,
+          ending_amount: closingBalance ?? s.opening_balance,
+          notes: notes || s.notes || 'Shift ended',
         };
       }
       return s;
     });
 
     saveShifts(updatedShifts);
+    localStorage.removeItem(CURRENT_DEVICE_SHIFT_KEY);
     localStorage.removeItem('pos_current_shift_id');
     window.dispatchEvent(new Event('shift_changed'));
 
-    if (isOnline()) {
+    // Sync close to Supabase
+    if (isOnline() && shiftIdToClose) {
       try {
+        // Close ONLY this specific shift in shifts table
         await supabase
-          .from('daily_registers')
+          .from('shifts' as any)
           .update({
             status: 'closed',
-            closed_at: new Date().toISOString(),
-            ending_amount: endingAmount ?? targetShift?.starting_amount ?? 0,
-            notes: notes || 'Shift closed by cashier',
-          } as any)
-          .eq('id', id);
+            end_time: now,
+            closing_balance: closingBalance ?? target?.opening_balance ?? 0,
+            notes: notes || 'Shift closed on device ' + deviceId,
+            updated_at: now,
+          })
+          .eq('id', shiftIdToClose);
 
-        // Also close any remaining open registers for this cashier
+        // Also update matching daily_registers row
         await supabase
           .from('daily_registers')
           .update({
             status: 'closed',
-            closed_at: new Date().toISOString(),
-            notes: 'Auto-closed on session end',
+            closed_at: now,
+            ending_amount: closingBalance ?? target?.opening_balance ?? 0,
+            notes: notes || 'Shift closed on device ' + deviceId,
           } as any)
-          .eq('status', 'open')
-          .ilike('notes', `%${cashierName}%`);
+          .eq('id', shiftIdToClose);
       } catch (err) {
-        console.warn('Failed to sync closed shift to Supabase:', err);
+        console.warn('[shiftService] Failed to sync shift close to Supabase:', err);
       }
     }
 
-    return updatedShifts.find((s) => s.id === id) || null;
+    return updatedShifts.find(s => s.id === shiftIdToClose) || null;
+  },
+
+  getAllShiftsFromCloud: async (): Promise<ShiftSession[]> => {
+    return shiftService.syncActiveShiftsFromCloud();
   },
 
   closeAllOpenShifts: async (): Promise<void> => {
     const shifts = getStoredShifts();
-    const closedShifts = shifts.map(s => ({
+    const now = new Date().toISOString();
+    const closed = shifts.map(s => ({
       ...s,
       status: 'closed' as const,
-      closed_at: s.closed_at || new Date().toISOString(),
+      end_time: s.end_time || now,
+      closed_at: s.closed_at || now,
+      closing_balance: s.closing_balance ?? s.opening_balance,
       ending_amount: s.ending_amount ?? s.starting_amount,
-      notes: s.notes || 'Cleaned / closed shift',
     }));
-    saveShifts(closedShifts);
+    saveShifts(closed);
+    localStorage.removeItem(CURRENT_DEVICE_SHIFT_KEY);
     localStorage.removeItem('pos_current_shift_id');
     window.dispatchEvent(new Event('shift_changed'));
-
-    if (isOnline()) {
-      try {
-        await supabase
-          .from('daily_registers')
-          .update({
-            status: 'closed',
-            closed_at: new Date().toISOString(),
-            notes: 'Batch closed by user action',
-          } as any)
-          .eq('status', 'open');
-      } catch (err) {
-        console.warn('Failed to batch close open shifts in Supabase:', err);
-      }
-    }
-  },
+  }
 };

@@ -12,6 +12,8 @@ export interface Product {
   category: string;
   image: string | null;
   barcode?: string;
+  linked_ingredient_id?: string | null;
+  deduction_qty?: number | null;
 }
 
 export interface CartItem {

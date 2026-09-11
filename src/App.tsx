@@ -81,6 +81,11 @@ const AppContent = () => {
               <Index />
             </ProtectedRoute>
           } />
+          <Route path="/pos" element={
+            <ProtectedRoute>
+              <Index />
+            </ProtectedRoute>
+          } />
           <Route path="/genx" element={
             <ProtectedRoute>
               <GenXPage />

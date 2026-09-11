@@ -13,6 +13,9 @@ import * as offline from '@/services/offlineStore';
 import { cashierApi } from '@/services/cashierApi';
 import { useTenantContext } from "@/contexts/TenantContext";
 
+import { getDeviceId } from "@/lib/deviceId";
+import { sessionService } from "@/services/sessionService";
+
 type Role = "admin" | "cashier" | "cashier2";
 
 const LoginPage = () => {
@@ -20,7 +23,7 @@ const LoginPage = () => {
   const { fetchTenantFromMe } = useTenantContext();
   const location = useLocation();
   const role = (location.state?.role as Role) || "cashier";
-  const cashierLoginMode = role === 'cashier2' || !!location.state?.cashierLoginMode;
+  const cashierLoginMode = role === 'cashier2' || role === 'cashier' || !!location.state?.cashierLoginMode;
   const prefillCashierName = location.state?.cashierName || '';
   const pendingCashierId = localStorage.getItem('pending_cashier_id');
 
@@ -69,15 +72,32 @@ const LoginPage = () => {
     }
   }, [role]);
 
-  const resolveTenantId = async (): Promise<string> => {
+  const resolveTenantForCashier = async (): Promise<string> => {
+    // 1. Cached tenant
     const cached = offline.getCachedTenant();
-    if (cached) return (cached as any).id;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single();
-      if (profile?.tenant_id) return profile.tenant_id;
+    if (cached && (cached as any).id) return (cached as any).id;
+
+    // 2. Query any active restaurant from database directly (NO admin login needed!)
+    try {
+      const { data: tenants } = await supabase.from('tenants').select('id, restaurant_name, tax_rate').limit(1);
+      if (tenants && tenants.length > 0) {
+        offline.cacheTenant(tenants[0] as any);
+        return tenants[0].id;
+      }
+    } catch {
+      // offline fallback below
     }
-    throw new Error('Restaurant not initialized. Please login as Admin first.');
+
+    // 3. Fallback default tenant for standalone cashier usage
+    const defaultTenant = {
+      id: 'default-tenant',
+      restaurant_name: 'GenX Restaurant',
+      plan_type: 'standard',
+      billing_status: 'active',
+      default_cashier_name: cashierName || 'CASHIER'
+    };
+    offline.cacheTenant(defaultTenant as any);
+    return defaultTenant.id;
   };
 
   const handleCashierLogin = async (e: React.FormEvent) => {
@@ -92,32 +112,72 @@ const LoginPage = () => {
     }
 
     setLoading(true);
+    const deviceId = getDeviceId();
+
     try {
-      let tenantId: string;
+      let tenantId = await resolveTenantForCashier();
+
+      // 1. Try independent /api/auth/login endpoint first
       try {
-        tenantId = await resolveTenantId();
-      } catch (err: any) {
-        const cached = localStorage.getItem('pos_offline_tenant');
-        if (cached) {
-          tenantId = (JSON.parse(cached) as any).id;
-        } else {
-          throw new Error('Please start the restaurant once with an Admin account before cashier login.');
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            username: cashierName.trim(),
+            password: pin,
+            role: 'CASHIER',
+            device_id: deviceId
+          })
+        });
+
+        if (res.ok) {
+          const result = await res.json();
+          if (result.success) {
+            const userObj = result.user || { id: 'cashier_' + Date.now(), name: cashierName.trim(), tenant_id: tenantId };
+            
+            // Set session with token and multi-device session_id
+            cashierApi.auth.setSession(
+              {
+                id: userObj.id,
+                name: userObj.name || userObj.full_name || cashierName.trim(),
+                tenant_id: result.tenant?.id || tenantId,
+                is_active: true,
+                full_access: !!userObj.full_access,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+              result.permissions || {},
+              result.token
+            );
+
+            if (result.session?.session_id) {
+              await sessionService.createSession(userObj.id, result.tenant?.id || tenantId, deviceId);
+            }
+
+            if (result.tenant) {
+              offline.cacheTenant(result.tenant);
+            }
+
+            localStorage.setItem('active_staff_name', userObj.name || cashierName.trim());
+            toast.success(`Welcome ${cashierName.trim()}!`);
+            navigate(result.redirectTo || '/pos');
+            return;
+          }
         }
+      } catch (apiErr) {
+        console.warn('[LoginPage] /api/auth/login fetch error, falling back to client auth:', apiErr);
       }
 
+      // 2. Direct client fallback (offline / Electron / standalone)
       const { cashier, permissions, token } = await cashierApi.auth.login(tenantId, cashierName.trim(), pin);
 
-      const existingTenant = offline.getCachedTenant();
-      if (!existingTenant) {
-        toast.error('Restaurant configuration missing. Please login as Admin first.');
-        setLoading(false);
-        return;
-      }
-
       cashierApi.auth.setSession(cashier, permissions, token);
+      await sessionService.createSession(cashier.id, cashier.tenant_id, deviceId);
       localStorage.setItem('active_staff_name', cashier.name);
       toast.success(`Welcome ${cashier.name}!`);
-      navigate('/');
+      // ROLE=CASHIER -> /pos directly
+      navigate('/pos');
     } catch (err: any) {
       console.error('Cashier login failed:', err);
       toast.error(err.message || 'Invalid credentials');
@@ -248,7 +308,13 @@ const LoginPage = () => {
             .eq('id', user.id)
             .single();
 
-          if (profile?.role === 'admin' || profile?.role === 'super-admin') {
+          const targetTenant = profile?.tenant_id || profile?.restaurant_id;
+          await sessionService.createSession(user.id, targetTenant, getDeviceId());
+
+          if (profile?.role === 'cashier' || role === 'cashier') {
+            toast.success(`Welcome back, ${profile?.full_name || staffDisplayName}!`);
+            navigate("/pos");
+          } else if (profile?.role === 'admin' || profile?.role === 'super-admin') {
             toast.success(`Welcome back, ${profile.full_name || 'Admin'}!`);
             navigate("/");
           } else if (profile) {
