@@ -33,7 +33,7 @@ import BillSettlementCalculatorModal from './BillSettlementCalculatorModal';
 
 const CartPanel = () => {
   const navigate = useNavigate();
-  const { tenant, cashierName: hookCashierName, isCashierLogin, profile, isAdmin } = useMultiTenant();
+  const { tenant, cashierName: hookCashierName, isCashierLogin, profile, isAdmin, canAccess } = useMultiTenant();
   const { fetchFreshTenantSettings } = useTenantContext();
   const isCashier = isCashierLogin || profile?.role === 'cashier' || localStorage.getItem('active_role') === 'cashier';
   const {
@@ -980,13 +980,14 @@ const CartPanel = () => {
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2 text-slate-500 font-bold font-heading uppercase tracking-wider text-[10px]">
               <span>Discount</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-5 w-5 rounded-full">
-                    <Tag className="h-3 w-3" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-72 p-4" align="start">
+              {(!isCashier || canAccess('discounts.apply')) && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-5 w-5 rounded-full">
+                      <Tag className="h-3 w-3" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-4" align="start">
                   <div className="space-y-4">
                     <h4 className="font-medium leading-none">Set Discount</h4>
                     <Tabs defaultValue={discountType} onValueChange={(v) => {
@@ -1025,6 +1026,7 @@ const CartPanel = () => {
                   </div>
                 </PopoverContent>
               </Popover>
+              )}
             </div>
             <span className={discountAmount > 0 ? "text-success font-medium" : ""}>
               {discountAmount > 0 ? `-Rs ${discountAmount.toLocaleString()}` : '-'}

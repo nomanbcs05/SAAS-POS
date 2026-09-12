@@ -9,6 +9,7 @@ const supabaseServer = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false, autoRefreshToken: false }
 });
 
+/** Legacy djb2-style hash (kept for backward compat only) */
 const simplePinHash = (pin: string): string => {
   let hash = 0;
   for (let i = 0; i < pin.length; i++) {
@@ -17,6 +18,19 @@ const simplePinHash = (pin: string): string => {
     hash |= 0;
   }
   return `h_${Math.abs(hash)}_${pin.length}`;
+};
+
+/** SHA-256 hash matching the frontend's sha256Hash function */
+const sha256PinHash = (pin: string): string => {
+  const hashBuf = crypto.createHash('sha256').update('pos_pin_salt:' + pin).digest('hex');
+  return `sha256_${hashBuf}`;
+};
+
+/** Verify pin against stored hash — supports both legacy and SHA-256 formats */
+const verifyPinHash = (pin: string, storedHash: string): boolean => {
+  if (!storedHash) return false;
+  if (storedHash.startsWith('sha256_')) return sha256PinHash(pin) === storedHash;
+  return simplePinHash(pin) === storedHash || storedHash === pin;
 };
 
 function generateJwt(payload: object, secret: string): string {
@@ -93,7 +107,7 @@ export async function handleLogin(req: any) {
           return { status: 403, body: { success: false, error: 'This cashier account is inactive' } };
         }
         const pinHash = cashierRow.pin_hash;
-        const matches = pinHash === simplePinHash(password) || pinHash === password;
+        const matches = verifyPinHash(password, pinHash);
         if (!matches) {
           return { status: 401, body: { success: false, error: 'Invalid PIN or password' } };
         }
@@ -151,13 +165,14 @@ export async function handleLogin(req: any) {
         }
       }
 
-      // 4. Default self-contained cashier account if no DB records yet (standalone SaaS demo/initial setup)
+      // 4. Cashier not found — do NOT create ghost accounts
       if (!authenticatedUser) {
-        authenticatedUser = {
-          id: 'cashier_' + crypto.createHash('md5').update(username.toLowerCase()).digest('hex').substring(0, 12),
-          name: username,
-          role: 'CASHIER',
-          tenant_id: targetTenantId || 'default-tenant',
+        return {
+          status: 401,
+          body: {
+            success: false,
+            error: 'Cashier account not found. Please ask your Admin to create a cashier account from Settings → Cashiers.'
+          }
         };
       }
     }

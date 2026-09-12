@@ -254,13 +254,35 @@ const CashierManager = ({ tenant }: CashierManagerProps) => {
                   Cashier Accounts
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  Manage staff accounts with name + 4-digit PIN authentication and custom permissions.
+                  One cashier account per restaurant — Name + 4-digit PIN authentication. Admin configures module access.
                 </CardDescription>
               </div>
             </div>
-            <Button onClick={openCreate} className="font-black uppercase tracking-wider text-xs h-10 px-4 bg-primary shadow-sm">
-              <Plus className="h-4 w-4 mr-1.5" /> Create Cashier
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              {cashiers.some(c => c.is_active) && (
+                <p className="text-[10px] text-amber-600 font-semibold flex items-center gap-1">
+                  <Shield className="h-3 w-3" /> 1 active cashier maximum per restaurant
+                </p>
+              )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      onClick={openCreate}
+                      disabled={cashiers.some(c => c.is_active)}
+                      className="font-black uppercase tracking-wider text-xs h-10 px-4 bg-primary shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Plus className="h-4 w-4 mr-1.5" /> Create Cashier
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {cashiers.some(c => c.is_active) && (
+                  <TooltipContent side="left" className="max-w-[220px] text-center text-xs">
+                    Only one active cashier is allowed. Edit or delete the existing cashier first.
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="rounded-xl border overflow-hidden">

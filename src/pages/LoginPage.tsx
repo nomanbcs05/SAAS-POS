@@ -72,32 +72,51 @@ const LoginPage = () => {
     }
   }, [role]);
 
-  const resolveTenantForCashier = async (): Promise<string> => {
-    // 1. Cached tenant
+  const resolveTenantForCashier = async (nameHint?: string): Promise<string> => {
+    // 1. Cached tenant (set by previous admin login or cashier session)
     const cached = offline.getCachedTenant();
-    if (cached && (cached as any).id) return (cached as any).id;
-
-    // 2. Query any active restaurant from database directly (NO admin login needed!)
-    try {
-      const { data: tenants } = await supabase.from('tenants').select('id, restaurant_name, tax_rate').limit(1);
-      if (tenants && tenants.length > 0) {
-        offline.cacheTenant(tenants[0] as any);
-        return tenants[0].id;
-      }
-    } catch {
-      // offline fallback below
+    if (cached && (cached as any).id && (cached as any).id !== 'default-tenant') {
+      return (cached as any).id;
     }
 
-    // 3. Fallback default tenant for standalone cashier usage
-    const defaultTenant = {
-      id: 'default-tenant',
-      restaurant_name: 'GenX Restaurant',
-      plan_type: 'standard',
-      billing_status: 'active',
-      default_cashier_name: cashierName || 'CASHIER'
-    };
-    offline.cacheTenant(defaultTenant as any);
-    return defaultTenant.id;
+    // 2. Try to find tenant by querying for a cashier account with this name
+    //    This is the correct approach: the cashier belongs to exactly one restaurant
+    if (nameHint) {
+      try {
+        const { data: cashierRows } = await supabase
+          .from('cashier_accounts')
+          .select('tenant_id, name')
+          .ilike('name', nameHint)
+          .eq('is_active', true)
+          .limit(1);
+        if (cashierRows && cashierRows.length > 0 && cashierRows[0].tenant_id) {
+          const { data: tenant } = await supabase
+            .from('tenants')
+            .select('id, restaurant_name, tax_rate, plan_type, billing_status')
+            .eq('id', cashierRows[0].tenant_id)
+            .single();
+          if (tenant) {
+            offline.cacheTenant(tenant as any);
+            return tenant.id;
+          }
+        }
+      } catch {
+        // continue to next fallback
+      }
+    }
+
+    // 3. Offline cache from a previous valid session
+    const offlineCashiers = JSON.parse(localStorage.getItem('pos_offline_cashiers') || '[]');
+    if (nameHint && offlineCashiers.length > 0) {
+      const match = offlineCashiers.find((c: any) => c.name?.toLowerCase() === nameHint.toLowerCase());
+      if (match?.tenant_id) return match.tenant_id;
+    }
+
+    // 4. Hard fail — do NOT silently fall back to 'default-tenant'
+    //    The cashierApi.auth.login will also return 'not found', giving the user a clear error
+    throw new Error(
+      'Could not determine your restaurant. Please ask your Admin to log in first to activate the system, then try again.'
+    );
   };
 
   const handleCashierLogin = async (e: React.FormEvent) => {
@@ -115,7 +134,7 @@ const LoginPage = () => {
     const deviceId = getDeviceId();
 
     try {
-      let tenantId = await resolveTenantForCashier();
+      let tenantId = await resolveTenantForCashier(cashierName.trim());
 
       // 1. Try independent /api/auth/login endpoint first
       try {

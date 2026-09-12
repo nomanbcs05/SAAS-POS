@@ -84,6 +84,7 @@ const isSchemaMissing = (error: any): boolean => {
   );
 };
 
+/** Legacy hash (kept only for backward-compat verification of old records) */
 const simpleHash = (pin: string): string => {
   let hash = 0;
   for (let i = 0; i < pin.length; i++) {
@@ -94,7 +95,38 @@ const simpleHash = (pin: string): string => {
   return `h_${Math.abs(hash)}_${pin.length}`;
 };
 
-const verifyPin = (pin: string, hash: string): boolean => {
+/**
+ * SHA-256 based async hash for new PIN storage.
+ * Format: sha256_<hex> to distinguish from legacy hashes.
+ */
+const sha256Hash = async (pin: string): Promise<string> => {
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode('pos_pin_salt:' + pin);
+    const hashBuf = await crypto.subtle.digest('SHA-256', data);
+    const hexArr = Array.from(new Uint8Array(hashBuf));
+    const hex = hexArr.map(b => b.toString(16).padStart(2, '0')).join('');
+    return `sha256_${hex}`;
+  } catch {
+    return simpleHash(pin);
+  }
+};
+
+/**
+ * Verify pin against stored hash (supports both legacy and SHA-256 formats).
+ */
+const verifyPin = async (pin: string, hash: string): Promise<boolean> => {
+  if (!hash) return false;
+  if (hash.startsWith('sha256_')) {
+    const computed = await sha256Hash(pin);
+    return computed === hash;
+  }
+  return simpleHash(pin) === hash;
+};
+
+/** Sync version for local offline cache checks (legacy only) */
+const verifyPinSync = (pin: string, hash: string): boolean => {
+  if (hash.startsWith('sha256_')) return false;
   return simpleHash(pin) === hash;
 };
 
@@ -334,15 +366,19 @@ export const cashierApi = {
       full_access?: boolean;
       permissions?: Partial<Record<ModuleKey, boolean>>;
     }): Promise<CashierWithPermissions> => {
-      const pin_hash = simpleHash(payload.pin);
       const perms = payload.permissions ?? defaultPermissions();
 
-      const createLocal = (): CashierWithPermissions => {
+      const createLocal = async (): Promise<CashierWithPermissions> => {
         const cashiers = getOfflineCashiers();
         const allPerms = getOfflinePermissions();
-        if (cashiers.some(c => c.tenant_id === payload.tenant_id && c.name.toLowerCase() === payload.name.toLowerCase())) {
-          throw new Error(`Cashier "${payload.name}" already exists in this restaurant`);
+        // Enforce single cashier per tenant
+        const activeCashier = cashiers.find(c => c.tenant_id === payload.tenant_id && c.is_active);
+        if (activeCashier) {
+          throw new Error(
+            `Only one cashier account is allowed per restaurant. Please edit the existing cashier "${activeCashier.name}" instead.`
+          );
         }
+        const pin_hash = await sha256Hash(payload.pin);
         const id = crypto.randomUUID();
         const now = new Date().toISOString();
         const entry: CashierAccount & { pin_hash: string } = {
@@ -368,12 +404,28 @@ export const cashierApi = {
       if (shouldUseLocal()) return createLocal();
 
       try {
+        // Enforce single active cashier per tenant
+        const { data: existing, error: checkErr } = await supabase
+          .from('cashier_accounts')
+          .select('id, name')
+          .eq('tenant_id', payload.tenant_id)
+          .eq('is_active', true);
+
+        if (!isSchemaMissing(checkErr) && existing && existing.length > 0) {
+          throw new Error(
+            `Only one cashier account is allowed per restaurant. Please edit the existing cashier "${existing[0].name}" instead.`
+          );
+        }
+
+        // Use SHA-256 for all new accounts
+        const secure_hash = await sha256Hash(payload.pin);
+
         const { data, error } = await supabase
           .from('cashier_accounts')
           .insert({
             tenant_id: payload.tenant_id,
             name: payload.name,
-            pin_hash,
+            pin_hash: secure_hash,
             is_active: payload.is_active !== false,
             full_access: !!payload.full_access,
           })
@@ -495,7 +547,7 @@ export const cashierApi = {
     },
 
     changePin: async (id: string, newPin: string): Promise<void> => {
-      const pin_hash = simpleHash(newPin);
+      const pin_hash = await sha256Hash(newPin);
 
       const localChange = () => {
         const cashiers = getOfflineCashiers();
@@ -553,14 +605,15 @@ export const cashierApi = {
       name: string,
       pin: string
     ): Promise<{ cashier: CashierAccount; permissions: Record<ModuleKey, boolean>; token: string }> => {
-      const localLogin = () => {
+      const localLogin = async () => {
         const cashiers = getOfflineCashiers();
         const c = cashiers.find(
           x => x.tenant_id === tenantId && x.name.toLowerCase() === name.toLowerCase()
         );
         if (!c) throw new Error('Cashier account not found');
         if (!c.is_active) throw new Error('This cashier account is inactive');
-        if (!verifyPin(pin, c.pin_hash)) throw new Error('Invalid 4-digit PIN');
+        const pinOk = await verifyPin(pin, c.pin_hash).catch(() => verifyPinSync(pin, c.pin_hash));
+        if (!pinOk) throw new Error('Invalid 4-digit PIN');
         const allPerms = getOfflinePermissions();
         const perms = c.full_access
           ? ALL_MODULES.reduce((acc, m) => ({ ...acc, [m.key]: true }), {} as Record<ModuleKey, boolean>)
@@ -595,7 +648,8 @@ export const cashierApi = {
         }
 
         if (!data.is_active) throw new Error('This cashier account is inactive');
-        if (!verifyPin(pin, data.pin_hash)) throw new Error('Invalid 4-digit PIN');
+        const pinOk = await verifyPin(pin, data.pin_hash);
+        if (!pinOk) throw new Error('Invalid 4-digit PIN');
 
         const rawPerms: CashierPermission[] = data.cashier_permissions ?? [];
         const permMap: Record<ModuleKey, boolean> = ALL_MODULES.reduce((acc, m) => {

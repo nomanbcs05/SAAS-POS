@@ -106,48 +106,56 @@ const AppContent = () => {
               <OrdersPage />
             </ProtectedRoute>
           } />
+          {/* Products — Admin can grant cashier access via CashierManager */}
           <Route path="/products" element={
-            <ProtectedRoute adminOnly={true}>
+            <ProtectedRoute>
               <ProductsPage />
             </ProtectedRoute>
           } />
+          {/* Customers — Admin can grant cashier access */}
           <Route path="/customers" element={
-            <ProtectedRoute adminOnly={true}>
+            <ProtectedRoute>
               <CustomersPage />
             </ProtectedRoute>
           } />
+          {/* Reports — Admin can grant cashier access */}
           <Route path="/reports" element={
-            <ProtectedRoute adminOnly={true}>
+            <ProtectedRoute>
               <ReportsPage />
             </ProtectedRoute>
           } />
+          {/* Settings — Always admin-only, cashier can never manage settings */}
           <Route path="/settings" element={
             <ProtectedRoute adminOnly={true}>
               <SettingsPage />
             </ProtectedRoute>
           } />
 
+          {/* Credit — Admin can grant cashier access */}
           <Route path="/credit" element={
-            <ProtectedRoute adminOnly={true}>
+            <ProtectedRoute>
               <CreditPage />
             </ProtectedRoute>
           } />
 
+          {/* Staff Management — Always admin-only */}
           <Route path="/staff-management" element={
             <ProtectedRoute adminOnly={true}>
               <StaffManagementPage />
             </ProtectedRoute>
           } />
 
+          {/* Inventory — Admin can grant cashier access */}
           <Route path="/inventory" element={
-            <ProtectedRoute adminOnly={true}>
+            <ProtectedRoute>
               <InventoryPage />
             </ProtectedRoute>
           } />
 
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          {/* POS Dashboard — Admin-only analytics dashboard */}
           <Route path="/pos-dashboard" element={
-            <ProtectedRoute>
+            <ProtectedRoute adminOnly={true}>
               <PosDashboardPage />
             </ProtectedRoute>
           } />

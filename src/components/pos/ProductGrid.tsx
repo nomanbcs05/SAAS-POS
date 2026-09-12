@@ -35,6 +35,7 @@ import { useMultiTenant } from '@/hooks/useMultiTenant';
 import ProductAmountCalculatorModal from './ProductAmountCalculatorModal';
 import { RESTR_CATEGORIES, initializeRestaurantMenuDefaults } from '@/data/restaurantMenuData';
 import SmbuttKarahiMenuModal, { SMBUTT_MENU_DATA } from './SmbuttKarahiMenuModal';
+import { onVirtualMenuUpdate, initVirtualMenuForTenant, getVirtualMenuCategories } from '@/services/virtualMenuService';
 
 const ProductGrid = () => {
   const navigate = useNavigate();
@@ -71,16 +72,22 @@ const ProductGrid = () => {
   // Seed restaurant menu defaults on mount (runs before POS renders cards)
   useEffect(() => {
     initializeRestaurantMenuDefaults();
-  }, []);
+    if (tenant?.id) {
+      initVirtualMenuForTenant(tenant.id);
+    }
+  }, [tenant?.id]);
 
-  // Re-render product grid whenever Fresh Basket or custom cards update
+  // Re-render product grid whenever Fresh Basket, custom cards, or virtual menu updates
   useEffect(() => {
     const handleUpdate = () => setLocalUpdateTrigger(prev => prev + 1);
     window.addEventListener('freshbasket-menu-updated', handleUpdate);
     window.addEventListener('pos-custom-cards-updated', handleUpdate);
+    // Listen for Virtual Menu admin changes (real-time for cashier)
+    const unsubVM = onVirtualMenuUpdate(handleUpdate);
     return () => {
       window.removeEventListener('freshbasket-menu-updated', handleUpdate);
       window.removeEventListener('pos-custom-cards-updated', handleUpdate);
+      unsubVM();
     };
   }, []);
   const [selectedCalculatorProduct, setSelectedCalculatorProduct] = useState<Product | null>(null);

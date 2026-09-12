@@ -9,10 +9,9 @@ import { useMultiTenant } from "@/hooks/useMultiTenant";
 import { Input } from "@/components/ui/input";
 import { isDesktop } from "@/lib/env";
 import * as offline from "@/services/offlineStore";
-import { staffManagementApi, Staff } from "@/services/staffManagementApi";
 import { cashierApi, CashierWithPermissions } from "@/services/cashierApi";
 
-type Role = "admin" | "cashier" | "cashier2";
+type Role = "admin" | "cashier";
 
 const Welcome = () => {
   const navigate = useNavigate();
@@ -20,7 +19,6 @@ const Welcome = () => {
   const [cashierName, setCashierName] = useState('CASHIER');
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState('');
-  const [staffCashiers, setStaffCashiers] = useState<Staff[]>([]);
   const [secureCashiers, setSecureCashiers] = useState<CashierWithPermissions[]>([]);
 
   useEffect(() => {
@@ -34,16 +32,6 @@ const Welcome = () => {
     }
 
     const fetchCashiers = async () => {
-      try {
-        const staff = await staffManagementApi.staff.getAll(tenant?.id);
-        const cashiers = staff.filter(
-          (s) => s.is_active && (s.role === 'cashier' || s.role === 'manager')
-        );
-        setStaffCashiers(cashiers);
-      } catch (err) {
-        console.warn('Could not load cashiers for Welcome page:', err);
-      }
-
       try {
         const secured = await cashierApi.account.getAll(tenant?.id);
         setSecureCashiers(secured.filter(c => c.is_active));
@@ -243,43 +231,6 @@ const Welcome = () => {
           </div>
         )}
 
-        {staffCashiers.length > 0 && secureCashiers.length === 0 && (
-          <div className="space-y-4 pt-4 border-t border-white/20">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-white/90 text-center">
-              Cashier Profiles ({staffCashiers.length})
-            </h3>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {staffCashiers.map((cashier) => (
-                <motion.div
-                  key={cashier.id}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => handleRoleSelect("cashier", cashier.name)}
-                  className="cursor-pointer bg-white/90 backdrop-blur-md rounded-2xl p-4 shadow-lg border border-white/40 hover:border-primary flex flex-col items-center text-center transition-all group relative overflow-hidden"
-                >
-                  <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-lg mb-2 group-hover:bg-primary group-hover:text-white transition-colors">
-                    {cashier.name.charAt(0).toUpperCase()}
-                  </div>
-
-                  <h4 className="font-extrabold text-sm text-slate-900 truncate w-full group-hover:text-primary">
-                    {cashier.name}
-                  </h4>
-
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mt-0.5">
-                    {cashier.role}
-                  </span>
-
-                  {cashier.pin && (
-                    <div className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                      <KeyRound className="h-3 w-3" /> PIN Required
-                    </div>
-                  )}
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div className="relative group max-w-md mx-auto">
           <motion.div

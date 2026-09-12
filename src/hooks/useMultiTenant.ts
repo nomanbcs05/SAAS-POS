@@ -284,11 +284,18 @@ export const useMultiTenant = () => {
   };
 
   const canAccess = (moduleKey: ModuleKey | string): boolean => {
+    // Admin/Owner always has full access — role itself grants unrestricted access
     if (!isCashierLogin) return true;
+    // Cashier: check permissions table
     const perms = cashierPermissions || cashierApi.auth.getPermissions();
     if (!perms) return false;
     return perms[moduleKey as ModuleKey] === true;
   };
+
+  // True if current user is the restaurant owner / admin (not a cashier)
+  const isOwner = !isCashierLogin && (
+    profile?.role === 'admin' || profile?.role === 'super-admin'
+  );
 
   return {
     session,
@@ -298,6 +305,7 @@ export const useMultiTenant = () => {
     ownedTenants: ownedTenants || [],
     isLoading: sessionLoading || profileLoading || tenantLoading || ownedTenantsLoading,
     isAdmin: profile?.role === 'admin' || profile?.role === 'super-admin',
+    isOwner,
     isCashierLogin,
     cashierPermissions,
     canAccess,

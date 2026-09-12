@@ -121,41 +121,39 @@ const AppSidebar = ({ isCollapsed, onToggle }: AppSidebarProps) => {
   const isCashier = isCashierLogin || profile?.role === 'cashier' || localStorage.getItem('active_role') === 'cashier';
 
   const navigation = [
-    { name: 'POS', href: '/pos', icon: LayoutGrid, moduleKey: 'dashboard' },
+    { name: 'POS', href: '/pos', icon: LayoutGrid, moduleKey: 'dashboard', alwaysCashier: true },
     { name: 'POS Dashboard', href: '/pos-dashboard', icon: Zap, adminOnly: true, moduleKey: 'dashboard' },
     { name: 'SaaS Admin', href: '/saas-admin', icon: ShieldCheck, superAdminOnly: true, moduleKey: null as any },
     { name: 'Running Orders', href: '/ongoing-orders', icon: Clock, moduleKey: 'ongoing-orders' },
     { name: 'Orders', href: '/orders', icon: ClipboardList, moduleKey: 'orders' },
     { name: 'Completed Orders', href: '/completed-orders', icon: CheckCircle2, moduleKey: 'completed-orders' },
-    { name: 'Products', href: '/products', icon: Package, adminOnly: true, management: true, moduleKey: 'products' },
-    { name: 'Customers', href: '/customers', icon: Users, adminOnly: true, management: true, moduleKey: 'customers' },
-    { name: 'Credit Ledger', href: '/credit', icon: Wallet, adminOnly: true, management: true, moduleKey: 'credit' },
+    { name: 'Products', href: '/products', icon: Package, management: true, moduleKey: 'products' },
+    { name: 'Customers', href: '/customers', icon: Users, management: true, moduleKey: 'customers' },
+    { name: 'Credit Ledger', href: '/credit', icon: Wallet, management: true, moduleKey: 'credit' },
     { name: 'Staff Management', href: '/staff-management', icon: Users, adminOnly: true, management: true, moduleKey: 'staff-management' },
-    { name: 'Inventory', href: '/inventory', icon: Boxes, adminOnly: true, management: true, moduleKey: 'inventory' },
-    { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true, management: true, moduleKey: 'reports' },
+    { name: 'Inventory', href: '/inventory', icon: Boxes, management: true, moduleKey: 'inventory' },
+    { name: 'Reports', href: '/reports', icon: BarChart3, management: true, moduleKey: 'reports' },
+    // Settings is always admin-only — cashier can never manage settings
     { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true, management: true, moduleKey: 'settings' },
   ].filter(item => {
+    // Super admin only items
     if (item.superAdminOnly) return profile?.role === 'super-admin';
 
-    // CASHIER CANNOT: Settings, Users (Staff Management), Reports, Admin Dashboard (SaaS Admin & POS Dashboard)
     if (isCashier) {
-      if (['Settings', 'Staff Management', 'Reports', 'POS Dashboard', 'SaaS Admin'].includes(item.name)) {
-        return false;
-      }
-      if (item.adminOnly) {
-        return false;
-      }
-      if (item.moduleKey && !canAccess(item.moduleKey)) {
-        return false;
-      }
+      // Items that are strictly admin-only (staff-management, settings, pos-dashboard, saas-admin)
+      if (item.adminOnly) return false;
+      // For all other items: check canAccess permission
+      if (item.moduleKey && !canAccess(item.moduleKey)) return false;
       return true;
     }
 
+    // Admin user path
     if (item.adminOnly) {
       if (!isAdmin) return false;
       if (hideManagement && item.management) return false;
       return true;
     }
+    if (item.management && hideManagement) return false;
     return true;
   });
 

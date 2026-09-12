@@ -36,15 +36,16 @@ const ProtectedRoute = ({
       return <Navigate to="/pos" replace />;
     }
 
-    // CASHIER CANNOT: Settings, Users (Staff Management), Reports, Admin Dashboard
-    const blockedForCashier = ['/settings', '/staff-management', '/reports', '/saas-admin', '/pos-dashboard'];
-    const isBlocked = blockedForCashier.some(path => location.pathname === path || location.pathname.startsWith(path + '/'));
-    if (isBlocked || adminOnly) {
+    // Routes with adminOnly={true} in App.tsx are always blocked for cashier
+    // (settings, staff-management, saas-admin, pos-dashboard)
+    if (adminOnly) {
       return <Navigate to="/pos" replace />;
     }
 
+    // For all other routes: check canAccess against the module key
     const mod = ALL_MODULES.find(
-      m => m.route === location.pathname || (location.pathname !== '/' && location.pathname !== '/pos' && location.pathname.startsWith(m.route + '/'))
+      m => m.route === location.pathname ||
+           (location.pathname !== '/' && location.pathname !== '/pos' && location.pathname.startsWith(m.route + '/'))
     );
     if (mod && !canAccess(mod.key)) {
       return <Navigate to="/pos" replace />;
