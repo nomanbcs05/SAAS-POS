@@ -17,8 +17,10 @@ export async function handleCalculatePayroll(queryParams: any, req: any) {
   }
 
   const { month } = parseResult.data;
+  const [year, mon] = month.split('-').map(Number);
+  const lastDay = new Date(year, mon, 0).getDate();
   const startDate = `${month}-01`;
-  const endDate = `${month}-31`;
+  const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
 
   // 1. Fetch active employees (checking employees table, fallback to staff table)
   let employees: any[] = [];

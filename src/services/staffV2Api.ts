@@ -101,32 +101,60 @@ const getAuthHeaders = (restaurantId?: string) => {
   return headers;
 };
 
+/**
+ * Returns the proper first and last day of a given month (YYYY-MM).
+ * Avoids the "-31" hardcoding bug that breaks queries on 30/28-day months.
+ */
+export const getMonthDateRange = (month: string): { startDate: string; endDate: string } => {
+  const [year, mon] = month.split('-').map(Number);
+  const lastDay = new Date(year, mon, 0).getDate(); // day 0 of next month = last day of this month
+  return {
+    startDate: `${month}-01`,
+    endDate: `${month}-${String(lastDay).padStart(2, '0')}`,
+  };
+};
+
+/**
+ * Ensures a staff member from the 'staff' table also exists in the 'employees' table.
+ * This is required because attendance_logs / salary_vouchers / payroll_history have
+ * a foreign key pointing to employees(id). Call this before any insert into those tables.
+ */
+const syncStaffToEmployees = async (emp: { id: string; name: string; restaurant_id?: string | null; phone?: string; email?: string; salary_amount?: number; is_active?: boolean; joining_date?: string; cnic?: string; bank_account?: string; salary_type?: string }) => {
+  try {
+    await supabase
+      .from('employees' as any)
+      .upsert({
+        id: emp.id,
+        name: emp.name,
+        restaurant_id: emp.restaurant_id || 'default_restaurant',
+        phone: emp.phone || null,
+        email: emp.email || null,
+        base_salary: Number(emp.salary_amount || 0),
+        status: emp.is_active !== false ? 'active' : 'inactive',
+        joining_date: emp.joining_date || new Date().toISOString().split('T')[0],
+        cnic: emp.cnic || '',
+        bank_account: emp.bank_account || '',
+        salary_type: emp.salary_type || 'monthly',
+      }, { onConflict: 'id' });
+  } catch { /* best effort — don't block the main operation */ }
+};
+
 export const staffV2Api = {
   // ---------------------------------------------------------------------------
-  // Staff / Employees CRUD
+  // Staff / Employees CRUD  (PRIMARY TABLE: 'staff')
   // ---------------------------------------------------------------------------
   staff: {
     getAll: async (restaurantId?: string): Promise<EmployeeV2[]> => {
-      // 1. Try employees table
-      try {
-        let q = supabase.from('employees' as any).select('*');
-        if (restaurantId) q = q.or(`restaurant_id.eq.${restaurantId},restaurant_id.is.null`);
-        const { data, error } = await q.order('name');
-        if (!error && data && data.length > 0) {
-          return data as unknown as EmployeeV2[];
-        }
-      } catch { /* fallback */ }
-
-      // 2. Fallback to staff table
+      // 1. Try 'staff' table FIRST (this is where V2 staff data lives)
       try {
         let q = supabase.from('staff' as any).select('*');
         if (restaurantId) q = q.or(`tenant_id.eq.${restaurantId},tenant_id.is.null`);
         const { data, error } = await q.order('name');
-        if (!error && data) {
-          return (data as any[]).map(s => ({
+        if (!error && data && data.length > 0) {
+          const list: EmployeeV2[] = (data as any[]).map(s => ({
             id: s.id,
             name: s.name,
-            role: s.role,
+            role: s.role || 'waiter',
             phone: s.phone || '',
             email: s.email || '',
             pin: s.pin || '',
@@ -138,10 +166,37 @@ export const staffV2Api = {
             is_active: s.is_active !== false,
             restaurant_id: s.tenant_id || restaurantId,
           }));
+          // Auto-sync all staff to employees table in background to satisfy foreign keys
+          Promise.all(list.map(emp => syncStaffToEmployees(emp))).catch(() => {});
+          return list;
         }
       } catch { /* fallback */ }
 
-      // 3. Fallback to local storage
+      // 2. Fallback to 'employees' table
+      try {
+        let q = supabase.from('employees' as any).select('*');
+        if (restaurantId) q = q.or(`restaurant_id.eq.${restaurantId},restaurant_id.is.null`);
+        const { data, error } = await q.order('name');
+        if (!error && data && data.length > 0) {
+          return (data as any[]).map(e => ({
+            id: e.id,
+            name: e.name,
+            role: e.designation || e.role || 'waiter',
+            phone: e.phone || '',
+            email: e.email || '',
+            pin: e.pin || '',
+            cnic: e.cnic || '',
+            bank_account: e.bank_account || '',
+            salary_type: e.salary_type || 'monthly',
+            salary_amount: Number(e.base_salary || e.salary_amount || 0),
+            joining_date: e.joining_date || new Date().toISOString().split('T')[0],
+            is_active: e.status !== 'inactive' && e.is_active !== false,
+            restaurant_id: e.restaurant_id || restaurantId,
+          }));
+        }
+      } catch { /* fallback */ }
+
+      // 3. Fallback to localStorage
       const localUsers: any[] = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
       return localUsers.map(u => ({
         id: u.id,
@@ -161,35 +216,95 @@ export const staffV2Api = {
     },
 
     create: async (payload: Omit<EmployeeV2, 'id' | 'created_at'>): Promise<EmployeeV2> => {
-      // 1. Try employees table
-      try {
-        const { data, error } = await supabase.from('employees' as any).insert(payload).select().single();
-        if (!error && data) return data as unknown as EmployeeV2;
-      } catch { /* fallback */ }
+      // CNIC Duplicate Check BEFORE any insert
+      if (payload.cnic && payload.cnic.trim()) {
+        const cnic = payload.cnic.trim();
 
-      // 2. Try staff table
+        // Check 'staff' table for duplicate CNIC
+        try {
+          const { data: existing } = await supabase
+            .from('staff' as any)
+            .select('name')
+            .eq('cnic', cnic)
+            .maybeSingle();
+          if (existing) {
+            throw new Error(`Yeh CNIC pehle se "${(existing as any).name}" ke naam par add hai`);
+          }
+        } catch (err: any) {
+          if (err.message?.includes('naam par add hai')) throw err;
+        }
+
+        // Check 'employees' table for duplicate CNIC
+        try {
+          const { data: existing } = await supabase
+            .from('employees' as any)
+            .select('name')
+            .eq('cnic', cnic)
+            .maybeSingle();
+          if (existing) {
+            throw new Error(`Yeh CNIC pehle se "${(existing as any).name}" ke naam par add hai`);
+          }
+        } catch (err: any) {
+          if (err.message?.includes('naam par add hai')) throw err;
+        }
+      }
+
+      // 1. Insert into 'staff' table (PRIMARY)
       try {
         const staffPayload = {
           name: payload.name,
           role: payload.role,
-          phone: payload.phone,
-          email: payload.email,
-          pin: payload.pin,
-          cnic: payload.cnic,
-          bank_account: payload.bank_account,
+          phone: payload.phone || null,
+          email: payload.email || null,
+          pin: payload.pin || null,
+          cnic: payload.cnic || null,
+          bank_account: payload.bank_account || null,
           salary_type: payload.salary_type,
           salary_amount: payload.salary_amount,
           joining_date: payload.joining_date,
           is_active: payload.is_active,
-          tenant_id: payload.restaurant_id,
+          tenant_id: payload.restaurant_id || null,
         };
-        const { data, error } = await supabase.from('staff' as any).insert(staffPayload).select().single();
+        const { data, error } = await supabase
+          .from('staff' as any)
+          .insert(staffPayload)
+          .select()
+          .single();
         if (!error && data) {
-          return {
+          const createdEmp = {
             ...payload,
             id: (data as any).id,
+            restaurant_id: (data as any).tenant_id || payload.restaurant_id,
           };
+          syncStaffToEmployees(createdEmp).catch(() => {});
+          return createdEmp;
         }
+        if (error) console.warn('[staffV2Api.create] staff error:', error.message);
+      } catch (err: any) {
+        if (err.message?.includes('naam par add hai')) throw err;
+        console.warn('[staffV2Api.create] exception:', err.message);
+      }
+
+      // 2. Fallback: 'employees' table (no 'role' column in this table)
+      try {
+        const empPayload: any = {
+          name: payload.name,
+          phone: payload.phone || null,
+          email: payload.email || null,
+          cnic: payload.cnic || null,
+          bank_account: payload.bank_account || null,
+          salary_type: payload.salary_type,
+          salary_amount: payload.salary_amount,
+          joining_date: payload.joining_date,
+          is_active: payload.is_active,
+          restaurant_id: payload.restaurant_id || null,
+        };
+        const { data, error } = await supabase
+          .from('employees' as any)
+          .insert(empPayload)
+          .select()
+          .single();
+        if (!error && data) return data as unknown as EmployeeV2;
       } catch { /* fallback */ }
 
       // 3. Local fallback
@@ -201,18 +316,31 @@ export const staffV2Api = {
     },
 
     update: async (id: string, payload: Partial<EmployeeV2>): Promise<EmployeeV2> => {
-      // 1. Try employees table
-      try {
-        const { data, error } = await supabase.from('employees' as any).update(payload).eq('id', id).select().single();
-        if (!error && data) return data as unknown as EmployeeV2;
-      } catch { /* fallback */ }
-
-      // 2. Try staff table
+      // 1. Try 'staff' table (PRIMARY)
       try {
         const staffPayload: any = { ...payload };
-        if (payload.restaurant_id) staffPayload.tenant_id = payload.restaurant_id;
-        const { data, error } = await supabase.from('staff' as any).update(staffPayload).eq('id', id).select().single();
+        if (payload.restaurant_id !== undefined) {
+          staffPayload.tenant_id = payload.restaurant_id;
+          delete staffPayload.restaurant_id;
+        }
+        const { data, error } = await supabase
+          .from('staff' as any)
+          .update(staffPayload)
+          .eq('id', id)
+          .select()
+          .single();
         if (!error && data) return { ...payload, id } as EmployeeV2;
+      } catch { /* fallback */ }
+
+      // 2. Try 'employees' table
+      try {
+        const { data, error } = await supabase
+          .from('employees' as any)
+          .update(payload)
+          .eq('id', id)
+          .select()
+          .single();
+        if (!error && data) return data as unknown as EmployeeV2;
       } catch { /* fallback */ }
 
       // 3. Local fallback
@@ -226,8 +354,8 @@ export const staffV2Api = {
     },
 
     delete: async (id: string): Promise<void> => {
-      try { await supabase.from('employees' as any).delete().eq('id', id); } catch {}
       try { await supabase.from('staff' as any).delete().eq('id', id); } catch {}
+      try { await supabase.from('employees' as any).delete().eq('id', id); } catch {}
       const users: any[] = JSON.parse(localStorage.getItem('pos_local_users') || '[]');
       localStorage.setItem('pos_local_users', JSON.stringify(users.filter(u => u.id !== id)));
     }
@@ -240,8 +368,23 @@ export const staffV2Api = {
     // API B.1: Mark Attendance (POST /api/v2/staff/attendance/mark)
     mark: async (
       data: { employee_id: string; date: string; status: 'present' | 'absent' | 'halfday' | 'leave'; check_in?: string; check_out?: string },
-      restaurantId?: string
+      restaurantId?: string,
+      empRef?: { id: string; name: string; restaurant_id?: string | null; phone?: string; email?: string; salary_amount?: number; is_active?: boolean; joining_date?: string; cnic?: string; bank_account?: string; salary_type?: string }
     ) => {
+      // Ensure staff member is synced to employees table (required for FK constraint)
+      if (empRef) {
+        await syncStaffToEmployees(empRef);
+      }
+
+      // Format check_in/check_out: must be ISO timestamptz or null — never a bare time string
+      const formatTimestamp = (t?: string | null): string | null => {
+        if (!t) return null;
+        if (t.includes('T') && t.includes('Z')) return t; // already ISO
+        if (t.includes('T')) return t;
+        // bare time like "09:00:00" — attach today's date
+        return `${data.date}T${t}:00Z`;
+      };
+
       try {
         const res = await fetch('/api/v2/staff/attendance/mark', {
           method: 'POST',
@@ -251,41 +394,48 @@ export const staffV2Api = {
         if (res.ok) {
           const json = await res.json();
           if (json.success) return json.data;
+          if (!json.success && json.error) throw new Error(json.error);
         }
-      } catch { /* network / static mode fallback */ }
-
-      // Direct Supabase fallback
-      if (restaurantId) {
-        const { data: dbData, error } = await supabase
-          .from('attendance_logs' as any)
-          .upsert({
-            restaurant_id: restaurantId,
-            employee_id: data.employee_id,
-            date: data.date,
-            status: data.status,
-            check_in: data.check_in || null,
-            check_out: data.check_out || null,
-          }, {
-            onConflict: 'restaurant_id,employee_id,date'
-          })
-          .select()
-          .single();
-
-        if (!error && dbData) return dbData;
+      } catch (err: any) {
+        if (err.message && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError')) {
+          throw err;
+        }
+        /* network / static mode — fall through to direct Supabase */
       }
 
-      // Legacy staff_attendance fallback
-      const statusMap = data.status === 'halfday' ? 'half_day' : data.status;
-      await supabase.from('staff_attendance' as any).upsert({
-        staff_id: data.employee_id,
-        date: data.date,
-        status: statusMap,
-        tenant_id: restaurantId,
-      }, {
-        onConflict: 'staff_id,date'
-      });
+      // Direct Supabase fallback
+      const { data: dbData, error } = await supabase
+        .from('attendance_logs' as any)
+        .upsert({
+          restaurant_id: restaurantId || null,
+          employee_id: data.employee_id,
+          date: data.date,
+          status: data.status,
+          check_in: formatTimestamp(data.check_in),
+          check_out: formatTimestamp(data.check_out),
+        }, {
+          onConflict: 'restaurant_id,employee_id,date'
+        })
+        .select()
+        .single();
 
-      return data;
+      if (error) {
+        // If FK still failing (migration not yet run), try legacy table
+        if (error.code === '23503') {
+          const statusMap = data.status === 'halfday' ? 'half_day' : data.status;
+          const { error: legacyErr } = await supabase.from('staff_attendance' as any).upsert({
+            staff_id: data.employee_id,
+            date: data.date,
+            status: statusMap,
+            tenant_id: restaurantId,
+          }, { onConflict: 'staff_id,date' });
+          if (legacyErr) throw new Error('Attendance save failed: ' + legacyErr.message);
+          return data;
+        }
+        throw new Error(error.message);
+      }
+
+      return dbData;
     },
 
     // API B.2: Monthly Report (GET /api/v2/staff/attendance/monthly)
@@ -305,11 +455,12 @@ export const staffV2Api = {
       } catch { /* fallback */ }
 
       // Direct Supabase fallback
+      const { startDate: attStart, endDate: attEnd } = getMonthDateRange(month);
       let q = supabase
         .from('attendance_logs' as any)
         .select('*')
-        .gte('date', `${month}-01`)
-        .lte('date', `${month}-31`);
+        .gte('date', attStart)
+        .lte('date', attEnd);
 
       if (restaurantId) q = q.eq('restaurant_id', restaurantId);
       if (employeeId) q = q.eq('employee_id', employeeId);
@@ -333,6 +484,23 @@ export const staffV2Api = {
         summary: employeeId ? (summary[employeeId] || { present: 0, absent: 0, halfday: 0, leave: 0, total: 0 }) : summary,
         logs: logs || []
       };
+    },
+
+    // Get attendance history for an employee across all dates/months/years
+    getEmployeeHistory: async (employeeId: string, restaurantId?: string, limit: number = 200): Promise<AttendanceLogV2[]> => {
+      try {
+        let q = supabase
+          .from('attendance_logs' as any)
+          .select('*')
+          .eq('employee_id', employeeId)
+          .order('date', { ascending: false })
+          .limit(limit);
+
+        if (restaurantId) q = (q as any).or(`restaurant_id.eq.${restaurantId},restaurant_id.is.null`);
+        const { data, error } = await q;
+        if (!error && data) return data as unknown as AttendanceLogV2[];
+      } catch { /* fallback */ }
+      return [];
     }
   },
 
@@ -356,12 +524,15 @@ export const staffV2Api = {
         }
       } catch { /* fallback */ }
 
-      // Direct Supabase fallback
-      const formattedMonth = payload.deducted_in_month.length === 7 ? `${payload.deducted_in_month}-01` : payload.deducted_in_month;
+      // Direct Supabase fallback — uses TEXT restaurant_id (post-migration)
+      const formattedMonth = payload.deducted_in_month.length === 7
+        ? `${payload.deducted_in_month}-01`
+        : payload.deducted_in_month;
+
       const { data, error } = await supabase
         .from('salary_advances' as any)
         .insert({
-          restaurant_id: restaurantId,
+          restaurant_id: restaurantId || null,
           employee_id: payload.employee_id,
           amount: payload.amount,
           reason: payload.reason || 'Salary Advance',
@@ -371,19 +542,19 @@ export const staffV2Api = {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
       return data;
     },
 
     getByMonth: async (month: string, restaurantId?: string): Promise<SalaryAdvanceV2[]> => {
-      const startDate = `${month}-01`;
-      const endDate = `${month}-31`;
-      const { data } = await supabase
+      const { startDate, endDate } = getMonthDateRange(month);
+      let q = supabase
         .from('salary_advances' as any)
         .select('*')
         .gte('deducted_in_month', startDate)
         .lte('deducted_in_month', endDate);
-
+      if (restaurantId) q = (q as any).eq('restaurant_id', restaurantId);
+      const { data } = await q;
       return (data || []) as unknown as SalaryAdvanceV2[];
     }
   },
@@ -406,29 +577,34 @@ export const staffV2Api = {
         }
       } catch { /* fallback */ }
 
-      // Direct calculation fallback using standard formula: PerDay = Base / 30
+      // Direct calculation fallback: PerDay = Base / 30
       const staffList = await staffV2Api.staff.getAll(restaurantId);
       const activeStaff = staffList.filter(s => s.is_active);
 
-      const startDate = `${month}-01`;
-      const endDate = `${month}-31`;
+      const { startDate, endDate } = getMonthDateRange(month);
 
-      const { data: attLogs } = await supabase
+      let attQuery = supabase
         .from('attendance_logs' as any)
         .select('*')
         .gte('date', startDate)
         .lte('date', endDate);
+      if (restaurantId) attQuery = (attQuery as any).eq('restaurant_id', restaurantId);
+      const { data: attLogs } = await attQuery;
 
-      const { data: advancesList } = await supabase
+      let advQuery = supabase
         .from('salary_advances' as any)
         .select('*')
         .gte('deducted_in_month', startDate)
         .lte('deducted_in_month', endDate);
+      if (restaurantId) advQuery = (advQuery as any).eq('restaurant_id', restaurantId);
+      const { data: advancesList } = await advQuery;
 
-      const { data: vouchersList } = await supabase
+      let vchrQuery = supabase
         .from('salary_vouchers' as any)
         .select('*')
         .eq('month', `${month}-01`);
+      if (restaurantId) vchrQuery = (vchrQuery as any).eq('restaurant_id', restaurantId);
+      const { data: vouchersList } = await vchrQuery;
 
       const voucherMap = new Map((vouchersList || []).map((v: any) => [v.employee_id, v]));
 
@@ -450,7 +626,7 @@ export const staffV2Api = {
           .reduce((sum: number, a: any) => sum + Number(a.amount || 0), 0);
 
         const baseSalary = Number(emp.salary_amount || 0);
-        const perDayRate = baseSalary / 30; // Standard Per Day Salary: base_salary / 30
+        const perDayRate = baseSalary / 30; // Standard Per Day = base / 30
         const absentDeductions = calculatedAbsent * perDayRate;
 
         let netSalary = 0;
@@ -514,30 +690,45 @@ export const staffV2Api = {
         if (res.ok) {
           const json = await res.json();
           if (json.success) return json;
+          if (!json.success && json.error) throw new Error(json.error);
         }
-      } catch { /* fallback */ }
+      } catch (err: any) {
+        if (err.message && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError')) {
+          throw err;
+        }
+        /* fallback to direct Supabase */
+      }
 
       // Direct fallback
       const cleanMonth = payload.month.replace('-', '');
       const empSuffix = payload.employee_id.replace(/-/g, '').slice(0, 4).toUpperCase();
       const voucher_no = `VCH-${cleanMonth}-${empSuffix}`;
 
+      // Ensure employee is synced to employees table for foreign key constraint
+      try {
+        const staffList = await staffV2Api.staff.getAll(restaurantId);
+        const staffMember = staffList.find(s => s.id === payload.employee_id);
+        if (staffMember) {
+          await syncStaffToEmployees(staffMember);
+        }
+      } catch { /* best effort */ }
+
       const { data, error } = await supabase
         .from('salary_vouchers' as any)
         .upsert({
-          restaurant_id: restaurantId,
+          restaurant_id: restaurantId || null,
           employee_id: payload.employee_id,
           month: `${payload.month}-01`,
           net_salary: payload.net_salary,
           voucher_no,
           status: 'generated',
         }, {
-          onConflict: 'restaurant_id,voucher_no'
+          onConflict: 'voucher_no'
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
       return { success: true, voucher: data, voucher_no, pdf_url: null };
     },
 
@@ -591,7 +782,7 @@ export const staffV2Api = {
         })
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
       return { success: true };
     }
   }

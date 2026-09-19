@@ -128,7 +128,7 @@ export async function handleGenerateVoucher(reqBody: any, req: any) {
       pdf_url: pdf_url || null,
       status: 'generated',
     }, {
-      onConflict: 'restaurant_id,voucher_no'
+      onConflict: 'voucher_no'
     })
     .select()
     .single();

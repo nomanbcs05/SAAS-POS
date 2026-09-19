@@ -18,8 +18,10 @@ export async function handleGetMonthlyAttendance(queryParams: any, req: any) {
   }
 
   const { month, employee_id } = parseResult.data;
+  const [year, mon] = month.split('-').map(Number);
+  const lastDay = new Date(year, mon, 0).getDate();
   const startDate = `${month}-01`;
-  const endDate = `${month}-31`;
+  const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
 
   let query = supabaseServer
     .from('attendance_logs')

@@ -117,6 +117,7 @@ const ReportsPage = () => {
   const { data, isLoading: isReportsLoading, isError, error } = useQuery({
     queryKey: ['reports-data'],
     queryFn: api.reports.getDashboardStats,
+    retry: 1,
   });
 
   const { data: categories = [] } = useQuery({

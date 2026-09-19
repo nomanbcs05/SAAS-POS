@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
   Wallet,
@@ -194,6 +195,19 @@ export const PayrollSheetTab: React.FC<PayrollSheetTabProps> = ({ tenantId, rest
               >
                 <RefreshCw className="h-4 w-4" /> Recalculate
               </Button>
+              <Button
+                onClick={() => {
+                  if (finalPayrolls.length > 0) {
+                    setAdvanceEmployeeId(finalPayrolls[0].employee_id);
+                    setAdvanceEmployeeName(finalPayrolls[0].name);
+                  }
+                  setAdvanceMonth(selectedMonth);
+                  setIsAdvanceModalOpen(true);
+                }}
+                className="font-bold bg-amber-600 hover:bg-amber-700 text-white gap-1.5 shadow-sm"
+              >
+                <TrendingDown className="h-4 w-4" /> Add Salary Advance
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -243,8 +257,8 @@ export const PayrollSheetTab: React.FC<PayrollSheetTabProps> = ({ tenantId, rest
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-slate-800">
-                          <div>Rs {payroll.base_salary.toLocaleString()}</div>
-                          <div className="text-[10px] text-slate-400">Rate: Rs {payroll.per_day_rate}/day</div>
+                          <div>Rs {Number(payroll.base_salary || 0).toLocaleString()}</div>
+                          <div className="text-[10px] text-slate-400">Rate: Rs {Number(payroll.per_day_rate || 0).toFixed(0)}/day</div>
                         </td>
                         <td className="px-4 py-3 text-center font-bold">
                           <span className="text-emerald-600">{payroll.present_days}P</span>
@@ -276,10 +290,10 @@ export const PayrollSheetTab: React.FC<PayrollSheetTabProps> = ({ tenantId, rest
                           />
                         </td>
                         <td className="px-4 py-3 text-right text-rose-700 font-bold">
-                          - Rs {payroll.advances.toLocaleString()}
+                          - Rs {Number(payroll.advances || 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-3 text-right font-black text-slate-900 text-base">
-                          Rs {payroll.net_salary.toLocaleString()}
+                          Rs {Number(payroll.net_salary || 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex flex-col gap-1.5 items-end">
@@ -349,6 +363,29 @@ export const PayrollSheetTab: React.FC<PayrollSheetTabProps> = ({ tenantId, rest
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddAdvance} className="space-y-4 py-2 font-medium">
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-slate-600">Employee *</Label>
+              <Select
+                value={advanceEmployeeId}
+                onValueChange={(val) => {
+                  setAdvanceEmployeeId(val);
+                  const found = finalPayrolls.find(p => p.employee_id === val);
+                  if (found) setAdvanceEmployeeName(found.name);
+                }}
+              >
+                <SelectTrigger className="font-bold text-xs bg-slate-50">
+                  <SelectValue placeholder="Choose employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {finalPayrolls.map(p => (
+                    <SelectItem key={p.employee_id} value={p.employee_id} className="text-xs">
+                      {p.name} ({p.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-1.5">
               <Label className="font-bold text-xs uppercase text-slate-600">Advance Amount (Rs) *</Label>
               <Input

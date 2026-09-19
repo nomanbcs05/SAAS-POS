@@ -346,6 +346,7 @@ export interface Database {
           plan_type: string
           billing_status: string
           created_at: string
+          multi_printer_kot_enabled?: boolean | null
         }
         Insert: {
           id?: string
@@ -354,6 +355,7 @@ export interface Database {
           plan_type?: string
           billing_status?: string
           created_at?: string
+          multi_printer_kot_enabled?: boolean | null
         }
         Update: {
           id?: string
@@ -362,8 +364,101 @@ export interface Database {
           plan_type?: string
           billing_status?: string
           created_at?: string
+          multi_printer_kot_enabled?: boolean | null
         }
         Relationships: []
+      }
+      tenant_printers: {
+        Row: {
+          id: string
+          tenant_id: string
+          name: string
+          printer_type: 'system' | 'usb' | 'network' | 'bluetooth'
+          device_name: string | null
+          ip_address: string | null
+          port: number | null
+          bluetooth_identifier: string | null
+          is_default: boolean
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          name: string
+          printer_type?: 'system' | 'usb' | 'network' | 'bluetooth'
+          device_name?: string | null
+          ip_address?: string | null
+          port?: number | null
+          bluetooth_identifier?: string | null
+          is_default?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          name?: string
+          printer_type?: 'system' | 'usb' | 'network' | 'bluetooth'
+          device_name?: string | null
+          ip_address?: string | null
+          port?: number | null
+          bluetooth_identifier?: string | null
+          is_default?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_printers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      printer_category_routes: {
+        Row: {
+          id: string
+          tenant_id: string
+          category_name: string
+          printer_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          category_name: string
+          printer_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          category_name?: string
+          printer_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_printer_routes_printer_id"
+            columns: ["printer_id"]
+            referencedRelation: "tenant_printers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "printer_category_routes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          }
+        ]
       }
     }
     Views: {

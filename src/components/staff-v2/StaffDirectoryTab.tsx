@@ -19,7 +19,8 @@ import {
   CreditCard, 
   Landmark, 
   Briefcase, 
-  AlertCircle 
+  AlertCircle,
+  TrendingDown
 } from 'lucide-react';
 
 interface StaffDirectoryTabProps {
@@ -35,6 +36,14 @@ export const StaffDirectoryTab: React.FC<StaffDirectoryTabProps> = ({ tenantId }
   const [editingEmployee, setEditingEmployee] = useState<EmployeeV2 | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<EmployeeV2 | null>(null);
+
+  // Salary Advance modal state
+  const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
+  const [advanceEmp, setAdvanceEmp] = useState<EmployeeV2 | null>(null);
+  const [advanceAmount, setAdvanceAmount] = useState('');
+  const [advanceReason, setAdvanceReason] = useState('');
+  const [advanceDate, setAdvanceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [advanceMonth, setAdvanceMonth] = useState(new Date().toISOString().slice(0, 7));
 
   // Form states
   const [formName, setFormName] = useState('');
@@ -65,7 +74,14 @@ export const StaffDirectoryTab: React.FC<StaffDirectoryTabProps> = ({ tenantId }
       setIsModalOpen(false);
       resetForm();
     },
-    onError: (err: any) => toast.error('Failed to create employee: ' + err.message)
+    onError: (err: any) => {
+      const msg = err?.message || '';
+      if (msg.includes('naam par add hai')) {
+        toast.error(msg, { duration: 6000, style: { background: '#fee2e2', color: '#991b1b', fontWeight: '600' } });
+      } else {
+        toast.error('Failed to create employee: ' + msg);
+      }
+    }
   });
 
   const updateMutation = useMutation({
@@ -93,6 +109,21 @@ export const StaffDirectoryTab: React.FC<StaffDirectoryTabProps> = ({ tenantId }
     onError: (err: any) => toast.error('Failed to delete employee: ' + err.message)
   });
 
+  // Advance mutation
+  const addAdvanceMutation = useMutation({
+    mutationFn: (data: { employee_id: string; amount: number; reason: string; date: string; deducted_in_month: string }) =>
+      staffV2Api.advances.add({ ...data }, tenantId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payroll-v2-calc'] });
+      toast.success('Salary advance recorded successfully and will reflect in payroll');
+      setIsAdvanceModalOpen(false);
+      setAdvanceAmount('');
+      setAdvanceReason('');
+      setAdvanceEmp(null);
+    },
+    onError: (err: any) => toast.error('Failed to record advance: ' + (err?.message || 'Error'))
+  });
+
   const handleOpenAdd = () => {
     setEditingEmployee(null);
     resetForm();
@@ -112,6 +143,32 @@ export const StaffDirectoryTab: React.FC<StaffDirectoryTabProps> = ({ tenantId }
     setFormJoiningDate(emp.joining_date || new Date().toISOString().split('T')[0]);
     setFormIsActive(emp.is_active !== false);
     setIsModalOpen(true);
+  };
+
+  const handleOpenAdvance = (emp: EmployeeV2) => {
+    setAdvanceEmp(emp);
+    setAdvanceAmount('');
+    setAdvanceReason('');
+    setAdvanceDate(new Date().toISOString().split('T')[0]);
+    setAdvanceMonth(new Date().toISOString().slice(0, 7));
+    setIsAdvanceModalOpen(true);
+  };
+
+  const handleRecordAdvance = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!advanceEmp) return;
+    const amt = Number(advanceAmount);
+    if (isNaN(amt) || amt <= 0) {
+      toast.error('Please enter a valid advance amount');
+      return;
+    }
+    addAdvanceMutation.mutate({
+      employee_id: advanceEmp.id,
+      amount: amt,
+      reason: advanceReason.trim() || 'Salary Advance',
+      date: advanceDate,
+      deducted_in_month: advanceMonth,
+    });
   };
 
   const resetForm = () => {
@@ -267,7 +324,7 @@ export const StaffDirectoryTab: React.FC<StaffDirectoryTabProps> = ({ tenantId }
                           } variant="outline">
                             {emp.salary_type || 'monthly'}
                           </Badge>
-                          <span className="font-bold text-slate-900">Rs {emp.salary_amount.toLocaleString()}</span>
+                          <span className="font-bold text-slate-900">Rs {Number(emp.salary_amount || 0).toLocaleString()}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500">{emp.joining_date || '-'}</td>
@@ -279,7 +336,16 @@ export const StaffDirectoryTab: React.FC<StaffDirectoryTabProps> = ({ tenantId }
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs font-bold text-amber-700 border-amber-300 hover:bg-amber-50 gap-1"
+                            onClick={() => handleOpenAdvance(emp)}
+                            title="Record Salary Advance"
+                          >
+                            <TrendingDown className="h-3.5 w-3.5" /> Advance
+                          </Button>
                           <Button 
                             variant="outline" 
                             size="icon" 
@@ -341,21 +407,21 @@ export const StaffDirectoryTab: React.FC<StaffDirectoryTabProps> = ({ tenantId }
               <div className="space-y-1.5">
                 <Label htmlFor="v2-role" className="font-bold text-xs uppercase text-slate-600">Role / Job *</Label>
                 <Select value={formRole} onValueChange={setFormRole}>
-                  <SelectTrigger id="v2-role">
-                    <SelectValue placeholder="Select role" />
+                  <SelectTrigger id="v2-role" className="bg-slate-50 font-bold text-xs">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="waiter">Waiter / Server</SelectItem>
                     <SelectItem value="cashier">Cashier</SelectItem>
-                    <SelectItem value="chef">Chef / Kitchen Head</SelectItem>
-                    <SelectItem value="cleaner">Cleaner / Helper</SelectItem>
-                    <SelectItem value="manager">Manager / Supervisor</SelectItem>
+                    <SelectItem value="waiter">Waiter</SelectItem>
+                    <SelectItem value="chef">Chef / Kitchen</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="cleaner">Cleaner</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="v2-phone" className="font-bold text-xs uppercase text-slate-600">Phone Number</Label>
+                <Label htmlFor="v2-phone" className="font-bold text-xs uppercase text-slate-600">Mobile Phone</Label>
                 <Input 
                   id="v2-phone" 
                   placeholder="0300-1234567" 
@@ -364,61 +430,65 @@ export const StaffDirectoryTab: React.FC<StaffDirectoryTabProps> = ({ tenantId }
                 />
               </div>
 
-              {/* Part C.1 Field: CNIC */}
-              <div className="space-y-1.5">
-                <Label htmlFor="v2-cnic" className="font-bold text-xs uppercase text-slate-600">CNIC / National ID</Label>
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="v2-cnic" className="font-bold text-xs uppercase text-slate-600 flex items-center gap-1.5">
+                  <CreditCard className="h-3.5 w-3.5 text-primary" />
+                  National CNIC / ID Card No (Unique)
+                </Label>
                 <Input 
                   id="v2-cnic" 
-                  placeholder="42101-1234567-1" 
+                  placeholder="e.g. 35201-1234567-1" 
                   value={formCnic} 
                   onChange={(e) => setFormCnic(e.target.value)} 
+                  className="font-mono"
                 />
+                <p className="text-[11px] text-muted-foreground">Ensures complete identity validation & zero duplicate records.</p>
               </div>
 
-              {/* Part C.1 Field: Bank Account */}
-              <div className="space-y-1.5">
-                <Label htmlFor="v2-bank" className="font-bold text-xs uppercase text-slate-600">Bank Account / IBAN</Label>
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="v2-bank" className="font-bold text-xs uppercase text-slate-600 flex items-center gap-1.5">
+                  <Landmark className="h-3.5 w-3.5 text-primary" />
+                  Bank Account / IBAN / Raast
+                </Label>
                 <Input 
                   id="v2-bank" 
-                  placeholder="PK36 HABB 0001..." 
+                  placeholder="e.g. PK36 HABB 0001 2345 6789 01" 
                   value={formBankAccount} 
                   onChange={(e) => setFormBankAccount(e.target.value)} 
+                  className="font-mono text-xs"
                 />
               </div>
 
-              {/* Part C.1 Field: Salary Type */}
               <div className="space-y-1.5">
-                <Label htmlFor="v2-salary-type" className="font-bold text-xs uppercase text-slate-600">Salary Type *</Label>
+                <Label htmlFor="v2-sal-type" className="font-bold text-xs uppercase text-slate-600">Salary Model</Label>
                 <Select value={formSalaryType} onValueChange={(val: any) => setFormSalaryType(val)}>
-                  <SelectTrigger id="v2-salary-type">
-                    <SelectValue placeholder="Salary Type" />
+                  <SelectTrigger id="v2-sal-type" className="bg-slate-50 font-bold text-xs">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="monthly">Monthly Fixed Salary</SelectItem>
-                    <SelectItem value="daily">Daily Wages</SelectItem>
+                    <SelectItem value="monthly">Monthly Fixed</SelectItem>
+                    <SelectItem value="daily">Daily Wage</SelectItem>
                     <SelectItem value="hourly">Hourly Rate</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="v2-salary-amount" className="font-bold text-xs uppercase text-slate-600">
-                  {formSalaryType === 'monthly' ? 'Base Monthly (Rs) *' : formSalaryType === 'daily' ? 'Daily Rate (Rs) *' : 'Hourly Rate (Rs) *'}
-                </Label>
+                <Label htmlFor="v2-sal-amt" className="font-bold text-xs uppercase text-slate-600">Base Salary / Rate (Rs) *</Label>
                 <Input 
-                  id="v2-salary-amount" 
-                  type="number"
-                  placeholder="e.g. 35000" 
+                  id="v2-sal-amt" 
+                  type="number" 
+                  placeholder="30000" 
                   value={formSalaryAmount} 
                   onChange={(e) => setFormSalaryAmount(e.target.value)} 
-                  required
+                  required 
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="v2-joining" className="font-bold text-xs uppercase text-slate-600">Joining Date</Label>
+                <Label htmlFor="v2-join" className="font-bold text-xs uppercase text-slate-600">Joining Date</Label>
                 <Input 
-                  id="v2-joining" 
+                  id="v2-join" 
                   type="date" 
                   value={formJoiningDate} 
                   onChange={(e) => setFormJoiningDate(e.target.value)} 
@@ -426,31 +496,28 @@ export const StaffDirectoryTab: React.FC<StaffDirectoryTabProps> = ({ tenantId }
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="v2-pin" className="font-bold text-xs uppercase text-slate-600">Login PIN (4 Digits)</Label>
+                <Label htmlFor="v2-pin" className="font-bold text-xs uppercase text-slate-600">POS Login PIN</Label>
                 <Input 
                   id="v2-pin" 
-                  type="password"
-                  maxLength={4}
                   placeholder="1234" 
+                  maxLength={6} 
                   value={formPin} 
-                  onChange={(e) => setFormPin(e.target.value.replace(/\D/g, '').slice(0, 4))} 
+                  onChange={(e) => setFormPin(e.target.value)} 
                 />
               </div>
 
-              {editingEmployee && (
-                <div className="col-span-2 flex items-center gap-2 pt-2">
-                  <input
-                    id="v2-active"
-                    type="checkbox"
-                    checked={formIsActive}
-                    onChange={(e) => setFormIsActive(e.target.checked)}
-                    className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
-                  />
-                  <Label htmlFor="v2-active" className="font-bold text-slate-700 text-sm cursor-pointer select-none">
-                    Active Employee Status
-                  </Label>
-                </div>
-              )}
+              <div className="col-span-2 pt-2 flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  id="v2-active" 
+                  checked={formIsActive} 
+                  onChange={(e) => setFormIsActive(e.target.checked)} 
+                  className="rounded border-slate-300 h-4 w-4 text-primary"
+                />
+                <Label htmlFor="v2-active" className="text-xs font-semibold cursor-pointer">
+                  Active Employee (Included in Live Attendance & Monthly Payroll)
+                </Label>
+              </div>
             </div>
 
             <DialogFooter className="pt-4 border-t gap-2 sm:gap-0">
@@ -459,6 +526,70 @@ export const StaffDirectoryTab: React.FC<StaffDirectoryTabProps> = ({ tenantId }
               </Button>
               <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="font-bold">
                 {createMutation.isPending || updateMutation.isPending ? 'Saving...' : 'Save Profile'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* RECORD SALARY ADVANCE MODAL FROM STAFF DIRECTORY */}
+      <Dialog open={isAdvanceModalOpen} onOpenChange={setIsAdvanceModalOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tight text-slate-900 flex items-center gap-2">
+              <TrendingDown className="h-5 w-5 text-amber-600" /> Add Salary Advance
+            </DialogTitle>
+            <DialogDescription>
+              Record an advance for <strong className="text-slate-900">{advanceEmp?.name}</strong>.
+              It will be automatically deducted from the specified month's payroll.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleRecordAdvance} className="space-y-4 py-2 font-medium">
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-slate-600">Advance Amount (Rs) *</Label>
+              <Input
+                type="number"
+                min="1"
+                placeholder="e.g. 5000"
+                value={advanceAmount}
+                onChange={(e) => setAdvanceAmount(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-slate-600">Reason / Note</Label>
+              <Input
+                placeholder="e.g. Emergency advance, Medical expenses"
+                value={advanceReason}
+                onChange={(e) => setAdvanceReason(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="font-bold text-xs uppercase text-slate-600">Advance Date *</Label>
+                <Input
+                  type="date"
+                  value={advanceDate}
+                  onChange={(e) => setAdvanceDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="font-bold text-xs uppercase text-slate-600">Deduct in Month *</Label>
+                <Input
+                  type="month"
+                  value={advanceMonth}
+                  onChange={(e) => setAdvanceMonth(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter className="pt-4 border-t gap-2 sm:gap-0">
+              <Button type="button" variant="outline" onClick={() => setIsAdvanceModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={addAdvanceMutation.isPending} className="font-bold bg-amber-600 hover:bg-amber-700">
+                {addAdvanceMutation.isPending ? 'Recording...' : 'Record Advance'}
               </Button>
             </DialogFooter>
           </form>

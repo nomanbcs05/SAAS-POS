@@ -55,7 +55,7 @@ export const SalaryVouchersTab: React.FC<SalaryVouchersTabProps> = ({ tenantId }
         <div className="grid grid-cols-3 gap-4">
           <Card className="shadow-sm border-slate-200">
             <CardContent className="p-4 text-center">
-              <div className="text-2xl font-black text-slate-900">Rs {totalNetSalary.toLocaleString()}</div>
+              <div className="text-2xl font-black text-slate-900">Rs {Number(totalNetSalary || 0).toLocaleString()}</div>
               <div className="text-xs text-slate-500 font-semibold mt-1 uppercase tracking-wide">Total Payroll Outflow</div>
             </CardContent>
           </Card>
@@ -153,7 +153,7 @@ export const SalaryVouchersTab: React.FC<SalaryVouchersTabProps> = ({ tenantId }
                         )}
                       </td>
                       <td className="px-4 py-3 text-right font-black text-slate-900 text-base">
-                        Rs {Number(voucher.net_salary).toLocaleString()}
+                        Rs {Number(voucher?.net_salary || 0).toLocaleString()}
                       </td>
                       <td className="px-4 py-3">
                         {voucher.status === 'paid' ? (
@@ -228,7 +228,7 @@ export const SalaryVouchersTab: React.FC<SalaryVouchersTabProps> = ({ tenantId }
                       Total ({vouchers.length} voucher{vouchers.length !== 1 ? 's' : ''})
                     </td>
                     <td className="px-4 py-3 text-right font-black text-slate-900 text-base">
-                      Rs {totalNetSalary.toLocaleString()}
+                      Rs {Number(totalNetSalary || 0).toLocaleString()}
                     </td>
                     <td colSpan={3}></td>
                   </tr>

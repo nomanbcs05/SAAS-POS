@@ -2140,8 +2140,9 @@ export const api = {
               )
             `)
             .in('status', ['pending', 'preparing', 'ready', 'refunded', 'cancelled', 'canceled'])
-            .order('created_at', { ascending: false }),
-          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+            .order('created_at', { ascending: false })
+            .limit(50),
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
         ]);
 
         if (!error && data) onlineOrders = data;
@@ -2241,8 +2242,9 @@ export const api = {
               )
             `)
             .eq('status', 'completed')
-            .order('created_at', { ascending: false }),
-          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+            .order('created_at', { ascending: false })
+            .limit(100),
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
         ]);
 
         if (!error && data) onlineOrders = data;
@@ -2771,7 +2773,8 @@ export const api = {
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
         .select('*, order_items(*, products(*))')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(250);
 
       if (ordersError) throw ordersError;
 
@@ -3076,7 +3079,12 @@ export const api = {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
+          throw new Error("Could not find table 'public.tenant_printers' in Supabase. Please run the FIX_MULTI_PRINTER_KOT.sql migration in your Supabase SQL Editor.");
+        }
+        throw error;
+      }
 
       // Update local cache
       const cached = (await offline.getCachedPrinters()) as TenantPrinter[];
@@ -3193,7 +3201,7 @@ export const api = {
         if (offline.isOnline()) {
           let query = (supabase as any)
             .from('printer_category_routes')
-            .select('*, printer:tenant_printers(*)');
+            .select('*, printer:tenant_printers!printer_id(*)');
 
           if (effectiveTenantId) {
             query = query.eq('tenant_id', effectiveTenantId);
@@ -3220,7 +3228,7 @@ export const api = {
       try {
         let query = (supabase as any)
           .from('printer_category_routes')
-          .select('*, printer:tenant_printers(*)')
+          .select('*, printer:tenant_printers!printer_id(*)')
           .eq('category_name', normalizedCat);
 
         if (effectiveTenantId) {
@@ -3248,10 +3256,15 @@ export const api = {
           category_name: normalizedCat,
           printer_id: route.printer_id
         })
-        .select('*, printer:tenant_printers(*)')
+        .select('*, printer:tenant_printers!printer_id(*)')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
+          throw new Error("Could not find table 'public.printer_category_routes' in Supabase. Please run the FIX_MULTI_PRINTER_KOT.sql migration in your Supabase SQL Editor.");
+        }
+        throw error;
+      }
 
       // Update local cache
       const cached = (await offline.getCachedPrinterRoutes()) as PrinterCategoryRoute[];
@@ -3316,9 +3329,14 @@ export const api = {
       const { data, error: insertError } = await (supabase as any)
         .from('printer_category_routes')
         .insert(newRows)
-        .select('*, printer:tenant_printers(*)');
+        .select('*, printer:tenant_printers!printer_id(*)');
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        if (insertError.code === 'PGRST205' || insertError.message?.includes('schema cache')) {
+          throw new Error("Could not find table 'public.printer_category_routes' in Supabase. Please run the FIX_MULTI_PRINTER_KOT.sql migration in your Supabase SQL Editor.");
+        }
+        throw insertError;
+      }
 
       // Update local cache
       const cached = (await offline.getCachedPrinterRoutes()) as PrinterCategoryRoute[];

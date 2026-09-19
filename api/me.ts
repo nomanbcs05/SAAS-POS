@@ -1,4 +1,4 @@
-import { supabaseServer } from './v2/staff/_db';
+import { supabaseServer } from './_db.js';
 
 /**
  * /api/me

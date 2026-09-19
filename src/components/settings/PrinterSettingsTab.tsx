@@ -239,7 +239,12 @@ export default function PrinterSettingsTab() {
         .eq('id', tenant.id)
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        if (error.code === '42703' || error.message?.includes('multi_printer_kot_enabled')) {
+          throw new Error("Column 'multi_printer_kot_enabled' is missing on table 'tenants' in Supabase. Please run the FIX_MULTI_PRINTER_KOT.sql migration in your Supabase SQL Editor.");
+        }
+        throw error;
+      }
       return data;
     },
     onSuccess: (updatedTenant) => {
