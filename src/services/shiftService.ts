@@ -125,19 +125,19 @@ export const shiftService = {
   },
 
   /**
-   * Sync active shifts from Supabase (shifts table + daily_registers)
+   * Sync ALL shifts from Supabase (shifts table + daily_registers).
+   * Returns both open AND closed shifts for full history view.
    */
   syncActiveShiftsFromCloud: async (): Promise<ShiftSession[]> => {
-    if (!isOnline()) return shiftService.getActiveShifts();
+    if (!isOnline()) return getStoredShifts();
 
     const deviceId = getDeviceId();
 
     try {
-      // 1. Try querying the shifts table
+      // 1. Try querying the shifts table — get ALL statuses
       const { data: shiftData, error: shiftError } = await supabase
         .from('shifts' as any)
         .select('*')
-        .eq('status', 'open')
         .order('start_time', { ascending: false });
 
       if (!shiftError && Array.isArray(shiftData) && shiftData.length > 0) {
@@ -161,20 +161,57 @@ export const shiftService = {
           ending_amount: r.closing_balance != null ? Number(r.closing_balance) : null,
         }));
 
-        saveShifts(mapped);
-        return mapped;
+        // Also fetch daily_registers to cover older history not in shifts table
+        const { data: regData } = await supabase
+          .from('daily_registers')
+          .select('*')
+          .order('opened_at', { ascending: false });
+
+        let merged = mapped;
+        if (Array.isArray(regData) && regData.length > 0) {
+          const existingIds = new Set(mapped.map(s => s.id));
+          const regMapped: ShiftSession[] = regData
+            .filter((r: any) => !existingIds.has(r.id))
+            .map((r: any) => ({
+              id: r.id,
+              shift_id: r.id,
+              user_id: r.cashier_id || getCurrentUserId(),
+              device_id: deviceId,
+              start_time: r.opened_at,
+              end_time: r.closed_at || null,
+              opening_balance: Number(r.starting_amount) || 0,
+              closing_balance: r.ending_amount != null ? Number(r.ending_amount) : null,
+              status: (r.status as 'open' | 'closed') || 'open',
+              cashier_name: (r.cashier_name || 'CASHIER').trim(),
+              notes: r.notes || null,
+              opened_at: r.opened_at,
+              closed_at: r.closed_at || null,
+              starting_amount: Number(r.starting_amount) || 0,
+              ending_amount: r.ending_amount != null ? Number(r.ending_amount) : null,
+            }));
+          merged = [...mapped, ...regMapped];
+        }
+
+        // Sort by opened_at descending
+        merged.sort((a, b) => new Date(b.opened_at || b.start_time).getTime() - new Date(a.opened_at || a.start_time).getTime());
+
+        // Save open shifts only to local storage (avoid overwriting closed history)
+        const openOnes = merged.filter(s => s.status === 'open');
+        const closedLocal = getStoredShifts().filter(s => s.status === 'closed');
+        const localClosedIds = new Set(closedLocal.map(s => s.id));
+        const newClosed = merged.filter(s => s.status === 'closed' && !localClosedIds.has(s.id));
+        saveShifts([...openOnes, ...closedLocal, ...newClosed]);
+
+        return merged;
       }
 
-      // 2. Fallback check for daily_registers
+      // 2. Fallback: query daily_registers only
       const { data: regData } = await supabase
         .from('daily_registers')
         .select('*')
-        .eq('status', 'open')
         .order('opened_at', { ascending: false });
 
       if (Array.isArray(regData) && regData.length > 0) {
-        const stored = getStoredShifts();
-        const nonOpen = stored.filter(s => s.status !== 'open');
         const regMapped: ShiftSession[] = regData.map((r: any) => ({
           id: r.id,
           shift_id: r.id,
@@ -185,7 +222,7 @@ export const shiftService = {
           opening_balance: Number(r.starting_amount) || 0,
           closing_balance: r.ending_amount != null ? Number(r.ending_amount) : null,
           status: (r.status as 'open' | 'closed') || 'open',
-          cashier_name: (r.cashier_name || 'CASHIER').trim(),
+          cashier_name: (r.cashier_name || 'Admin').trim(),
           notes: r.notes || null,
           opened_at: r.opened_at,
           closed_at: r.closed_at || null,
@@ -193,15 +230,18 @@ export const shiftService = {
           ending_amount: r.ending_amount != null ? Number(r.ending_amount) : null,
         }));
 
-        const merged = [...nonOpen, ...regMapped];
-        saveShifts(merged);
+        regMapped.sort((a, b) => new Date(b.opened_at || b.start_time).getTime() - new Date(a.opened_at || a.start_time).getTime());
+
+        const openOnes = regMapped.filter(s => s.status === 'open');
+        saveShifts(openOnes);
+
         return regMapped;
       }
     } catch (err) {
       console.warn('[shiftService] Failed to sync shifts from cloud:', err);
     }
 
-    return shiftService.getActiveShifts();
+    return getStoredShifts();
   },
 
   /**

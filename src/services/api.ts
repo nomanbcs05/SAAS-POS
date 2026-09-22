@@ -2770,13 +2770,23 @@ export const api = {
         };
       }
 
-      const { data: orders, error: ordersError } = await supabase
-        .from('orders')
-        .select('*, order_items(*, products(*))')
-        .order('created_at', { ascending: false })
-        .limit(250);
-
-      if (ordersError) throw ordersError;
+      // Fetch ALL orders with pagination (batches of 1000) so date-range reports cover full history
+      let allOrders: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      while (true) {
+        const { data: batch, error: batchError } = await supabase
+          .from('orders')
+          .select('*, order_items(*, products(*))')
+          .order('created_at', { ascending: false })
+          .range(from, from + batchSize - 1);
+        if (batchError) throw batchError;
+        if (!batch || batch.length === 0) break;
+        allOrders = allOrders.concat(batch);
+        if (batch.length < batchSize) break;
+        from += batchSize;
+      }
+      const orders = allOrders;
 
       const { data: customers, error: customersError } = await supabase
         .from('customers')

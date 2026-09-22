@@ -51,7 +51,7 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
   const [activeTab, setActiveTab] = useState<'running' | 'all'>('running');
   const [selectedShiftForView, setSelectedShiftForView] = useState<ShiftSession | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfDay(new Date()),
+    from: new Date('2026-08-11T00:00:00'),
     to: endOfDay(new Date())
   });
 
@@ -91,7 +91,7 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
   const allStoredShifts = useMemo(() => {
     const list = shiftsList.length > 0 ? shiftsList : shiftService.getStoredShifts();
     return [...list].sort(
-      (a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime()
+      (a, b) => new Date(b.opened_at || b.start_time || 0).getTime() - new Date(a.opened_at || a.start_time || 0).getTime()
     );
   }, [open, closingShift, shiftsList]);
 
@@ -104,7 +104,9 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
     
     return allStoredShifts.filter(s => {
       if (!dateRange?.from) return true;
-      const openedDate = new Date(s.opened_at);
+      const openedAt = s.opened_at || s.start_time;
+      if (!openedAt) return false;
+      const openedDate = new Date(openedAt);
       const start = startOfDay(dateRange.from);
       const end = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
       return openedDate >= start && openedDate <= end;
@@ -113,18 +115,18 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
 
   // Helper to calculate orders and sales for a shift
   const getShiftStats = (shift: ShiftSession) => {
-    const openTime = new Date(shift.opened_at).getTime();
-    const closeTime = shift.closed_at ? new Date(shift.closed_at).getTime() : Date.now();
+    const openTimeStr = shift.opened_at || shift.start_time;
+    const closeTimeStr = shift.closed_at || shift.end_time;
+    const openTime = openTimeStr ? new Date(openTimeStr).getTime() : 0;
+    const closeTime = closeTimeStr ? new Date(closeTimeStr).getTime() : Date.now();
 
     const shiftOrders = orders.filter(o => {
       if (!o.created_at) return false;
+      if (o.register_id && (o.register_id === shift.id || o.register_id === shift.shift_id)) {
+        return true;
+      }
       const oTime = new Date(o.created_at).getTime();
-      const matchesTime = oTime >= openTime && oTime <= closeTime;
-      const matchesCashier = !shift.cashier_name || 
-        (o.server_name && o.server_name.toLowerCase().includes(shift.cashier_name.toLowerCase())) ||
-        (o.cashier_name && o.cashier_name.toLowerCase().includes(shift.cashier_name.toLowerCase())) ||
-        true; // fallback to time window
-      return matchesTime && matchesCashier;
+      return openTime > 0 && oTime >= openTime && oTime <= closeTime;
     });
 
     const completed = shiftOrders.filter(o => o.status === 'completed');
@@ -140,7 +142,8 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
   const handleCloseShiftClick = (shift: ShiftSession) => {
     setClosingShift(shift);
     const stats = getShiftStats(shift);
-    const expected = (Number(shift.starting_amount) || 0) + stats.totalSales;
+    const startAmt = Number(shift.starting_amount ?? shift.opening_balance ?? 0);
+    const expected = startAmt + stats.totalSales;
     setEndingAmountInput(String(expected));
   };
 
@@ -245,18 +248,18 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
               </TabsList>
             </Tabs>
 
-            {/* Date Range Picker for Admin/Manager */}
+            {/* Date Range Picker — always visible in All Shifts Log */}
             {activeTab === 'all' && (
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 text-xs font-medium">
-                      <CalendarIcon className="mr-1.5 h-3.5 w-3.5 text-slate-500" />
+                    <Button variant="outline" size="sm" className="h-8 text-xs font-medium border-blue-300 text-blue-700 hover:bg-blue-50">
+                      <CalendarIcon className="mr-1.5 h-3.5 w-3.5 text-blue-500" />
                       {dateRange?.from ? (
                         dateRange.to ? (
-                          <>{format(dateRange.from, 'MMM dd')} - {format(dateRange.to, 'MMM dd')}</>
+                          <>{format(dateRange.from, 'dd MMM yyyy')} – {format(dateRange.to, 'dd MMM yyyy')}</>
                         ) : (
-                          format(dateRange.from, 'MMM dd, yyyy')
+                          format(dateRange.from, 'dd MMM yyyy')
                         )
                       ) : (
                         'Select Date Range'
@@ -269,9 +272,31 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
                       selected={dateRange}
                       onSelect={setDateRange}
                       numberOfMonths={2}
+                      defaultMonth={dateRange?.from}
                     />
+                    <div className="p-2 border-t flex gap-2 justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() => setDateRange({ from: new Date('2026-08-11T00:00:00'), to: endOfDay(new Date()) })}
+                      >
+                        All History (Aug 11 – Today)
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() => setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) })}
+                      >
+                        Today Only
+                      </Button>
+                    </div>
                   </PopoverContent>
                 </Popover>
+                <span className="text-xs text-slate-500 font-medium">
+                  {filteredShifts.length} shift{filteredShifts.length !== 1 ? 's' : ''} found
+                </span>
               </div>
             )}
           </div>
@@ -307,9 +332,9 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
                             </div>
 
                             <p className="text-xs text-slate-500 mt-0.5">
-                              Opened: <span className="font-medium text-slate-700 dark:text-slate-300">{format(new Date(shift.opened_at), 'MMM dd, yyyy - hh:mm a')}</span>
-                              {shift.closed_at && (
-                                <> &bull; Closed: <span className="font-medium text-slate-700 dark:text-slate-300">{format(new Date(shift.closed_at), 'MMM dd, yyyy - hh:mm a')}</span></>
+                              Opened: <span className="font-medium text-slate-700 dark:text-slate-300">{format(new Date(shift.opened_at || shift.start_time), 'MMM dd, yyyy - hh:mm a')}</span>
+                              {(shift.closed_at || shift.end_time) && (
+                                <> &bull; Closed: <span className="font-medium text-slate-700 dark:text-slate-300">{format(new Date(shift.closed_at || shift.end_time!), 'MMM dd, yyyy - hh:mm a')}</span></>
                               )}
                             </p>
                           </div>
@@ -319,7 +344,7 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
                         <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
                           <div className="text-center px-2">
                             <p className="text-[10px] text-slate-400 font-semibold uppercase">Opening</p>
-                            <p className="font-bold text-sm text-slate-700 dark:text-slate-200">Rs {Number(shift.starting_amount || 0).toLocaleString()}</p>
+                            <p className="font-bold text-sm text-slate-700 dark:text-slate-200">Rs {Number(shift.starting_amount ?? shift.opening_balance ?? 0).toLocaleString()}</p>
                           </div>
                           <div className="h-7 w-px bg-slate-200 dark:bg-slate-800" />
                           <div className="text-center px-2">
@@ -375,7 +400,7 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
                   Shift Summary: {selectedShiftForView.cashier_name}
                 </DialogTitle>
                 <DialogDescription className="text-xs">
-                  Opened {format(new Date(selectedShiftForView.opened_at), 'PPP - hh:mm a')}
+                  Opened {format(new Date(selectedShiftForView.opened_at || selectedShiftForView.start_time), 'PPP - hh:mm a')}
                 </DialogDescription>
               </DialogHeader>
 
@@ -386,7 +411,7 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
                     <div className="grid grid-cols-3 gap-3">
                       <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border text-center">
                         <p className="text-xs text-slate-500 font-medium">Opening Cash</p>
-                        <p className="text-lg font-bold text-slate-800 dark:text-slate-100">Rs {Number(selectedShiftForView.starting_amount || 0).toLocaleString()}</p>
+                        <p className="text-lg font-bold text-slate-800 dark:text-slate-100">Rs {Number(selectedShiftForView.starting_amount ?? selectedShiftForView.opening_balance ?? 0).toLocaleString()}</p>
                       </div>
                       <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-100 dark:border-blue-900 text-center">
                         <p className="text-xs text-blue-600 dark:text-blue-300 font-medium">Completed Orders</p>
@@ -397,6 +422,15 @@ export const ActiveShiftsModal: React.FC<ActiveShiftsModalProps> = ({
                         <p className="text-lg font-bold text-emerald-700 dark:text-emerald-200">Rs {stats.totalSales.toLocaleString()}</p>
                       </div>
                     </div>
+
+                    {(selectedShiftForView.ending_amount != null || selectedShiftForView.closing_balance != null) && (
+                      <div className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border flex items-center justify-between text-xs">
+                        <span className="text-slate-500 font-medium">Recorded Closing Cash / Balance:</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-100">
+                          Rs {Number(selectedShiftForView.ending_amount ?? selectedShiftForView.closing_balance ?? 0).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
 
                     <div>
                       <h4 className="font-bold text-xs uppercase text-slate-500 mb-2">Shift Orders Breakdown</h4>

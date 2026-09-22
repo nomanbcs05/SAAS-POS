@@ -27,6 +27,14 @@ import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { shiftService } from '@/services/shiftService';
@@ -299,7 +307,9 @@ const ReportsPage = () => {
     const currentOrders = data.orders.filter(order => {
       if (!order.created_at || order.status !== 'completed') return false;
       const orderDate = parseISO(order.created_at);
-      const matchesTime = isWithinInterval(orderDate, { start: startDate, end: endDate }) || orderDate >= startDate;
+      const matchesTime = isShiftMode
+        ? (orderDate >= startDate)
+        : isWithinInterval(orderDate, { start: startDate, end: endDate });
       if (isShiftMode && currentShift?.id && order.register_id) {
         return order.register_id === currentShift.id || matchesTime;
       }
@@ -424,6 +434,35 @@ const ReportsPage = () => {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
 
+    // Date-wise breakdown table data
+    const dailyMap = new Map<string, { dateStr: string; rawDate: Date; orders: number; cash: number; card: number; credit: number; total: number }>();
+    currentOrders.forEach(order => {
+      if (!order.created_at) return;
+      const orderDate = parseISO(order.created_at);
+      const dayKey = format(orderDate, 'yyyy-MM-dd');
+      const existing = dailyMap.get(dayKey) || {
+        dateStr: format(orderDate, 'dd MMM yyyy (EEE)'),
+        rawDate: startOfDay(orderDate),
+        orders: 0,
+        cash: 0,
+        card: 0,
+        credit: 0,
+        total: 0
+      };
+      existing.orders += 1;
+      const amt = Number(order.total_amount) || 0;
+      if (isCashOrder(order)) existing.cash += amt;
+      else if (isCardOrder(order)) existing.card += amt;
+      else if (isCreditOrder(order)) existing.credit += amt;
+
+      if (!isCreditOrder(order)) existing.total += amt;
+      dailyMap.set(dayKey, existing);
+    });
+
+    const dailyBreakdown = Array.from(dailyMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([_, val]) => val);
+
     return {
       revenue: currentRevenue,
       cashRevenue,
@@ -441,6 +480,7 @@ const ReportsPage = () => {
       salesData,
       categoryData,
       topProducts,
+      dailyBreakdown,
       isShiftMode,
       activeShiftInfo: currentShift || openShifts[0] || null,
       periodLabel: isShiftMode 
@@ -551,15 +591,43 @@ const ReportsPage = () => {
                     onSelect={setDateRange}
                     numberOfMonths={2}
                   />
-                  <div className="p-3 border-t flex justify-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDateRange(undefined)}
-                      className="text-xs h-8"
-                    >
-                      Clear Range
-                    </Button>
+                  <div className="p-3 border-t flex flex-col gap-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDateRange({ from: new Date('2026-08-11T00:00:00'), to: endOfDay(new Date()) })}
+                        className="text-xs h-7 font-bold text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        All History (11 Aug - Today)
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDateRange({ from: startOfDay(subDays(new Date(), 7)), to: endOfDay(new Date()) })}
+                        className="text-xs h-7"
+                      >
+                        Last 7 Days
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) })}
+                        className="text-xs h-7"
+                      >
+                        Today
+                      </Button>
+                    </div>
+                    <div className="flex justify-end pt-1 border-t border-dashed">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDateRange(undefined)}
+                        className="text-xs h-7 text-muted-foreground"
+                      >
+                        Reset to Active Shift Mode
+                      </Button>
+                    </div>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -806,6 +874,77 @@ const ReportsPage = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Date-wise Daily Sales Report Table */}
+          {stats?.dailyBreakdown && stats.dailyBreakdown.length > 0 && (
+            <Card className="border-blue-100 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <CalendarIcon className="h-5 w-5 text-blue-600" />
+                      Date-wise Daily Sales Report
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Daily breakdown of orders, cash sales, card sales, and total revenue ({stats.dailyBreakdown.length} days recorded)
+                    </p>
+                  </div>
+                  {dateRange?.from && (
+                    <Badge variant="outline" className="text-xs border-blue-200 text-blue-700 bg-blue-50 font-bold self-start sm:self-auto">
+                      {format(dateRange.from, 'dd MMM yyyy')} – {dateRange.to ? format(dateRange.to, 'dd MMM yyyy') : format(dateRange.from, 'dd MMM yyyy')}
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-slate-50 dark:bg-slate-900/50">
+                      <TableRow>
+                        <TableHead className="font-bold text-xs">Date</TableHead>
+                        <TableHead className="font-bold text-xs text-center">Orders</TableHead>
+                        <TableHead className="font-bold text-xs text-right">Cash Sales</TableHead>
+                        <TableHead className="font-bold text-xs text-right">Card / Digital</TableHead>
+                        <TableHead className="font-bold text-xs text-right">Total Revenue</TableHead>
+                        <TableHead className="font-bold text-xs text-center w-24">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stats.dailyBreakdown.map((day) => (
+                        <TableRow key={day.dateStr} className="hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors">
+                          <TableCell className="font-medium text-xs text-slate-800 dark:text-slate-200">
+                            {day.dateStr}
+                          </TableCell>
+                          <TableCell className="text-center font-bold text-xs text-blue-600">
+                            {day.orders}
+                          </TableCell>
+                          <TableCell className="text-right text-xs text-slate-700 dark:text-slate-300">
+                            Rs {day.cash.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right text-xs text-purple-700 dark:text-purple-400 font-medium">
+                            Rs {day.card.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right font-black text-xs text-emerald-600">
+                            Rs {day.total.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2"
+                              onClick={() => setDateRange({ from: day.rawDate, to: endOfDay(day.rawDate) })}
+                            >
+                              View Day
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Shift Management & Database Archival */}
           <div className="pt-10 pb-6">
