@@ -13,6 +13,59 @@ import { cn } from '@/lib/utils';
 
 // ─── SM Butt Karahi Full Updated Menu Data ─────────────────────────────────────
 export const SMBUTT_MENU_DATA = {
+  // ─── Breakfast Menu ──────────────────────────────────────────────────────────
+  DESI_NASHTA: {
+    label: 'Desi Nashta',
+    icon: '🍳',
+    items: [
+      { name: 'LAHORI CHANAY', price: 300 },
+      { name: 'ANDA CHANAY', price: 350 },
+      { name: 'KOFTA CHANAY', price: 350 },
+      { name: 'MAGAZ (MUTTON)', price: 1250 },
+      { name: 'MUTTON QEEMA', price: 1500 },
+      { name: 'CHICKEN QEEMA', price: 800 },
+      { name: 'MUTTON PAYE', price: 850 },
+      { name: 'SARSO KA SAAG', price: 500 },
+      { name: 'AMLET', price: 200 },
+      { name: 'HALF FRY (EGG)', price: 150 },
+      { name: 'FULL FRY (EGG)', price: 200 },
+      { name: 'LASSI', price: 300 },
+      { name: 'PLAIN NAAN', price: 70 },
+      { name: 'CHAYE', price: 200 },
+      { name: 'POORI', price: 100 },
+      { name: 'HALWA', price: 200 },
+      { name: 'DAHI', price: 200 },
+      { name: 'SULEMANI PARATHA', price: 100 },
+      { name: 'LACHA PARATHA', price: 100 },
+    ]
+  },
+  SPECIAL_PARATHA: {
+    label: 'Special Paratha',
+    icon: '🥞',
+    items: [
+      { name: 'ALOO PARATHA', price: 250 },
+      { name: 'CHEESE PARATHA', price: 320 },
+      { name: 'CHICKEN QEEMA PARATHA', price: 380 },
+      { name: 'CHICKEN CHEESE PARATHA', price: 500 },
+      { name: 'GOBHI PARATHA', price: 300 },
+      { name: 'DAAL PARATHA', price: 300 },
+      { name: 'SAAG PARATHA', price: 300 },
+      { name: 'MAITHI PARATHA', price: 350 },
+      { name: 'MOLI PARATHA', price: 300 },
+    ]
+  },
+  BREAKFAST_EXTRAS: {
+    label: 'Extras / Drinks',
+    icon: '🥤',
+    items: [
+      { name: 'RAITA', price: 200 },
+      { name: 'LARGE WATER', price: 180 },
+      { name: 'SMALL WATER', price: 110 },
+      { name: 'SOFT DRINK CAN', price: 170 },
+      { name: 'STING CAN', price: 200 },
+    ]
+  },
+  // ─── Main Menu ───────────────────────────────────────────────────────────────
   HANDI: {
     label: 'Handi',
     icon: '🫕',
@@ -161,7 +214,7 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
   onOpenChange,
   defaultCategory,
 }) => {
-  const [activeCategory, setActiveCategory] = useState<MenuCategory>('HANDI');
+  const [activeCategory, setActiveCategory] = useState<MenuCategory>('DESI_NASHTA');
   const [searchQuery, setSearchQuery] = useState('');
   const [multiplier, setMultiplier] = useState(1);
   const [isEditingMode, setIsEditingMode] = useState(false);
@@ -311,7 +364,9 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
                   )}
                 </div>
                 <p className="text-xs font-semibold text-amber-200/80 tracking-wide uppercase mt-0.5">
-                  TAP AN ITEM TO ADD TO CART
+                  {['DESI_NASHTA', 'SPECIAL_PARATHA', 'BREAKFAST_EXTRAS'].includes(activeCategory)
+                    ? '🌅 Breakfast Menu — Tap an item to add to cart'
+                    : 'TAP AN ITEM TO ADD TO CART'}
                 </p>
               </div>
             </div>
@@ -391,8 +446,36 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
 
         {/* ── Category Switcher Tabs ───────────────────────────────────────── */}
         <div className="flex-shrink-0 border-b border-slate-200/80 bg-white overflow-x-auto px-4 py-2">
-          <div className="flex gap-1.5 min-w-max">
-            {categoryKeys.map((key) => (
+          <div className="flex gap-1.5 min-w-max items-center">
+            {/* Breakfast Menu Group Label */}
+            <span className="text-[9px] font-black uppercase tracking-widest text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg mr-0.5 whitespace-nowrap">
+              🌅 Breakfast
+            </span>
+            {categoryKeys.filter(k => ['DESI_NASHTA', 'SPECIAL_PARATHA', 'BREAKFAST_EXTRAS'].includes(k)).map((key) => (
+              <button
+                key={key}
+                onClick={() => {
+                  setActiveCategory(key);
+                  setEditingHeading(false);
+                }}
+                className={cn(
+                  "px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition-all flex items-center gap-1.5 uppercase",
+                  activeCategory === key
+                    ? "bg-amber-600 text-white shadow-sm"
+                    : "text-amber-700 bg-amber-50/60 hover:bg-amber-100 hover:text-amber-900 border border-amber-200/60"
+                )}
+              >
+                <span>{SMBUTT_MENU_DATA[key].icon}</span>
+                {getLabel(key)}
+              </button>
+            ))}
+            {/* Divider */}
+            <div className="w-px h-6 bg-slate-300 mx-1 shrink-0" />
+            {/* Main Menu Group Label */}
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg mr-0.5 whitespace-nowrap">
+              🍽️ Main Menu
+            </span>
+            {categoryKeys.filter(k => !['DESI_NASHTA', 'SPECIAL_PARATHA', 'BREAKFAST_EXTRAS'].includes(k)).map((key) => (
               <button
                 key={key}
                 onClick={() => {
@@ -412,6 +495,7 @@ const SmbuttKarahiMenuModal: React.FC<SmbuttKarahiMenuModalProps> = ({
             ))}
           </div>
         </div>
+
 
         {/* ── Category Cards Grid (Matching screenshot layout with scrollbar) ── */}
         <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/70 p-6 custom-scrollbar max-h-[60vh] sm:max-h-[68vh]">
